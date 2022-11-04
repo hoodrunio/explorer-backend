@@ -1,9 +1,12 @@
 [package]
-name = "backend"
+name = "explorer-backend"
 version = "0.1.0"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-reqwest = "0.11.12"
+async-trait = "0.1.58"
+reqwest = {version = "0.11.12", features = ["json"]}
+serde = { version = "1.0.147", features = ["derive"]}
+tokio = {version = "1.21.2", features = ["full"]}
