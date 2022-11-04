@@ -4,27 +4,26 @@ use serde::{de::DeserializeOwned, Deserialize};
 /// The struct that stores important URLs of a chain.
 pub struct ChainUrls {
     /// The REST API URL of the chain.
-    rest_api: &'static str,
+    pub rest_api: &'static str,
     /// The RPC URL of the chain.
-    rpc: &'static str,
-}
-
-/// The trait that provides methods to get common properties of chains.
-pub trait Chain {
-    /// Returns the name of the chain.
-    fn name(&self) -> &'static str;
-    /// Returns the `ChainUrls` of the chain.
-    fn urls(&self) -> &ChainUrls;
-    /// Returns Cosmos SDK version of the chain.
-    fn sdk_version(&self) -> usize;
+    pub rpc: &'static str,
 }
 
 /// The trait that provides methods for common operation types.
 #[async_trait]
-pub trait ChainOperations
+pub trait Chain
 where
-    Self: Chain + Sync,
+    Self: Sync,
 {
+    /// Returns the name of the chain.
+    fn name(&self) -> &'static str;
+
+    /// Returns the `ChainUrls` of the chain.
+    fn urls(&self) -> &ChainUrls;
+
+    /// Returns Cosmos SDK version of the chain.
+    fn sdk_version(&self) -> usize;
+
     /// Makes an RPC request.
     async fn rpc_request<T>(&self, client: &Client, path: &str, query: &[(&'static str, String)]) -> Result<T, String>
     where
@@ -70,45 +69,7 @@ where
     }
 
     /// Returns the block at given height. Returns the latest block, if no height is given.
-    async fn get_block_by_height(&self, client: &Client, height: Option<usize>) -> Result<RPCSuccessResponse<Block>, String>;
-
-    /// Returns the block with given hash.
-    async fn get_block_by_hash(&self, client: &Client, hash: &str) -> Result<RPCSuccessResponse<Block>, String>;
-
-    /// Returns transaction by given hash. Hash should start with `0x`.
-    async fn get_tx_by_hash(&self, client: &Client, hash: &str) -> Result<Transaction, String>;
-
-    /// Returns transactions with given sender.
-    async fn get_txs_by_sender(
-        &self,
-        client: &Client,
-        sender_address: &str,
-        pagination_config: PaginationConfig,
-    ) -> Result<Txs, String>;
-
-    /// Returns transactions with given recipient.
-    async fn get_txs_by_recipient(
-        &self,
-        client: &Client,
-        recipient_address: &str,
-        pagination_config: PaginationConfig,
-    ) -> Result<Txs, String>;
-
-    /// Returns transactions at given height.
-    async fn get_txs_by_height(
-        &self,
-        client: &Client,
-        block_height: u64,
-        pagination_config: PaginationConfig,
-    ) -> Result<Txs, String>;
-}
-
-#[async_trait]
-impl<T> ChainOperations for T
-where
-    T: Chain + Sync,
-{
-    async fn get_block_by_height(&self, client: &Client, height: Option<usize>) -> Result<RPCSuccessResponse<Block>, String> {
+    async fn get_block_by_height(&self, client: &Client, height: Option<usize>) -> Result<Block, String> {
         let mut query = vec![];
 
         let height = height.and_then(|height| Some(height.to_string()));
@@ -120,6 +81,7 @@ where
         self.rpc_request(client, "/block", &query).await
     }
 
+    /// Returns the block with given hash.
     async fn get_block_by_hash(&self, client: &Client, hash: &str) -> Result<RPCSuccessResponse<Block>, String> {
         let mut query = vec![];
 
@@ -128,6 +90,7 @@ where
         self.rpc_request(client, "/block_by_hash", &query).await
     }
 
+    /// Returns transaction by given hash. Hash should start with `0x`.
     async fn get_tx_by_hash(&self, client: &Client, hash: &str) -> Result<Transaction, String> {
         let mut query = vec![];
 
@@ -136,6 +99,7 @@ where
         self.rpc_request(client, "/tx", &query).await
     }
 
+    /// Returns transactions with given sender.
     async fn get_txs_by_sender(
         &self,
         client: &Client,
@@ -154,6 +118,7 @@ where
         self.rest_api_request(client, "/cosmos/tx/v1beta1/txs", &query).await
     }
 
+    /// Returns transactions with given recipient.
     async fn get_txs_by_recipient(
         &self,
         client: &Client,
@@ -192,21 +157,21 @@ where
     }
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug)]
 #[serde(untagged)]
 pub enum RPCResponse<T> {
     Success(RPCSuccessResponse<T>),
     Error(RPCErrorResponse),
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug)]
 pub struct Txs {
     pub txs: Vec<TxsTransaction>,
     pub tx_responses: Vec<TxsResponse>,
     pub pagination: Pagination,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug)]
 pub struct TxsResponse {
     /// Block height. Eg: `"12713829"`
     pub height: String,
@@ -236,7 +201,7 @@ pub struct TxsResponse {
     pub events: Vec<TxsResponseEvent<TransactionEventAttribute>>,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug)]
 #[serde(tag = "@type")]
 pub enum TxsResponseTx {
     #[serde(rename = "/cosmos.tx.v1beta1.Tx")]
@@ -250,7 +215,7 @@ pub enum TxsResponseTx {
     },
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug)]
 pub struct TxsResponseLog {
     /// Message index. Eg: `0`
     pub msg_index: usize,
@@ -260,7 +225,7 @@ pub struct TxsResponseLog {
     pub events: Vec<TxsResponseEvent<TxsResponseLogEventAttribute>>,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug)]
 #[serde(tag = "type")]
 #[serde(rename_all = "snake_case")]
 pub enum TxsResponseEvent<T> {
@@ -286,7 +251,7 @@ pub enum TxsResponseEvent<T> {
     },
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug)]
 #[serde(tag = "key")]
 #[serde(rename_all = "lowercase")]
 pub enum TxsResponseLogEventAttribute {
@@ -327,7 +292,7 @@ pub enum TxsResponseLogEventAttribute {
     },
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug)]
 pub struct TxsTransaction {
     /// Transaction body.
     pub body: TxsTransactionBody,
@@ -336,7 +301,7 @@ pub struct TxsTransaction {
     /// Array of Base 64 encoded transaction signatures.
     pub signatures: Vec<String>,
 }
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug)]
 pub struct TxsTransactionAuthInfo {
     /// Transaction signer informations.
     pub signer_infos: Vec<TxsTransactionSignerInfo>,
@@ -350,13 +315,13 @@ pub struct TxsTransactionAuthInfo {
     pub granter: String,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug)]
 pub struct TxsTransactionAuthInfoFee {
     /// Amount.
     pub amount: Vec<TxsDenomAmount>,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug)]
 pub struct TxsTransactionBody {
     /// Transaction messages.
     pub messages: Vec<TxsTransactionMessage>,
@@ -370,7 +335,7 @@ pub struct TxsTransactionBody {
     pub extension_optionsnon_critical_extension_options: Vec<u8>,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug)]
 #[serde(tag = "@type")]
 pub enum TxsTransactionMessage {
     #[serde(rename = "/cosmos.bank.v1beta1.MsgSend")]
@@ -384,7 +349,7 @@ pub enum TxsTransactionMessage {
     },
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug)]
 pub struct TxsTransactionSignerInfo {
     pub public_key: TxsTransactionPublicKey,
     pub mode_info: TxsTransactionModeInfo,
@@ -392,18 +357,18 @@ pub struct TxsTransactionSignerInfo {
     pub sequence: String,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug)]
 pub struct TxsTransactionModeInfo {
     pub single: TxsTransactionModeInfoSingle,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug)]
 pub struct TxsTransactionModeInfoSingle {
     /// Mode. Eg: `"SIGN_MODE_LEGACY_AMINO_JSON"`
     pub mode: String,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug)]
 #[serde(tag = "@type")]
 pub enum TxsTransactionPublicKey {
     #[serde(rename = "/cosmos.crypto.secp256k1.PubKey")]
@@ -413,7 +378,7 @@ pub enum TxsTransactionPublicKey {
     },
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug)]
 pub struct TxsDenomAmount {
     /// The name of the token. Eg: `"uatom"`
     pub denom: String,
@@ -421,7 +386,7 @@ pub struct TxsDenomAmount {
     pub amount: String,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug)]
 pub struct Transaction {
     /// HEX encoded TX hash, without leading `0x`. Eg: `"25EC6BCEA9B4A6835F5A38AB566959187F968C295EE71D015C3D907B25C5C72F"`
     pub hash: String,
@@ -433,7 +398,7 @@ pub struct Transaction {
     pub tx_result: TransactionResult,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug)]
 pub struct TransactionResult {
     /// Unknown. Eg: `0`
     pub code: usize,
@@ -455,7 +420,7 @@ pub struct TransactionResult {
     pub tx: String,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug)]
 pub struct TransactionEvent {
     /// Transaction event type. Eg: `"coin_spent"`
     pub r#type: String,
@@ -463,7 +428,7 @@ pub struct TransactionEvent {
     pub attributes: Vec<TransactionEventAttribute>,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug)]
 pub struct TransactionEventAttribute {
     /// Base 64 encoded transaction event attribute key. Eg: `"c3BlbmRlcg=="`
     pub key: String,
@@ -482,7 +447,7 @@ pub struct PaginationConfig {
     pub limit: u64,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug)]
 pub struct Pagination {
     /// Pagination next key. Might be `None`. Eg: `"FGxWOxzuw4bZozVHta3qYgdKOuRC"`
     pub next_key: Option<String>,
@@ -490,13 +455,13 @@ pub struct Pagination {
     pub total: String,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug)]
 pub struct SlashingSigningInfo {
     pub info: Vec<SlashingSigningInfoItem>,
     pub pagination: Pagination,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug)]
 pub struct SlashingSigningInfoItem {
     /// Validator address. Eg: `"evmosvalcons1qx4hehfny66jfzymzn6d5t38m0ely3cvw6zn06"`
     pub address: String,
@@ -512,21 +477,21 @@ pub struct SlashingSigningInfoItem {
     pub missed_blocks_counter: String,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug)]
 pub struct RPCSuccessResponse<T> {
     pub jsonrpc: String,
     pub id: isize,
     pub result: T,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug)]
 pub struct RPCErrorResponse {
     pub jsonrpc: String,
     pub id: isize,
     pub error: RpcErrorResponseError,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug)]
 pub struct RpcErrorResponseError {
     /// The error code.
     pub code: isize,
@@ -536,20 +501,20 @@ pub struct RpcErrorResponseError {
     pub data: String,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug)]
 pub struct Block {
     pub block_id: BlockId,
     pub block: BlockBlock,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug)]
 pub struct BlockId {
     /// HEX encoded transaction hash.
     pub hash: String,
     pub parts: BlockIdParts,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug)]
 pub struct BlockBlock {
     pub header: BlockHeader,
     pub data: BlockData,
@@ -557,7 +522,7 @@ pub struct BlockBlock {
     pub last_commit: BlockLastCommit,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug)]
 pub struct BlockIdParts {
     /// Unknown. Eg: `1`
     pub total: usize,
@@ -565,7 +530,7 @@ pub struct BlockIdParts {
     pub hash: String,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug)]
 pub struct BlockHeader {
     /// Block header version.
     pub version: BlockHeaderVersion,
@@ -597,18 +562,18 @@ pub struct BlockHeader {
     pub proposer_address: String,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug)]
 pub struct BlockData {
     /// Array of very long Base64 encoded transactions. Eg: `["CoYBCoMBCiUvYXhlbGFyLmF4ZWxhcm5ldC52MWJldGExLkxpbmtSZXF1ZXN0EloKFAfFBMRZ8AeNGGkWVAcX+idm5UutEioweDM1NzkyNTRmNTgwNWQxNjZiNjhhNTg3MzIwNzA0NDQ4MjBmYTRiZjEaCGV0aGVyZXVtIgx3YnRjLXNhdG9zaGkSlQEKUQpGCh8vY29zbW9zLmNyeXB0by5zZWNwMjU2azEuUHViS2V5EiMKIQPUmMSQ2WoB0eD589u7pruIZt2gbHT2DO3QSIPX0z8WXBIECgIIARiuCBJACgsKBHVheGwSAzY3NRDh8AUiLWF4ZWxhcjFwdTJzd2MwbjB0cmZ0bGRoejU3cHlxa3c2ZDg3aGFobjdnNjk3YxpANmM1rQE1P3hbVtuFoaQEpGpnBnlygbotxEA0qR/rmAwVRB+acJ6idoF1V0Qul5eSCpi1Z0TLLwQEMya4nMdl3g=="]`
     pub txs: Vec<String>,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug)]
 pub struct BlockEvidence {
     // Property below is an unknown array. TODO!
     // evidence: Vec<UNKNOWN>
 }
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug)]
 pub struct BlockLastCommit {
     /// The block height of the latest commit. Eg: `"4611327"`
     pub height: String,
@@ -620,13 +585,13 @@ pub struct BlockLastCommit {
     pub signatures: Vec<BlockLastCommitSignatures>,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug)]
 pub struct BlockHeaderVersion {
     /// Unknown. Eg: `"11"`
     pub block: String,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug)]
 pub struct BlockLastCommitSignatures {
     /// Unknown. Eg: `2`
     pub block_id_flag: usize,
