@@ -24,14 +24,17 @@ where
     /// Returns Cosmos SDK version of the chain.
     fn sdk_version(&self) -> usize;
 
+    /// Returns `reqwest::Client` of the chain.
+    fn client(&self) -> &Client;
+
     /// Makes an RPC request.
-    async fn rpc_request<T>(&self, client: &Client, path: &str, query: &[(&'static str, String)]) -> Result<T, String>
+    async fn rpc_request<T>(&self, path: &str, query: &[(&'static str, String)]) -> Result<T, String>
     where
         T: DeserializeOwned,
     {
         let url = format!("{}{}", self.urls().rpc, path);
 
-        match client.get(url).query(query).send().await {
+        match self.client().get(url).query(query).send().await {
             Ok(res) => match res.json::<RPCResponse<T>>().await {
                 Ok(res_json) => match res_json {
                     RPCResponse::Success(res) => Ok(res.result),
@@ -44,13 +47,13 @@ where
     }
 
     /// Makes REST API request.
-    async fn rest_api_request<T>(&self, client: &Client, path: &str, query: &[(&'static str, String)]) -> Result<T, String>
+    async fn rest_api_request<T>(&self, path: &str, query: &[(&'static str, String)]) -> Result<T, String>
     where
         T: DeserializeOwned,
     {
         let url = format!("{}{}", self.urls().rest_api, path);
 
-        match client.get(url).query(query).send().await {
+        match self.client().get(url).query(query).send().await {
             Ok(res) => {
                 if res.status().is_success() {
                     match res.json().await {
@@ -69,7 +72,7 @@ where
     }
 
     /// Returns the block at given height. Returns the latest block, if no height is given.
-    async fn get_block_by_height(&self, client: &Client, height: Option<usize>) -> Result<Block, String> {
+    async fn get_block_by_height(&self, height: Option<usize>) -> Result<Block, String> {
         let mut query = vec![];
 
         let height = height.and_then(|height| Some(height.to_string()));
@@ -78,34 +81,29 @@ where
             query.push(("height", height))
         }
 
-        self.rpc_request(client, "/block", &query).await
+        self.rpc_request("/block", &query).await
     }
 
     /// Returns the block with given hash.
-    async fn get_block_by_hash(&self, client: &Client, hash: &str) -> Result<RPCSuccessResponse<Block>, String> {
+    async fn get_block_by_hash(&self, hash: &str) -> Result<RPCSuccessResponse<Block>, String> {
         let mut query = vec![];
 
         query.push(("hash", hash.to_string()));
 
-        self.rpc_request(client, "/block_by_hash", &query).await
+        self.rpc_request("/block_by_hash", &query).await
     }
 
     /// Returns transaction by given hash. Hash should start with `0x`.
-    async fn get_tx_by_hash(&self, client: &Client, hash: &str) -> Result<Transaction, String> {
+    async fn get_tx_by_hash(&self, hash: &str) -> Result<Transaction, String> {
         let mut query = vec![];
 
         query.push(("hash", hash.to_string()));
 
-        self.rpc_request(client, "/tx", &query).await
+        self.rpc_request("/tx", &query).await
     }
 
     /// Returns transactions with given sender.
-    async fn get_txs_by_sender(
-        &self,
-        client: &Client,
-        sender_address: &str,
-        pagination_config: PaginationConfig,
-    ) -> Result<Txs, String> {
+    async fn get_txs_by_sender(&self, sender_address: &str, pagination_config: PaginationConfig) -> Result<Txs, String> {
         let mut query = vec![];
 
         query.push(("events", format!("message.sender='{}'", sender_address)));
@@ -115,16 +113,11 @@ where
         query.push(("pagination.offset", format!("{}", pagination_config.offset)));
         query.push(("order_by", "ORDER_BY_DESC".to_string()));
 
-        self.rest_api_request(client, "/cosmos/tx/v1beta1/txs", &query).await
+        self.rest_api_request("/cosmos/tx/v1beta1/txs", &query).await
     }
 
     /// Returns transactions with given recipient.
-    async fn get_txs_by_recipient(
-        &self,
-        client: &Client,
-        recipient_address: &str,
-        pagination_config: PaginationConfig,
-    ) -> Result<Txs, String> {
+    async fn get_txs_by_recipient(&self, recipient_address: &str, pagination_config: PaginationConfig) -> Result<Txs, String> {
         let mut query = vec![];
 
         query.push(("events", format!("message.recipient='{}'", recipient_address)));
@@ -134,13 +127,12 @@ where
         query.push(("pagination.offset", format!("{}", pagination_config.offset)));
         query.push(("order_by", "ORDER_BY_DESC".to_string()));
 
-        self.rest_api_request(client, "/cosmos/tx/v1beta1/txs", &query).await
+        self.rest_api_request("/cosmos/tx/v1beta1/txs", &query).await
     }
 
     /// Returns transactions at given height.
     async fn get_txs_by_height(
         &self,
-        client: &Client,
         block_height: u64,
         pagination_config: PaginationConfig,
     ) -> Result<Txs, String> {
@@ -153,7 +145,7 @@ where
         query.push(("pagination.offset", format!("{}", pagination_config.offset)));
         query.push(("order_by", "ORDER_BY_DESC".to_string()));
 
-        self.rest_api_request(client, "/cosmos/tx/v1beta1/txs", &query).await
+        self.rest_api_request("/cosmos/tx/v1beta1/txs", &query).await
     }
 }
 
