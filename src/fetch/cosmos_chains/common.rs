@@ -72,7 +72,7 @@ where
     }
 
     /// Returns the block at given height. Returns the latest block, if no height is given.
-    async fn get_block_by_height(&self, height: Option<usize>) -> Result<Block, String> {
+    async fn get_block_by_height(&self, height: Option<usize>) -> Result<BlockResp, String> {
         let mut query = vec![];
 
         let height = height.and_then(|height| Some(height.to_string()));
@@ -85,7 +85,7 @@ where
     }
 
     /// Returns the block with given hash.
-    async fn get_block_by_hash(&self, hash: &str) -> Result<RPCSuccessResponse<Block>, String> {
+    async fn get_block_by_hash(&self, hash: &str) -> Result<RPCSuccessResponse<BlockResp>, String> {
         let mut query = vec![];
 
         query.push(("hash", hash.to_string()));
@@ -94,7 +94,7 @@ where
     }
 
     /// Returns transaction by given hash. Hash should start with `0x`.
-    async fn get_tx_by_hash(&self, hash: &str) -> Result<Transaction, String> {
+    async fn get_tx_by_hash(&self, hash: &str) -> Result<TransactionResp, String> {
         let mut query = vec![];
 
         query.push(("hash", hash.to_string()));
@@ -103,7 +103,7 @@ where
     }
 
     /// Returns transactions with given sender.
-    async fn get_txs_by_sender(&self, sender_address: &str, pagination_config: PaginationConfig) -> Result<Txs, String> {
+    async fn get_txs_by_sender(&self, sender_address: &str, pagination_config: PaginationConfig) -> Result<TxsResp, String> {
         let mut query = vec![];
 
         query.push(("events", format!("message.sender='{}'", sender_address)));
@@ -117,7 +117,11 @@ where
     }
 
     /// Returns transactions with given recipient.
-    async fn get_txs_by_recipient(&self, recipient_address: &str, pagination_config: PaginationConfig) -> Result<Txs, String> {
+    async fn get_txs_by_recipient(
+        &self,
+        recipient_address: &str,
+        pagination_config: &PaginationConfig,
+    ) -> Result<TxsResp, String> {
         let mut query = vec![];
 
         query.push(("events", format!("message.recipient='{}'", recipient_address)));
@@ -131,11 +135,7 @@ where
     }
 
     /// Returns transactions at given height.
-    async fn get_txs_by_height(
-        &self,
-        block_height: u64,
-        pagination_config: PaginationConfig,
-    ) -> Result<Txs, String> {
+    async fn get_txs_by_height(&self, block_height: u64, pagination_config: &PaginationConfig) -> Result<TxsResp, String> {
         let mut query = vec![];
 
         query.push(("events", format!("tx.height={}", block_height)));
@@ -147,6 +147,277 @@ where
 
         self.rest_api_request("/cosmos/tx/v1beta1/txs", &query).await
     }
+
+    /// Returns accumulated commission of given validator.
+    async fn get_validator_commission(&self, validator_addr: &str) -> Result<ValidatorCommisionResp, String> {
+        let path = format!("/cosmos/distribution/v1beta1/validators/{validator_addr}/commission");
+
+        self.rest_api_request(&path, &[]).await
+    }
+
+    /// Returns rewards of given validator.
+    async fn get_validator_rewards(&self, validator_addr: &str) -> Result<ValidatorRewardsResp, String> {
+        let path = format!("/cosmos/distribution/v1beta1/validators/{validator_addr}/outstanding_rewards");
+
+        self.rest_api_request(&path, &[]).await
+    }
+
+    /// Returns the total supply of all tokens.
+    async fn get_supply_of_all_tokens(&self, pagination_config: &PaginationConfig) -> Result<SupplyOfAllTokensResp, String> {
+        let path = if self.sdk_version() < 40 {
+            "/supply/total"
+        } else {
+            "/cosmos/bank/v1beta1/supply"
+        };
+
+        let mut query = vec![];
+
+        query.push(("pagination.reverse", format!("{}", pagination_config.reverse)));
+        query.push(("pagination.limit", format!("{}", pagination_config.limit)));
+        query.push(("pagination.count_total", "true".to_string()));
+        query.push(("pagination.offset", format!("{}", pagination_config.offset)));
+
+        self.rest_api_request(path, &query).await
+    }
+
+    /// Returns the supply of given token.
+    async fn get_supply_by_denom(&self, denom: &str) -> Result<SupplyByDenomResp, String> {
+        let path = if self.sdk_version() < 40 {
+            format!("/supply/total/{denom}")
+        } else {
+            format!("/cosmos/bank/v1beta1/supply/{denom}")
+        };
+
+        self.rest_api_request(&path, &[]).await
+    }
+
+    /// Returns staking pool information.
+    async fn get_staking_pool(&self) -> Result<StakingPoolResp, String> {
+        self.rest_api_request("/cosmos/staking/v1beta1/pool", &[]).await
+    }
+
+    /// Returns the minting inflation rate of native coin of the chain.
+    async fn get_minting_inflation_rate(&self) -> f64 {
+        if self.name() == "evmos" {
+            self.rest_api_request::<MintingInflationRateResp>("/evmos/inflation/v1/inflation_rate", &[])
+                .await
+                .and_then(|res| Ok(res.inflation_rate.parse::<f64>().unwrap_or(0.0) / 100.0))
+        } else if self.name() == "echelon" {
+            self.rest_api_request::<MintingInflationRateResp>("/echelon/inflation/v1/inflation_rate", &[])
+                .await
+                .and_then(|res| Ok(res.inflation_rate.parse::<f64>().unwrap_or(0.0) / 100.0))
+        } else {
+            self.rest_api_request::<MintingInflationResp>("/cosmos/mint/v1beta1/inflation", &[])
+                .await
+                .and_then(|res| Ok(res.inflation.parse::<f64>().unwrap_or(0.0)))
+        }
+        .unwrap_or(0.0)
+    }
+
+    /// Returns the staking parameters.
+    async fn get_staking_params(&self) -> Result<StakingParamsResp, String> {
+        self.rest_api_request("/cosmos/staking/v1beta1/params", &[]).await
+    }
+
+    /// Returns the list of validators with bonded status.
+    async fn get_validator_list_bonded(&self, pagination_config: &PaginationConfig) -> Result<ValidatorListResp, String> {
+        let mut query = vec![];
+
+        query.push(("status", "BOND_STATUS_BONDED".to_string()));
+        query.push(("pagination.reverse", format!("{}", pagination_config.reverse)));
+        query.push(("pagination.limit", format!("{}", pagination_config.limit)));
+        query.push(("pagination.count_total", "true".to_string()));
+        query.push(("pagination.offset", format!("{}", pagination_config.offset)));
+
+        self.rest_api_request("/cosmos/staking/v1beta1/validators", &query).await
+    }
+
+    /// Returns the list of validators with unbonded status.
+    async fn get_validator_list_unbonded(&self, pagination_config: &PaginationConfig) -> Result<ValidatorListResp, String> {
+        let mut query = vec![];
+
+        query.push(("status", "BOND_STATUS_UNBONDED".to_string()));
+        query.push(("pagination.reverse", format!("{}", pagination_config.reverse)));
+        query.push(("pagination.limit", format!("{}", pagination_config.limit)));
+        query.push(("pagination.count_total", "true".to_string()));
+        query.push(("pagination.offset", format!("{}", pagination_config.offset)));
+
+        self.rest_api_request("/cosmos/staking/v1beta1/validators", &query).await
+    }
+
+    /// Returns the list of validators with unbonding status.
+    async fn get_validator_list_unbonding(&self, pagination_config: &PaginationConfig) -> Result<ValidatorListResp, String> {
+        let mut query = vec![];
+
+        query.push(("status", "BOND_STATUS_UNBONDING".to_string()));
+        query.push(("pagination.reverse", format!("{}", pagination_config.reverse)));
+        query.push(("pagination.limit", format!("{}", pagination_config.limit)));
+        query.push(("pagination.count_total", "true".to_string()));
+        query.push(("pagination.offset", format!("{}", pagination_config.offset)));
+
+        self.rest_api_request("/cosmos/staking/v1beta1/validators", &query).await
+    }
+    /// Returns the list of validators with unspecified status.
+    async fn get_validator_list_unspecified(&self, pagination_config: &PaginationConfig) -> Result<ValidatorListResp, String> {
+        let mut query = vec![];
+
+        query.push(("status", "BOND_STATUS_UNSPECIFIED".to_string()));
+        query.push(("pagination.reverse", format!("{}", pagination_config.reverse)));
+        query.push(("pagination.limit", format!("{}", pagination_config.limit)));
+        query.push(("pagination.count_total", "true".to_string()));
+        query.push(("pagination.offset", format!("{}", pagination_config.offset)));
+
+        self.rest_api_request("/cosmos/staking/v1beta1/validators", &query).await
+    }
+}
+
+#[derive(Deserialize, Debug)]
+pub struct ValidatorListResp {
+    /// Array of validators.
+    validators: ValidatorListValidator,
+    /// Pagination.
+    pagination: Pagination,
+}
+
+#[derive(Deserialize, Debug)]
+pub struct ValidatorListValidator {
+    /// Operator address. Eg: `"evmosvaloper1qq95x6dhrdnrfunlth5uh24tkrfphzl9crd3xr"`
+    operator_address: String,
+    /// Consensus public key.
+    consensus_pubkey: PublicKey,
+    /// Jailed state. Eg: `false`
+    jailed: bool,
+    /// Status. Eg: `"BOND_STATUS_BONDED"`
+    status: String,
+    /// Tokens. Eg: `"145722654634775400576772"`
+    tokens: String,
+    /// Delegator shares. Eg: `"146454922655204548581706.446790192014497216"`
+    delegator_shares: String,
+    /// Description.
+    description: ValidatorListValidatorDescription,
+    /// Unbonding height. Eg: `"2580496"`
+    unbonding_height: String,
+    /// Unbonding time. Eg: `"2022-08-21T03:48:38.952541966Z"`
+    unbonding_time: String,
+    commission: ValidatorListValidatorCommission,
+    /// Minimum self delegation. Eg: `"1"`
+    min_self_delegation: String,
+}
+
+#[derive(Deserialize, Debug)]
+pub struct ValidatorListValidatorCommission {
+    /// Validator commission rates.
+    commission_rates: ValidatorListValidatorCommissionRates,
+    /// Validator commission update time. Eg: `"2022-03-02T19:00:00Z"`
+    update_time: String,
+}
+
+#[derive(Deserialize, Debug)]
+pub struct ValidatorListValidatorCommissionRates {
+    /// Validator commission rate. Eg: `"0.050000000000000000"`
+    rate: String,
+    /// Validator maximum commission rate. Eg: `"0.200000000000000000"`
+    max_rate: String,
+    /// Validator maximum commission change rate. Eg: `"0.010000000000000000"`
+    max_change_rate: String,
+}
+
+#[derive(Deserialize, Debug)]
+pub struct ValidatorListValidatorDescription {
+    /// Validator moniker. Eg: `"heisenbug"`
+    moniker: String,
+    /// Validator identity. Eg: `"367960C067E253A4"`
+    identity: String,
+    /// Validator website. Eg: `"https://heisenbug.one"`
+    website: String,
+    /// Validator security contact. Eg: `"@heisenbug_evmos"`
+    security_contact: String,
+    /// Validator details. Eg: `"reliable \u0026\u0026 secure staking"`
+    details: String,
+}
+
+#[derive(Deserialize, Debug)]
+pub struct StakingParamsResp {
+    /// The staking parameters.
+    params: StakingParams,
+}
+
+#[derive(Deserialize, Debug)]
+pub struct StakingParams {
+    /// Unbonding time. Eg: `"1814400s"`
+    unbonding_time: String,
+    /// Maximum number of validators. Eg: `175`
+    max_validators: usize,
+    /// Maximum number of entries. Eg: `7`
+    max_entries: usize,
+    /// Historical number of entries. Eg: `10000`
+    historical_entries: usize,
+    /// Bonding denom. Eg: `"uatom"`
+    bond_denom: String,
+}
+
+#[derive(Deserialize, Debug)]
+pub struct MintingInflationResp {
+    /// Minting inflation rate. Eg: `"0.131020685388983473"`
+    inflation: String,
+}
+
+#[derive(Deserialize, Debug)]
+pub struct MintingInflationRateResp {
+    /// Minting inflation rate. Eg: `"91.087708112747866100"`
+    inflation_rate: String,
+}
+
+#[derive(Deserialize, Debug)]
+pub struct StakingPoolResp {
+    /// Staking pool information.
+    pool: StakingPool,
+}
+
+#[derive(Deserialize, Debug)]
+pub struct StakingPool {
+    /// Tokens not bonded. Eg: `"15241580330282"`
+    not_bonded_tokens: String,
+    /// Tokens bonded. Eg: `"203496656637783"`
+    bonded_tokens: String,
+}
+
+#[derive(Deserialize, Debug)]
+pub struct SupplyByDenomResp {
+    /// Amount and denom.
+    amount: TxsDenomAmount,
+}
+
+#[derive(Deserialize, Debug)]
+pub struct SupplyOfAllTokensResp {
+    /// Array of amounts and denoms.
+    supply: Vec<TxsDenomAmount>,
+    /// Paginations
+    pagination: Pagination,
+}
+
+#[derive(Deserialize, Debug)]
+pub struct ValidatorCommisionResp {
+    /// Validator commission.
+    commission: ValidatorCommision,
+}
+
+#[derive(Deserialize, Debug)]
+pub struct ValidatorCommision {
+    /// Array of amounts and demons.
+    commission: Vec<TxsDenomAmount>,
+}
+
+#[derive(Deserialize, Debug)]
+pub struct ValidatorRewardsResp {
+    /// Validator rewards.
+    rewards: ValidatorCommision,
+}
+
+#[derive(Deserialize, Debug)]
+pub struct ValidatorRewards {
+    /// Array of amounts and denoms.
+    rewards: Vec<TxsDenomAmount>,
 }
 
 #[derive(Deserialize, Debug)]
@@ -157,14 +428,14 @@ pub enum RPCResponse<T> {
 }
 
 #[derive(Deserialize, Debug)]
-pub struct Txs {
+pub struct TxsResp {
     pub txs: Vec<TxsTransaction>,
-    pub tx_responses: Vec<TxsResponse>,
+    pub tx_responses: Vec<TxResponse>,
     pub pagination: Pagination,
 }
 
 #[derive(Deserialize, Debug)]
-pub struct TxsResponse {
+pub struct TxResponse {
     /// Block height. Eg: `"12713829"`
     pub height: String,
     /// HEX encoded transaction hash. Eg: `"D29DEB0948ADC9B14A1758ED164A46407AF33EA2950404DB4AFFF68164B01C58"`
@@ -343,7 +614,7 @@ pub enum TxsTransactionMessage {
 
 #[derive(Deserialize, Debug)]
 pub struct TxsTransactionSignerInfo {
-    pub public_key: TxsTransactionPublicKey,
+    pub public_key: PublicKey,
     pub mode_info: TxsTransactionModeInfo,
     /// Transaction signer info sequence. Eg: `"1"`
     pub sequence: String,
@@ -362,10 +633,15 @@ pub struct TxsTransactionModeInfoSingle {
 
 #[derive(Deserialize, Debug)]
 #[serde(tag = "@type")]
-pub enum TxsTransactionPublicKey {
+pub enum PublicKey {
     #[serde(rename = "/cosmos.crypto.secp256k1.PubKey")]
     Secp256K1 {
-        /// Base 64 encoded public key. Eg: `"Ap9xAyS21AGuRY4W7+Mi3JzbmULJjGATAzVeIxc98t07"`
+        /// Base 64 encoded Secp256K1 public key. Eg: `"Ap9xAyS21AGuRY4W7+Mi3JzbmULJjGATAzVeIxc98t07"`
+        key: String,
+    },
+    #[serde(rename = "/cosmos.crypto.ed25519.PubKey")]
+    Ed25519 {
+        /// Base 64 encoded Ed25519 public key. Eg: `"zy/GxGwk1Pm3HiG67iani1u+MUieM98ZvSIrXC8mISE="`
         key: String,
     },
 }
@@ -379,7 +655,7 @@ pub struct TxsDenomAmount {
 }
 
 #[derive(Deserialize, Debug)]
-pub struct Transaction {
+pub struct TransactionResp {
     /// HEX encoded TX hash, without leading `0x`. Eg: `"25EC6BCEA9B4A6835F5A38AB566959187F968C295EE71D015C3D907B25C5C72F"`
     pub hash: String,
     /// The block height TX at. Eg: `"6684890"`
@@ -494,7 +770,7 @@ pub struct RpcErrorResponseError {
 }
 
 #[derive(Deserialize, Debug)]
-pub struct Block {
+pub struct BlockResp {
     pub block_id: BlockId,
     pub block: BlockBlock,
 }
