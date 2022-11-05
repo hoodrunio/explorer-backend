@@ -41,7 +41,7 @@ impl<'a> Evmos<'a> {
 }
 
 #[tokio::test]
-async fn test() {
+async fn test_blocks() {
     let client = reqwest::Client::new();
     let evmos_chain = Evmos::new(&client);
 
