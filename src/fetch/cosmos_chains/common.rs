@@ -274,150 +274,150 @@ where
 #[derive(Deserialize, Debug)]
 pub struct ValidatorListResp {
     /// Array of validators.
-    validators: ValidatorListValidator,
+    pub validators: ValidatorListValidator,
     /// Pagination.
-    pagination: Pagination,
+    pub pagination: Pagination,
 }
 
 #[derive(Deserialize, Debug)]
 pub struct ValidatorListValidator {
     /// Operator address. Eg: `"evmosvaloper1qq95x6dhrdnrfunlth5uh24tkrfphzl9crd3xr"`
-    operator_address: String,
+    pub operator_address: String,
     /// Consensus public key.
-    consensus_pubkey: PublicKey,
+    pub consensus_pubkey: PublicKey,
     /// Jailed state. Eg: `false`
-    jailed: bool,
+    pub jailed: bool,
     /// Status. Eg: `"BOND_STATUS_BONDED"`
-    status: String,
+    pub status: String,
     /// Tokens. Eg: `"145722654634775400576772"`
-    tokens: String,
+    pub tokens: String,
     /// Delegator shares. Eg: `"146454922655204548581706.446790192014497216"`
-    delegator_shares: String,
+    pub delegator_shares: String,
     /// Description.
-    description: ValidatorListValidatorDescription,
+    pub description: ValidatorListValidatorDescription,
     /// Unbonding height. Eg: `"2580496"`
-    unbonding_height: String,
+    pub unbonding_height: String,
     /// Unbonding time. Eg: `"2022-08-21T03:48:38.952541966Z"`
-    unbonding_time: String,
-    commission: ValidatorListValidatorCommission,
+    pub unbonding_time: String,
+    pub commission: ValidatorListValidatorCommission,
     /// Minimum self delegation. Eg: `"1"`
-    min_self_delegation: String,
+    pub min_self_delegation: String,
 }
 
 #[derive(Deserialize, Debug)]
 pub struct ValidatorListValidatorCommission {
     /// Validator commission rates.
-    commission_rates: ValidatorListValidatorCommissionRates,
+    pub commission_rates: ValidatorListValidatorCommissionRates,
     /// Validator commission update time. Eg: `"2022-03-02T19:00:00Z"`
-    update_time: String,
+    pub update_time: String,
 }
 
 #[derive(Deserialize, Debug)]
 pub struct ValidatorListValidatorCommissionRates {
     /// Validator commission rate. Eg: `"0.050000000000000000"`
-    rate: String,
+    pub rate: String,
     /// Validator maximum commission rate. Eg: `"0.200000000000000000"`
-    max_rate: String,
+    pub max_rate: String,
     /// Validator maximum commission change rate. Eg: `"0.010000000000000000"`
-    max_change_rate: String,
+    pub max_change_rate: String,
 }
 
 #[derive(Deserialize, Debug)]
 pub struct ValidatorListValidatorDescription {
     /// Validator moniker. Eg: `"heisenbug"`
-    moniker: String,
+    pub moniker: String,
     /// Validator identity. Eg: `"367960C067E253A4"`
-    identity: String,
+    pub identity: String,
     /// Validator website. Eg: `"https://heisenbug.one"`
-    website: String,
+    pub website: String,
     /// Validator security contact. Eg: `"@heisenbug_evmos"`
-    security_contact: String,
+    pub security_contact: String,
     /// Validator details. Eg: `"reliable \u0026\u0026 secure staking"`
-    details: String,
+    pub details: String,
 }
 
 #[derive(Deserialize, Debug)]
 pub struct StakingParamsResp {
     /// The staking parameters.
-    params: StakingParams,
+    pub params: StakingParams,
 }
 
 #[derive(Deserialize, Debug)]
 pub struct StakingParams {
     /// Unbonding time. Eg: `"1814400s"`
-    unbonding_time: String,
+    pub unbonding_time: String,
     /// Maximum number of validators. Eg: `175`
-    max_validators: usize,
+    pub max_validators: usize,
     /// Maximum number of entries. Eg: `7`
-    max_entries: usize,
+    pub max_entries: usize,
     /// Historical number of entries. Eg: `10000`
-    historical_entries: usize,
+    pub historical_entries: usize,
     /// Bonding denom. Eg: `"uatom"`
-    bond_denom: String,
+    pub bond_denom: String,
 }
 
 #[derive(Deserialize, Debug)]
 pub struct MintingInflationResp {
     /// Minting inflation rate. Eg: `"0.131020685388983473"`
-    inflation: String,
+    pub inflation: String,
 }
 
 #[derive(Deserialize, Debug)]
 pub struct MintingInflationRateResp {
     /// Minting inflation rate. Eg: `"91.087708112747866100"`
-    inflation_rate: String,
+    pub inflation_rate: String,
 }
 
 #[derive(Deserialize, Debug)]
 pub struct StakingPoolResp {
     /// Staking pool information.
-    pool: StakingPool,
+    pub pool: StakingPool,
 }
 
 #[derive(Deserialize, Debug)]
 pub struct StakingPool {
     /// Tokens not bonded. Eg: `"15241580330282"`
-    not_bonded_tokens: String,
+    pub not_bonded_tokens: String,
     /// Tokens bonded. Eg: `"203496656637783"`
-    bonded_tokens: String,
+    pub bonded_tokens: String,
 }
 
 #[derive(Deserialize, Debug)]
 pub struct SupplyByDenomResp {
     /// Amount and denom.
-    amount: TxsDenomAmount,
+    pub amount: TxsDenomAmount,
 }
 
 #[derive(Deserialize, Debug)]
 pub struct SupplyOfAllTokensResp {
     /// Array of amounts and denoms.
-    supply: Vec<TxsDenomAmount>,
+    pub supply: Vec<TxsDenomAmount>,
     /// Paginations
-    pagination: Pagination,
+    pub pagination: Pagination,
 }
 
 #[derive(Deserialize, Debug)]
 pub struct ValidatorCommisionResp {
     /// Validator commission.
-    commission: ValidatorCommision,
+    pub commission: ValidatorCommision,
 }
 
 #[derive(Deserialize, Debug)]
 pub struct ValidatorCommision {
     /// Array of amounts and demons.
-    commission: Vec<TxsDenomAmount>,
+    pub commission: Vec<TxsDenomAmount>,
 }
 
 #[derive(Deserialize, Debug)]
 pub struct ValidatorRewardsResp {
     /// Validator rewards.
-    rewards: ValidatorCommision,
+    pub rewards: ValidatorCommision,
 }
 
 #[derive(Deserialize, Debug)]
 pub struct ValidatorRewards {
     /// Array of amounts and denoms.
-    rewards: Vec<TxsDenomAmount>,
+    pub rewards: Vec<TxsDenomAmount>,
 }
 
 #[derive(Deserialize, Debug)]
