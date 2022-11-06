@@ -27,7 +27,7 @@ impl<'a> Chain for Evmos<'a> {
 
 impl<'a> Evmos<'a> {
     /// Creates Evmos chain.
-    pub fn new(client: &'a Client) -> Self {
+    pub fn init(client: &'a Client) -> Self {
         Evmos {
             name: "evmos",
             client,
@@ -43,7 +43,7 @@ impl<'a> Evmos<'a> {
 #[tokio::test]
 async fn test_blocks() {
     let client = reqwest::Client::new();
-    let evmos_chain = Evmos::new(&client);
+    let evmos_chain = Evmos::init(&client);
 
     // Get latest block.
     let res = evmos_chain.get_block_by_height(None).await;
