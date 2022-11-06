@@ -1503,19 +1503,19 @@ pub struct BlockLastCommitSignatures {
 #[derive(Deserialize, Debug)]
 pub struct BlockchainResp {
     /// Last block height. `"12733014"`
-    last_height: String,
+    pub last_height: String,
     /// Array of block metas.
-    block_metas: Vec<BlockMeta>,
+    pub block_metas: Vec<BlockMeta>,
 }
 
 #[derive(Deserialize, Debug)]
 pub struct BlockMeta {
     /// Last block height. `"12733014"`
-    block_id: BlockId,
+    pub block_id: BlockId,
     /// Block size. Eg: `"13971"`
-    block_size: String,
+    pub block_size: String,
     /// Block header.
-    header: BlockHeader,
+    pub header: BlockHeader,
     /// Number of transactions. Eg: `"3"`
-    num_txs: String,
+    pub num_txs: String,
 }
