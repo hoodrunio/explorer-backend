@@ -103,11 +103,11 @@ where
     }
 
     /// Returns transaction by given hash. Hash should start with `0x`.
-    async fn get_blockchain(&self, minHeight: u64, maxHeight: u64) -> Result<BlockchainResp, String> {
+    async fn get_blockchain(&self, min_height: u64, max_height: u64) -> Result<BlockchainResp, String> {
         let mut query = vec![];
 
-        query.push(("minHeight", minHeight.to_string()));
-        query.push(("maxHeight", maxHeight.to_string()));
+        query.push(("minHeight", min_height.to_string()));
+        query.push(("maxHeight", max_height.to_string()));
 
         self.rpc_request("/blockchain", &query).await
     }
@@ -452,12 +452,12 @@ where
     }
 
     /// Returns the redelegations of given address.
-    async fn get_redelegations(
+    async fn get_delegator_redelegations(
         &self,
         delegator_addr: &str,
         pagination_config: &PaginationConfig,
     ) -> Result<RedelagationsResp, String> {
-        let path = format!("/cosmos/staking/v1beta1/delegations/{delegator_addr}/redelegations");
+        let path = format!("/cosmos/staking/v1beta1/delegators/{delegator_addr}/redelegations");
 
         let mut query = vec![];
 
@@ -470,12 +470,12 @@ where
     }
 
     /// Returns the unbonding delegations of given address.
-    async fn get_unbonding_delegations(
+    async fn get_delegator_unbonding_delegations(
         &self,
         delegator_addr: &str,
         pagination_config: &PaginationConfig,
     ) -> Result<UnbondingDelegationResp, String> {
-        let path = format!("/cosmos/staking/v1beta1/delegations/{delegator_addr}/unbonding_delegations");
+        let path = format!("/cosmos/staking/v1beta1/delegators/{delegator_addr}/unbonding_delegations");
 
         let mut query = vec![];
 
@@ -488,8 +488,8 @@ where
     }
 
     /// Returns all the validators by given delegator address.
-    async fn get_validators(&self, delegator_addr: &str, pagination_config: &PaginationConfig) -> Result<ValidatorsResp, String> {
-        let path = format!("/cosmos/staking/v1beta1/delegations/{delegator_addr}/validators");
+    async fn get_delegator_validators(&self, delegator_addr: &str, pagination_config: &PaginationConfig) -> Result<ValidatorsResp, String> {
+        let path = format!("/cosmos/staking/v1beta1/delegators/{delegator_addr}/validators");
 
         let mut query = vec![];
 
@@ -507,7 +507,7 @@ where
         delegator_addr: &str,
         validator_addr: &str,
     ) -> Result<ValidatorResp, String> {
-        let path = format!("/cosmos/staking/v1beta1/delegations/{delegator_addr}/validators/{validator_addr}");
+        let path = format!("/cosmos/staking/v1beta1/delegators/{delegator_addr}/validators/{validator_addr}");
 
         self.rest_api_request(&path, &[]).await
     }
@@ -518,6 +518,42 @@ where
 
         self.rest_api_request(&path, &[]).await
     }
+
+    /// Returns the withdraw address by given delegator address.
+    async fn get_delegator_withdraw_address(&self, delegator_addr: &str) -> Result<WithdrawAddressResp, String> {
+        let path = format!("/cosmos/distribution/v1beta1/delegators/{delegator_addr}/withdraw_address");
+
+        self.rest_api_request(&path, &[]).await
+    }
+
+    /// Returns the rewards of given delegator address.
+    async fn get_delegator_rewards(&self, delegator_addr: &str) -> Result<DelegatorRewardsResp, String> {
+        let path = format!("/cosmos/distribution/v1beta1/delegators/{delegator_addr}/rewards");
+
+        self.rest_api_request(&path, &[]).await
+    }
+}
+
+#[derive(Deserialize, Debug)]
+pub struct DelegatorRewardsResp {
+    /// Array of rewards.
+    pub rewards: Vec<DelegatorReward>,
+    /// Array of amounts and denoms.
+    pub total: Vec<DenomAmount>,
+}
+
+#[derive(Deserialize, Debug)]
+pub struct DelegatorReward {
+    /// Validator address. Eg: `"cosmosvaloper1c4k24jzduc365kywrsvf5ujz4ya6mwympnc4en"`
+    pub validator_address: String,
+    /// Array of amounts and denoms.
+    pub reward: Vec<DenomAmount>,
+}
+
+#[derive(Deserialize, Debug)]
+pub struct WithdrawAddressResp {
+    /// Delegator withdraw address. Eg: `"cosmos1a3yjj7d3qnx4spgvjcwjq9cw9snrrrhu3rw8nv"`
+    pub withdraw_address: String,
 }
 
 #[derive(Deserialize, Debug)]
