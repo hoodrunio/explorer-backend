@@ -85,7 +85,7 @@ where
     }
 
     /// Returns the block with given hash.
-    async fn get_block_by_hash(&self, hash: &str) -> Result<RPCSuccessResponse<BlockResp>, String> {
+    async fn get_block_by_hash(&self, hash: &str) -> Result<BlockResp, String> {
         let mut query = vec![];
 
         query.push(("hash", hash.to_string()));
@@ -100,6 +100,16 @@ where
         query.push(("hash", hash.to_string()));
 
         self.rpc_request("/tx", &query).await
+    }
+
+    /// Returns transaction by given hash. Hash should start with `0x`.
+    async fn get_blockchain(&self, minHeight: u64, maxHeight: u64) -> Result<BlockchainResp, String> {
+        let mut query = vec![];
+
+        query.push(("minHeight", minHeight.to_string()));
+        query.push(("maxHeight", maxHeight.to_string()));
+
+        self.rpc_request("/blockchain", &query).await
     }
 
     /// Returns transactions with given sender.
@@ -1488,4 +1498,24 @@ pub struct BlockLastCommitSignatures {
     pub timestamp: String,
     /// Base 64 encoded signature. It might be `None`, so unsigned. Eg: `"rum2poquBDmHkGLGxjtjrlNBP5bV52m6ckexmNHdln85WRii4tCaVqAmxAKR+fP+hzoxEDuhOGwQ/xlgMVFrAA=="`
     pub signature: Option<String>,
+}
+
+#[derive(Deserialize, Debug)]
+pub struct BlockchainResp {
+    /// Last block height. `"12733014"`
+    last_height: String,
+    /// Array of block metas.
+    block_metas: Vec<BlockMeta>,
+}
+
+#[derive(Deserialize, Debug)]
+pub struct BlockMeta {
+    /// Last block height. `"12733014"`
+    block_id: BlockId,
+    /// Block size. Eg: `"13971"`
+    block_size: String,
+    /// Block header.
+    header: BlockHeader,
+    /// Number of transactions. Eg: `"3"`
+    num_txs: String,
 }
