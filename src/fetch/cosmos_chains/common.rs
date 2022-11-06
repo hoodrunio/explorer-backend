@@ -1,13 +1,6 @@
 use async_trait::async_trait;
 use reqwest::Client;
 use serde::{de::DeserializeOwned, Deserialize};
-/// The struct that stores important URLs of a chain.
-pub struct ChainUrls {
-    /// The REST API URL of the chain.
-    pub rest_api: &'static str,
-    /// The RPC URL of the chain.
-    pub rpc: &'static str,
-}
 
 /// The trait that provides methods for common operation types.
 #[async_trait]
@@ -18,21 +11,48 @@ where
     /// Returns the name of the chain.
     fn name(&self) -> &'static str;
 
-    /// Returns the `ChainUrls` of the chain.
-    fn urls(&self) -> &ChainUrls;
+    /// Returns the logo URL of the chain.
+    fn logo(&self) -> &'static str;
+
+    /// Returns the base prefix of the chain.
+    fn base_prefix(&self) -> &'static str;
+
+    /// Returns REST API URL of the chain.
+    fn rest_api_url(&self) -> &'static str;
+
+    /// Returns REST API URL of the chain.
+    fn rpc_url(&self) -> &'static str;
 
     /// Returns Cosmos SDK version of the chain.
     fn sdk_version(&self) -> usize;
 
+    /// Returns the decimals of native coin of the chain.
+    fn decimals(&self) -> usize;
+
     /// Returns `reqwest::Client` of the chain.
     fn client(&self) -> &Client;
+
+    /// Returns the account prefix of the chain.
+    fn account_prefix(&self) -> String {
+        format!("{}", self.base_prefix())
+    }
+
+    /// Returns the valoper prefix of the chain.
+    fn valoper_prefix(&self) -> String {
+        format!("{}valoper", self.base_prefix())
+    }
+
+    /// Returns the cons prefix of the chain.
+    fn cons_prefix(&self) -> String {
+        format!("{}valcons", self.base_prefix())
+    }
 
     /// Makes an RPC request.
     async fn rpc_request<T>(&self, path: &str, query: &[(&'static str, String)]) -> Result<T, String>
     where
         T: DeserializeOwned,
     {
-        let url = format!("{}{}", self.urls().rpc, path);
+        let url = format!("{}{}", self.rpc_url(), path);
 
         match self.client().get(url).query(query).send().await {
             Ok(res) => match res.json::<RPCResponse<T>>().await {
@@ -51,7 +71,7 @@ where
     where
         T: DeserializeOwned,
     {
-        let url = format!("{}{}", self.urls().rest_api, path);
+        let url = format!("{}{}", self.rest_api_url(), path);
 
         match self.client().get(url).query(query).send().await {
             Ok(res) => {
