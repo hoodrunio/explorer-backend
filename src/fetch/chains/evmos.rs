@@ -49,7 +49,7 @@ impl<'a> Evmos<'a> {
         Evmos {
             name: "evmos",
             logo: "https://assets.coingecko.com/coins/images/24023/large/evmos.png",
-            
+
             prefix: "evmos",
 
             sdk_ver: 45,
@@ -79,4 +79,49 @@ impl<'a> Evmos<'a> {
             client,
         }
     }
+}
+
+#[tokio::test]
+async fn test_get_block_by_hash() {
+    let client = reqwest::Client::new();
+
+    let chain = Evmos::mainnet(&client);
+
+    let block = chain
+        .get_block_by_hash("14B6BB26CF30A559AE3AD18B0E3640BC3FD819B1182830D359969E02BAB0F633")
+        .await
+        .unwrap();
+
+    // Test blok height.
+    assert_eq!(block.block.header.height, "6764887");
+}
+
+#[tokio::test]
+async fn test_get_block_by_height() {
+    let client = reqwest::Client::new();
+
+    let chain = Evmos::mainnet(&client);
+
+    let block = chain.get_block_by_height(Some(6764887)).await.unwrap();
+
+    // Test blok height.
+    assert_eq!(
+        block.block_id.hash,
+        "14B6BB26CF30A559AE3AD18B0E3640BC3FD819B1182830D359969E02BAB0F633"
+    );
+}
+
+#[tokio::test]
+async fn test_get_blockchain() {
+    let client = reqwest::Client::new();
+
+    let chain = Evmos::mainnet(&client);
+
+    let blockchains = chain.get_blockchain(6764887, 6764907).await.unwrap();
+
+    // Test blok height.
+    assert_eq!(
+        blockchains.block_metas[0].block_id.hash,
+        "A7B1485206A77EC75A535BB5EE08071671B33BDEAB6E255B06C3D599007C64C5"
+    );
 }
