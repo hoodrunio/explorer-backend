@@ -1,1 +1,1 @@
-mod cosmos_chains;
+pub mod cosmos_chains;
