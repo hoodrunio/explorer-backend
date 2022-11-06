@@ -513,225 +513,225 @@ where
 #[derive(Deserialize, Debug)]
 pub struct SigningInfoResp {
     /// Validator signing info.
-    val_signing_info: SlashingSigningInfoItem,
+    pub val_signing_info: SlashingSigningInfoItem,
 }
 
 #[derive(Deserialize, Debug)]
 pub struct ValidatorResp {
     /// Validator.
-    validator: ValidatorListValidator,
+    pub validator: ValidatorListValidator,
 }
 
 #[derive(Deserialize, Debug)]
 pub struct ValidatorsResp {
     /// Array of validators.
-    validators: Vec<ValidatorListValidator>,
+    pub validators: Vec<ValidatorListValidator>,
     /// Pagination.
-    pagination: Pagination,
+    pub pagination: Pagination,
 }
 
 #[derive(Deserialize, Debug)]
 pub struct UnbondingDelegationResp {
     /// Array of unbonding delegation responses.
-    unbonding_responses: Vec<UnbondingDelegationResponse>,
+    pub unbonding_responses: Vec<UnbondingDelegationResponse>,
     /// Pagination.
-    pagination: Pagination,
+    pub pagination: Pagination,
 }
 
 #[derive(Deserialize, Debug)]
 pub struct UnbondingDelegationResponse {
     /// Delegator address. Eg: `cosmos156gqf9837u7d4c4678yt3rl4ls9c5vuuxyhkw6`
-    delegator_address: String,
+    pub delegator_address: String,
     /// Validator address. Eg: `cosmosvaloper156gqf9837u7d4c4678yt3rl4ls9c5vuursrrzf`
-    validator_address: String,
+    pub validator_address: String,
     // Array of unbonding delegation entries.
-    entries: Vec<UnbondingDelegationEntry>,
+    pub entries: Vec<UnbondingDelegationEntry>,
 }
 
 #[derive(Deserialize, Debug)]
 pub struct UnbondingDelegationEntry {
     /// Unbonding entry creation height. Eg: `"524000"`
-    creation_height: String,
+    pub creation_height: String,
     /// Unbonding entry competion time. Eg: `"2022-11-06T00:14:50.583Z"`
-    completion_time: String,
+    pub completion_time: String,
     /// Unbonding entry inital balance. Eg: `""`
-    initial_balance: String,
+    pub initial_balance: String,
     /// Unbonding entry balance. Eg: `""`
-    balance: String,
+    pub balance: String,
 }
 
 #[derive(Deserialize, Debug)]
 pub struct RedelagationsResp {
     /// Array of redelegation responses.
-    redelegation_responses: Vec<RedelegationResponse>,
+    pub redelegation_responses: Vec<RedelegationResponse>,
     /// Pagination.
-    pagination: Pagination,
+    pub pagination: Pagination,
 }
 
 #[derive(Deserialize, Debug)]
 pub struct RedelegationResponse {
     /// Delegation.
-    redelegation: Redelegation,
+    pub redelegation: Redelegation,
     /// Amount and denom.
-    entries: Vec<RedelegationEntry>,
+    pub entries: Vec<RedelegationEntry>,
 }
 
 #[derive(Deserialize, Debug)]
 pub struct Redelegation {
     /// Delegator address. Eg: `"cosmos156gqf9837u7d4c4678yt3rl4ls9c5vuuxyhkw6"`
-    delegator_address: String,
+    pub delegator_address: String,
     /// Validator source address. Eg: `""`
-    validator_src_address: String,
+    pub validator_src_address: String,
     /// Validator destination address. Eg: `""`
-    validator_dst_address: String,
+    pub validator_dst_address: String,
     /// Array of redelegation entries.
-    entries: Vec<RedelegationEntry>,
+    pub entries: Vec<RedelegationEntry>,
 }
 
 #[derive(Deserialize, Debug)]
 pub struct RedelegationResponseEntry {
     /// Redelegation entry.
-    redelegation_entry: RedelegationEntry,
+    pub redelegation_entry: RedelegationEntry,
     /// Balance. Eg: `""`
-    balance: String,
+    pub balance: String,
 }
 
 #[derive(Deserialize, Debug)]
 pub struct RedelegationEntry {
     /// Redelagation creation height. Eg: `"524000"`
-    creation_height: String,
+    pub creation_height: String,
     /// Redelagation competion time. Eg: `"2022-11-06T00:14:50.583Z"`
-    completion_time: String,
+    pub completion_time: String,
     /// Redelagation inital balance. Eg: `""`
-    initial_balance: String,
+    pub initial_balance: String,
     /// Redelagation shares destination. Eg: `""`
-    shares_dst: String,
+    pub shares_dst: String,
 }
 
 #[derive(Deserialize, Debug)]
 pub struct DelagationsResp {
     /// Array of delegation responses.
-    delegation_responses: Vec<DelegationResponse>,
+    pub delegation_responses: Vec<DelegationResponse>,
     /// Pagination.
-    pagination: Pagination,
+    pub pagination: Pagination,
 }
 
 #[derive(Deserialize, Debug)]
 pub struct DelegationResponse {
     /// Delegation.
-    delegation: Delegation,
+    pub delegation: Delegation,
     /// Amount and denom.
-    balance: DenomAmount,
+    pub balance: DenomAmount,
 }
 
 #[derive(Deserialize, Debug)]
 pub struct Delegation {
     /// Delegator address. Eg: `"cosmos156gqf9837u7d4c4678yt3rl4ls9c5vuuxyhkw6"`
-    delegator_address: String,
+    pub delegator_address: String,
     /// Validator address. Eg: `"cosmosvaloper156gqf9837u7d4c4678yt3rl4ls9c5vuursrrzf"`
-    validator_address: String,
+    pub validator_address: String,
     /// Delegation shares. Eg: `"1899999.000000000000000000"`
-    shares: String,
+    pub shares: String,
 }
 
 #[derive(Deserialize, Debug)]
 pub struct ProposalVoteByVoterResp {
     /// Proposal vote.
-    vote: ProposalVote,
+    pub vote: ProposalVote,
 }
 
 #[derive(Deserialize, Debug)]
 pub struct ProposalVotesResp {
     /// Array of proposal votes.
-    votes: Vec<ProposalVote>,
+    pub votes: Vec<ProposalVote>,
     /// Pagination.
-    pagination: Pagination,
+    pub pagination: Pagination,
 }
 
 #[derive(Deserialize, Debug)]
 pub struct ProposalVote {
     /// Proposal ID. Eg: `"34"`
-    proposal_id: String,
+    pub proposal_id: String,
     /// Proposal voter. Eg: `""`
-    voter: String,
+    pub voter: String,
     /// Proposal vote option. Eg: `"VOTE_OPTION_UNSPECIFIED"`
-    option: String,
+    pub option: String,
     /// Array of proposal options.
-    options: Vec<ProposalOption>,
+    pub options: Vec<ProposalOption>,
 }
 
 #[derive(Deserialize, Debug)]
 pub struct ProposalOption {
     /// Proposal vote option. Eg: `"VOTE_OPTION_UNSPECIFIED"`
-    option: String,
+    pub option: String,
     /// Proposal vote option weight. Eg: `""`
-    weight: String,
+    pub weight: String,
 }
 
 #[derive(Deserialize, Debug)]
 pub struct ProposalTallyResp {
     /// Proposal tally.
-    tally: ProposalFinalTallyResult,
+    pub tally: ProposalFinalTallyResult,
 }
 
 #[derive(Deserialize, Debug)]
 pub struct ProposalDepositByDepositorResp {
     /// Proposal deposit.
-    deposit: ProposalDeposit,
+    pub deposit: ProposalDeposit,
 }
 
 #[derive(Deserialize, Debug)]
 pub struct ProposalDepositsResp {
     /// Proposal deposits.
-    deposits: Vec<ProposalDeposit>,
+    pub deposits: Vec<ProposalDeposit>,
     /// Pagination.
-    pagination: Pagination,
+    pub pagination: Pagination,
 }
 
 #[derive(Deserialize, Debug)]
 pub struct ProposalDeposit {
     /// Proposal ID. Eg: `"35"`
-    proposal_id: String,
+    pub proposal_id: String,
     /// Proposal depositor. Eg: `""`
-    depositor: String,
+    pub depositor: String,
     /// Array of amounts and denoms deposited.
-    amount: DenomAmount,
+    pub amount: DenomAmount,
 }
 
 #[derive(Deserialize, Debug)]
 pub struct ProposalsDetailsResp {
     /// Proposal details.
-    proposal: Proposal,
+    pub proposal: Proposal,
 }
 
 #[derive(Deserialize, Debug)]
 pub struct ProposalsResp {
     /// Array of proposals.
-    proposals: Vec<Proposal>,
+    pub proposals: Vec<Proposal>,
     /// Pagination.
-    pagination: Pagination,
+    pub pagination: Pagination,
 }
 
 #[derive(Deserialize, Debug)]
 pub struct Proposal {
     /// Proposal ID. Eg: `"79"`
-    proposal_id: String,
+    pub proposal_id: String,
     /// Proposal content.
-    content: ProposalContent,
+    pub content: ProposalContent,
     /// Proposal status. Eg: `"PROPOSAL_STATUS_VOTING_PERIOD"`
-    status: String,
+    pub status: String,
     /// Proposal final tally result.
-    final_tally_result: ProposalFinalTallyResult,
+    pub final_tally_result: ProposalFinalTallyResult,
     /// Proposal submit time. Eg: `"2022-10-24T19:45:39.969555358Z"`
-    submit_time: String,
+    pub submit_time: String,
     /// Proposal deposit deadline time. Eg: `"2022-11-07T19:45:39.969555358Z"`
-    deposit_end_time: String,
+    pub deposit_end_time: String,
     /// Proposal total deposit. Array of amounts and denoms.
-    total_deposit: Vec<DenomAmount>,
+    pub total_deposit: Vec<DenomAmount>,
     /// Proposal voting start time. Eg: `"2022-10-24T19:45:39.969555358Z"`
-    voting_start_time: String,
+    pub voting_start_time: String,
     /// Proposal voting start time. Eg: `"2022-11-07T19:45:39.969555358Z"`
-    voting_end_time: String,
+    pub voting_end_time: String,
 }
 
 #[derive(Deserialize, Debug)]
@@ -789,13 +789,13 @@ pub enum ProposalContent {
 #[derive(Deserialize, Debug)]
 pub struct SoftwareUpgradeProposalPlan {
     /// Software upgrade proposal plan name. Eg: `"Signal Proposal to Adopt the Liquidity Module onto the Cosmos Hub"`
-    name: String,
+    pub name: String,
     /// Software upgrade proposal plan time. Eg: `"9999-12-31T00:00:00Z"`
-    time: String,
+    pub time: String,
     /// Software upgrade proposal plan height. Eg: `"0"`
-    height: String,
+    pub height: String,
     /// Software upgrade proposal plan information. Eg: `"This is information about software upgrade."`
-    info: String,
+    pub info: String,
     // Software upgrade proposal plan upgraded client state. Can be `None`.
     // TODO! We don't know what it can be.
     // upgraded_client_state: Option<>
@@ -804,23 +804,23 @@ pub struct SoftwareUpgradeProposalPlan {
 #[derive(Deserialize, Debug)]
 pub struct ParameterChangeProposalChange {
     /// Subspace. Eg: `"mint"`
-    subspace: String,
+    pub subspace: String,
     /// Key. Eg: `"BlocksPerYear"`
-    key: String,
+    pub key: String,
     /// Value. Inside quotes. Eg: `"\"4360000\""`
-    value: String,
+    pub value: String,
 }
 
 #[derive(Deserialize, Debug)]
 pub struct ProposalFinalTallyResult {
     /// Number of `yes` votes. Eg: `"50"`
-    yes: String,
+    pub yes: String,
     /// Number of `abstain` votes. Eg: `"35"`
-    abstain: String,
+    pub abstain: String,
     /// Number of `no` votes. Eg: `"12"`
-    no: String,
+    pub no: String,
     /// Number of `no with veto` votes.  Eg: `"7"`
-    no_with_veto: String,
+    pub no_with_veto: String,
 }
 
 #[derive(Deserialize, Debug)]
@@ -862,31 +862,31 @@ pub struct InflationParamsExponentialCalculation {
 #[derive(Deserialize, Debug)]
 pub struct MintParams {
     /// Mint denom. Eg: `"uatom"`
-    mint_denom: String,
+    pub mint_denom: String,
     /// Mint inflation rate change. Eg: ` "1.000000000000000000"`
-    inflation_rate_change: String,
+    pub inflation_rate_change: String,
     /// Maximum mint inflation. Eg: `"0.200000000000000000"`
-    inflation_max: String,
+    pub inflation_max: String,
     /// Minimum mint inflation. Eg: `"0.070000000000000000"`
-    inflation_min: String,
+    pub inflation_min: String,
     /// Goal bonded. Eg: `"0.670000000000000000"`
-    goal_bonded: String,
+    pub goal_bonded: String,
     /// Blocks per year. Eg: `"4360000"`
-    blocks_per_year: String,
+    pub blocks_per_year: String,
 }
 
 #[derive(Deserialize, Debug)]
 pub struct SlashingParams {
     /// Slashing, signed blocks window. Eg: `"10000"`
-    signed_blocks_window: String,
+    pub signed_blocks_window: String,
     /// Slashing, minimum signed per window. Eg: `"0.050000000000000000"`
-    min_signed_per_window: String,
+    pub min_signed_per_window: String,
     /// Slashing, downtime jail duration. Eg: `"600s"`
-    downtime_jail_duration: String,
+    pub downtime_jail_duration: String,
     /// Slash fraction double sign. Eg: `"0.050000000000000000"`
-    slash_fraction_double_sign: String,
+    pub slash_fraction_double_sign: String,
     /// Slash fraction downtime. Eg: `"0.000100000000000000"`
-    slash_fraction_downtime: String,
+    pub slash_fraction_downtime: String,
 }
 
 #[derive(Deserialize, Debug)]
