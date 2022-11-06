@@ -488,7 +488,11 @@ where
     }
 
     /// Returns all the validators by given delegator address.
-    async fn get_delegator_validators(&self, delegator_addr: &str, pagination_config: &PaginationConfig) -> Result<ValidatorsResp, String> {
+    async fn get_delegator_validators(
+        &self,
+        delegator_addr: &str,
+        pagination_config: &PaginationConfig,
+    ) -> Result<ValidatorsResp, String> {
         let path = format!("/cosmos/staking/v1beta1/delegators/{delegator_addr}/validators");
 
         let mut query = vec![];
@@ -532,6 +536,69 @@ where
 
         self.rest_api_request(&path, &[]).await
     }
+
+    /// Returns the voting parameters.
+    async fn get_voting_params(&self) -> Result<VotingParams, String> {
+        self.rest_api_request::<VotingParamsResp>("/cosmos/gov/v1beta1/params/voting", &[])
+            .await
+            .and_then(|res| Ok(res.voting_params))
+    }
+
+    /// Returns the deposit parameters.
+    async fn get_deposit_params(&self) -> Result<DepositParams, String> {
+        self.rest_api_request::<DepositParamsResp>("/cosmos/gov/v1beta1/params/deposit", &[])
+            .await
+            .and_then(|res| Ok(res.deposit_params))
+    }
+
+    /// Returns the tallying parameters.
+    async fn get_tallying_params(&self) -> Result<TallyParams, String> {
+        self.rest_api_request::<TallyingParamsResp>("/cosmos/gov/v1beta1/params/tallying", &[])
+            .await
+            .and_then(|res| Ok(res.tally_params))
+    }
+}
+
+#[derive(Deserialize, Debug)]
+pub struct TallyingParamsResp {
+    /// Tally parameters.
+    tally_params: TallyParams,
+}
+
+#[derive(Deserialize, Debug)]
+pub struct TallyParams {
+    /// Quorum. Eg: `"0.400000000000000000"`
+    quorum: String,
+    /// Threshold. Eg: `"0.500000000000000000"`
+    threshold: String,
+    /// Veto threshold. Eg: `"0.334000000000000000"`
+    veto_threshold: String,
+}
+
+#[derive(Deserialize, Debug)]
+pub struct DepositParamsResp {
+    /// Deposit parameters.
+    deposit_params: DepositParams,
+}
+
+#[derive(Deserialize, Debug)]
+pub struct DepositParams {
+    /// Array of denoms and amounts.
+    min_deposit: Vec<DenomAmount>,
+    /// Maximum deposit period. Eg: `"0s"`
+    max_deposit_period: String,
+}
+
+#[derive(Deserialize, Debug)]
+pub struct VotingParamsResp {
+    /// Voting parameters.
+    voting_params: VotingParams,
+}
+
+#[derive(Deserialize, Debug)]
+pub struct VotingParams {
+    /// Voting period. Eg: `"1209600s"`
+    voting_period: String,
 }
 
 #[derive(Deserialize, Debug)]
