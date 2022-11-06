@@ -105,21 +105,22 @@ where
     }
 
     /// Returns the block with given hash.
+    /// # Usage
+    /// ```rs
+    /// let block = chain.get_block_by_hash("14b6bb26cf30a559ae3ad18b0e3640bc3fd819b1182830d359969e02bab0f633").await;
+    /// ```
     async fn get_block_by_hash(&self, hash: &str) -> Result<BlockResp, String> {
         let mut query = vec![];
 
-        query.push(("hash", hash.to_string()));
+        let hash = if hash.starts_with("0x") {
+            hash.to_string()
+        } else {
+            format!("0x{}", hash)
+        };
+
+        query.push(("hash", hash));
 
         self.rpc_request("/block_by_hash", &query).await
-    }
-
-    /// Returns transaction by given hash. Hash should start with `0x`.
-    async fn get_tx_by_hash(&self, hash: &str) -> Result<TransactionResp, String> {
-        let mut query = vec![];
-
-        query.push(("hash", hash.to_string()));
-
-        self.rpc_request("/tx", &query).await
     }
 
     /// Returns transaction by given hash. Hash should start with `0x`.
@@ -130,6 +131,13 @@ where
         query.push(("maxHeight", max_height.to_string()));
 
         self.rpc_request("/blockchain", &query).await
+    }
+
+    /// Returns transaction by given hash.
+    async fn get_tx_by_hash(&self, hash: &str) -> Result<TxResp, String> {
+        let path = format!("/cosmos/tx/v1beta1/txs/{hash}");
+
+        self.rpc_request(&path, &[]).await
     }
 
     /// Returns transactions with given sender.
@@ -1182,12 +1190,12 @@ pub enum RPCResponse<T> {
 #[derive(Deserialize, Debug)]
 pub struct TxsResp {
     pub txs: Vec<TxsTransaction>,
-    pub tx_responses: Vec<TxResponse>,
+    pub tx_responses: Vec<TxResponse<TransactionEventAttribute>>,
     pub pagination: Pagination,
 }
 
 #[derive(Deserialize, Debug)]
-pub struct TxResponse {
+pub struct TxResponse<T> {
     /// Block height. Eg: `"12713829"`
     pub height: String,
     /// HEX encoded transaction hash. Eg: `"D29DEB0948ADC9B14A1758ED164A46407AF33EA2950404DB4AFFF68164B01C58"`
@@ -1213,7 +1221,7 @@ pub struct TxResponse {
     // Timestamp. Eg: `"2022-07-19T05:26:26Z"`
     pub timestamp: String,
     // Events.
-    pub events: Vec<TxsResponseEvent<TransactionEventAttribute>>,
+    pub events: Vec<TxsResponseEvent<T>>,
 }
 
 #[derive(Deserialize, Debug)]
@@ -1264,6 +1272,20 @@ pub enum TxsResponseEvent<T> {
         /// Tx attributes.
         attributes: Vec<T>,
     },
+    WithdrawRewards {
+        /// Withdraw rewards attributes.
+        attributes: Vec<T>,
+    },
+}
+
+#[derive(Deserialize, Debug)]
+pub struct TransactionEventAttribute {
+    /// Base 64 encoded transaction event attribute key. Eg: `"c3BlbmRlcg=="`
+    pub key: String,
+    /// Base 64 encoded transaction event attribute value. Eg: `"ZXZtb3MxdzJycG5uaDNneWYwcmRtaHUzNXFwMmd4d2wyZmpmMnk0dmpraGc="`
+    pub value: String,
+    /// Transaction event attribute index. Eg: `true`
+    pub index: bool,
 }
 
 #[derive(Deserialize, Debug)]
@@ -1362,6 +1384,13 @@ pub enum TxsTransactionMessage {
         /// Transaction amounts.
         amount: Vec<DenomAmount>,
     },
+    #[serde(rename = "/cosmos.distribution.v1beta1.MsgWithdrawDelegatorReward")]
+    MsgWithdrawDelegatorReward {
+        /// Delegator address. Eg: `"evmos1wl8penajxqyqarw94q00cd46nvwuduq40er8sj"`
+        delegator_address: String,
+        /// Validator address. Eg: `"evmosvaloper1d74wdckw5vyn6gwqt4r0ruemp9n8vmwtudw848"`
+        validator_address: String,
+    },
 }
 
 #[derive(Deserialize, Debug)]
@@ -1404,58 +1433,6 @@ pub struct DenomAmount {
     pub denom: String,
     /// The amount of the token. Eg: `"450000"`
     pub amount: String,
-}
-
-#[derive(Deserialize, Debug)]
-pub struct TransactionResp {
-    /// HEX encoded TX hash, without leading `0x`. Eg: `"25EC6BCEA9B4A6835F5A38AB566959187F968C295EE71D015C3D907B25C5C72F"`
-    pub hash: String,
-    /// The block height TX at. Eg: `"6684890"`
-    pub height: String,
-    /// Unknown. Eg: `0`
-    pub index: usize,
-    /// The transaction result.
-    pub tx_result: TransactionResult,
-}
-
-#[derive(Deserialize, Debug)]
-pub struct TransactionResult {
-    /// Unknown. Eg: `0`
-    pub code: usize,
-    /// Base64 encoded transaction data. Eg: `"CrgECh8vZXRoZXJtaW50LmV2bS52MS5Nc2dFdGhlcmV1bVR4EpQECkIweDgxNTRhOGEyYmViYzQyYzNhNmVlYTZjMTAwMDMwMzkwMzhkOTJiZGYxOWNiMmQ4NDBhYzJkN2Q2ZmI3YjBmMzISpwMKKjB4NEY0MWE5ZTJjYTc4YWQ2QjZlRmFiNTJGNjYxQjVmMEEwQzIxMUY3NRJCMHg4YzViZTFlNWViZWM3ZDViZDE0ZjcxNDI3ZDFlODRmM2RkMDMxNGMwZjdiMjI5MWU1YjIwMGFjOGM3YzNiOTI1EkIweDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDcyODYxOWNlZjE0MTEyZjFiNzc3ZTQ2ODAwYTkwNjc3ZDQ5OTI1NDQSQjB4MDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDY3ZWM4Nzg0NGZiZDczZWRhNGExMDU5ZjMwMDM5NTg0NTg2ZTA5ZBog//////////////////////////////////////////8g2oGYAypCMHg4MTU0YThhMmJlYmM0MmMzYTZlZWE2YzEwMDAzMDM5MDM4ZDkyYmRmMTljYjJkODQwYWMyZDdkNmZiN2IwZjMyOkIweDBhMjdkZDQyNDBkYzM1MjE1OWYxZTVhMzA3NjM0NDIwZmFjN2I2ZDg5YzYxYWI5NzIyNDI4MjIxZWFmYjg4NGYaIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABKKbqAg=="`
-    pub data: String,
-    /// JSON encoded transaction log. Eg: `"[{\"events\":[{\"type\":\"coin_received\",\"attributes\":[{\"key\":\"receiver\",\"value\":\"evmos1w2rpnnh3gyf0rdmhu35qp2gxwl2fjf2y4vjkhg\"},{\"key\":\"amount\",\"value\":\"199391000000000aevmos\"}]},{\"type\":\"coin_spent\",\"attributes\":[{\"key\":\"spender\",\"value\":\"evmos17xpfvakm2amg962yls6f84z3kell8c5ljcjw34\"},{\"key\":\"amount\",\"value\":\"199391000000000aevmos\"}]},{\"type\":\"ethereum_tx\",\"attributes\":[{\"key\":\"amount\",\"value\":\"0\"},{\"key\":\"ethereumTxHash\",\"value\":\"0x8154a8a2bebc42c3a6eea6c10003039038d92bdf19cb2d840ac2d7d6fb7b0f32\"},{\"key\":\"txIndex\",\"value\":\"0\"},{\"key\":\"txGasUsed\",\"value\":\"46374\"},{\"key\":\"txHash\",\"value\":\"25EC6BCEA9B4A6835F5A38AB566959187F968C295EE71D015C3D907B25C5C72F\"},{\"key\":\"recipient\",\"value\":\"0x4F41a9e2ca78ad6B6eFab52F661B5f0A0C211F75\"}]},{\"type\":\"message\",\"attributes\":[{\"key\":\"action\",\"value\":\"/ethermint.evm.v1.MsgEthereumTx\"},{\"key\":\"sender\",\"value\":\"evmos17xpfvakm2amg962yls6f84z3kell8c5ljcjw34\"},{\"key\":\"module\",\"value\":\"evm\"},{\"key\":\"sender\",\"value\":\"0x728619cEf14112F1B777E46800a90677d4992544\"},{\"key\":\"txType\",\"value\":\"2\"}]},{\"type\":\"transfer\",\"attributes\":[{\"key\":\"recipient\",\"value\":\"evmos1w2rpnnh3gyf0rdmhu35qp2gxwl2fjf2y4vjkhg\"},{\"key\":\"sender\",\"value\":\"evmos17xpfvakm2amg962yls6f84z3kell8c5ljcjw34\"},{\"key\":\"amount\",\"value\":\"199391000000000aevmos\"}]},{\"type\":\"tx_log\",\"attributes\":[{\"key\":\"txLog\",\"value\":\"{\\\"address\\\":\\\"0x4F41a9e2ca78ad6B6eFab52F661B5f0A0C211F75\\\",\\\"topics\\\":[\\\"0x8c5be1e5ebec7d5bd14f71427d1e84f3dd0314c0f7b2291e5b200ac8c7c3b925\\\",\\\"0x000000000000000000000000728619cef14112f1b777e46800a90677d4992544\\\",\\\"0x000000000000000000000000067ec87844fbd73eda4a1059f30039584586e09d\\\"],\\\"data\\\":\\\"//////////////////////////////////////////8=\\\",\\\"blockNumber\\\":6684890,\\\"transactionHash\\\":\\\"0x8154a8a2bebc42c3a6eea6c10003039038d92bdf19cb2d840ac2d7d6fb7b0f32\\\",\\\"transactionIndex\\\":0,\\\"blockHash\\\":\\\"0x0a27dd4240dc352159f1e5a307634420fac7b6d89c61ab9722428221eafb884f\\\",\\\"logIndex\\\":0}\"}]}]}]"`
-    pub log: String,
-    /// The transaction information. Eg: `""`
-    pub info: String,
-    /// Gas wanted. Eg: `"55648"`
-    pub gas_wanted: String,
-    /// Gas used. Eg: `"46374"`
-    pub gas_used: String,
-    /// Transaction events.
-    pub events: Vec<TransactionEvent>,
-    /// Transaction codespace. Eg: `""`
-    pub codespace: String,
-    // Base 64 encoded transaction. Eg: `"CqMDCu8CCh8vZXRoZXJtaW50LmV2bS52MS5Nc2dFdGhlcmV1bVR4EssCCoQCCh4vZXRoZXJtaW50LmV2bS52MS5EeW5hbWljRmVlVHgS4QEKBDkwMDEQKRoKMTUwMDAwMDAwMCILMjU1MDAwMDAwMDAo4LIDMioweDRGNDFhOWUyY2E3OGFkNkI2ZUZhYjUyRjY2MUI1ZjBBMEMyMTFGNzU6ATBCRAlep7MAAAAAAAAAAAAAAAAGfsh4RPvXPtpKEFnzADlYRYbgnf//////////////////////////////////////////UgEBWiD4q5dJAnhCoLGbgwyqtMO3GuL4kx1WmrtUyDr7hzaeYmIgL/+FNXRbiS+/RyH2p5dwQ0O8OOcFHGxUDg6AP3gPYxQaQjB4ODE1NGE4YTJiZWJjNDJjM2E2ZWVhNmMxMDAwMzAzOTAzOGQ5MmJkZjE5Y2IyZDg0MGFjMmQ3ZDZmYjdiMGYzMvo/LgosL2V0aGVybWludC5ldm0udjEuRXh0ZW5zaW9uT3B0aW9uc0V0aGVyZXVtVHgSIhIgChoKBmFldm1vcxIQMTQxOTAyNDAwMDAwMDAwMBDgsgM="`
-    pub tx: String,
-}
-
-#[derive(Deserialize, Debug)]
-pub struct TransactionEvent {
-    /// Transaction event type. Eg: `"coin_spent"`
-    pub r#type: String,
-    /// Transaction event attributes.
-    pub attributes: Vec<TransactionEventAttribute>,
-}
-
-#[derive(Deserialize, Debug)]
-pub struct TransactionEventAttribute {
-    /// Base 64 encoded transaction event attribute key. Eg: `"c3BlbmRlcg=="`
-    pub key: String,
-    /// Base 64 encoded transaction event attribute value. Eg: `"ZXZtb3MxdzJycG5uaDNneWYwcmRtaHUzNXFwMmd4d2wyZmpmMnk0dmpraGc="`
-    pub value: String,
-    /// Transaction event attribute index. Eg: `true`
-    pub index: bool,
 }
 
 /// The configuration to be used while making REST API requests.
@@ -1641,4 +1618,15 @@ pub struct BlockMeta {
     pub header: BlockHeader,
     /// Number of transactions. Eg: `"3"`
     pub num_txs: String,
+}
+
+#[derive(Deserialize, Debug)]
+pub struct TxResp {
+    body: TxsTransactionBody,
+    tx_response: TxResponse<TxRespAttr>,
+}
+
+#[derive(Deserialize, Debug)]
+pub struct TxRespAttr {
+    // TODO!
 }
