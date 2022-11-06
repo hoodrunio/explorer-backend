@@ -562,43 +562,43 @@ where
 #[derive(Deserialize, Debug)]
 pub struct TallyingParamsResp {
     /// Tally parameters.
-    tally_params: TallyParams,
+    pub tally_params: TallyParams,
 }
 
 #[derive(Deserialize, Debug)]
 pub struct TallyParams {
     /// Quorum. Eg: `"0.400000000000000000"`
-    quorum: String,
+    pub quorum: String,
     /// Threshold. Eg: `"0.500000000000000000"`
-    threshold: String,
+    pub threshold: String,
     /// Veto threshold. Eg: `"0.334000000000000000"`
-    veto_threshold: String,
+    pub veto_threshold: String,
 }
 
 #[derive(Deserialize, Debug)]
 pub struct DepositParamsResp {
     /// Deposit parameters.
-    deposit_params: DepositParams,
+    pub deposit_params: DepositParams,
 }
 
 #[derive(Deserialize, Debug)]
 pub struct DepositParams {
     /// Array of denoms and amounts.
-    min_deposit: Vec<DenomAmount>,
+    pub min_deposit: Vec<DenomAmount>,
     /// Maximum deposit period. Eg: `"0s"`
-    max_deposit_period: String,
+    pub max_deposit_period: String,
 }
 
 #[derive(Deserialize, Debug)]
 pub struct VotingParamsResp {
     /// Voting parameters.
-    voting_params: VotingParams,
+    pub voting_params: VotingParams,
 }
 
 #[derive(Deserialize, Debug)]
 pub struct VotingParams {
     /// Voting period. Eg: `"1209600s"`
-    voting_period: String,
+    pub voting_period: String,
 }
 
 #[derive(Deserialize, Debug)]
