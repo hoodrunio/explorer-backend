@@ -90,7 +90,7 @@ macro_rules! chain {
                 self.rpc_url
             }
 
-            fn init(client: &'a reqwest::Client) -> Self {
+            fn new(client: &'a reqwest::Client) -> Self {
                 Self {
                     name: $name,
                     sdk_ver: $sdk_ver,
