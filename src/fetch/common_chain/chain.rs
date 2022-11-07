@@ -181,10 +181,10 @@ pub trait Chain<'a>: Sync {
         let mut query = vec![];
 
         query.push(("events", format!("message.sender='{}'", sender_address)));
-        query.push(("pagination.reverse", format!("{}", pagination_config.reverse)));
-        query.push(("pagination.limit", format!("{}", pagination_config.limit)));
+        query.push(("pagination.reverse", format!("{}", pagination_config.is_reverse())));
+        query.push(("pagination.limit", format!("{}", pagination_config.get_limit())));
         query.push(("pagination.count_total", "true".to_string()));
-        query.push(("pagination.offset", format!("{}", pagination_config.offset)));
+        query.push(("pagination.offset", format!("{}", pagination_config.get_offset())));
         query.push(("order_by", "ORDER_BY_DESC".to_string()));
 
         self.rest_api_request("/cosmos/tx/v1beta1/txs", &query).await
@@ -199,10 +199,10 @@ pub trait Chain<'a>: Sync {
         let mut query = vec![];
 
         query.push(("events", format!("message.recipient='{}'", recipient_address)));
-        query.push(("pagination.reverse", format!("{}", pagination_config.reverse)));
-        query.push(("pagination.limit", format!("{}", pagination_config.limit)));
+        query.push(("pagination.reverse", format!("{}", pagination_config.is_reverse())));
+        query.push(("pagination.limit", format!("{}", pagination_config.get_limit())));
         query.push(("pagination.count_total", "true".to_string()));
-        query.push(("pagination.offset", format!("{}", pagination_config.offset)));
+        query.push(("pagination.offset", format!("{}", pagination_config.get_offset())));
         query.push(("order_by", "ORDER_BY_DESC".to_string()));
 
         self.rest_api_request("/cosmos/tx/v1beta1/txs", &query).await
@@ -213,10 +213,10 @@ pub trait Chain<'a>: Sync {
         let mut query = vec![];
 
         query.push(("events", format!("tx.height={}", block_height)));
-        query.push(("pagination.reverse", format!("{}", pagination_config.reverse)));
-        query.push(("pagination.limit", format!("{}", pagination_config.limit)));
+        query.push(("pagination.reverse", format!("{}", pagination_config.is_reverse())));
+        query.push(("pagination.limit", format!("{}", pagination_config.get_limit())));
         query.push(("pagination.count_total", "true".to_string()));
-        query.push(("pagination.offset", format!("{}", pagination_config.offset)));
+        query.push(("pagination.offset", format!("{}", pagination_config.get_offset())));
         query.push(("order_by", "ORDER_BY_DESC".to_string()));
 
         self.rest_api_request("/cosmos/tx/v1beta1/txs", &query).await
@@ -284,10 +284,10 @@ pub trait Chain<'a>: Sync {
 
         let mut query = vec![];
 
-        query.push(("pagination.reverse", format!("{}", pagination_config.reverse)));
-        query.push(("pagination.limit", format!("{}", pagination_config.limit)));
+        query.push(("pagination.reverse", format!("{}", pagination_config.is_reverse())));
+        query.push(("pagination.limit", format!("{}", pagination_config.get_limit())));
         query.push(("pagination.count_total", "true".to_string()));
-        query.push(("pagination.offset", format!("{}", pagination_config.offset)));
+        query.push(("pagination.offset", format!("{}", pagination_config.get_offset())));
 
         self.rest_api_request(&path, &query).await
     }
@@ -311,10 +311,10 @@ pub trait Chain<'a>: Sync {
         let mut query = vec![];
 
         query.push(("status", "BOND_STATUS_BONDED".to_string()));
-        query.push(("pagination.reverse", format!("{}", pagination_config.reverse)));
-        query.push(("pagination.limit", format!("{}", pagination_config.limit)));
+        query.push(("pagination.reverse", format!("{}", pagination_config.is_reverse())));
+        query.push(("pagination.limit", format!("{}", pagination_config.get_limit())));
         query.push(("pagination.count_total", "true".to_string()));
-        query.push(("pagination.offset", format!("{}", pagination_config.offset)));
+        query.push(("pagination.offset", format!("{}", pagination_config.get_offset())));
 
         self.rest_api_request("/cosmos/staking/v1beta1/validators", &query).await
     }
@@ -324,10 +324,10 @@ pub trait Chain<'a>: Sync {
         let mut query = vec![];
 
         query.push(("status", "BOND_STATUS_UNBONDED".to_string()));
-        query.push(("pagination.reverse", format!("{}", pagination_config.reverse)));
-        query.push(("pagination.limit", format!("{}", pagination_config.limit)));
+        query.push(("pagination.reverse", format!("{}", pagination_config.is_reverse())));
+        query.push(("pagination.limit", format!("{}", pagination_config.get_limit())));
         query.push(("pagination.count_total", "true".to_string()));
-        query.push(("pagination.offset", format!("{}", pagination_config.offset)));
+        query.push(("pagination.offset", format!("{}", pagination_config.get_offset())));
 
         self.rest_api_request("/cosmos/staking/v1beta1/validators", &query).await
     }
@@ -337,10 +337,10 @@ pub trait Chain<'a>: Sync {
         let mut query = vec![];
 
         query.push(("status", "BOND_STATUS_UNBONDING".to_string()));
-        query.push(("pagination.reverse", format!("{}", pagination_config.reverse)));
-        query.push(("pagination.limit", format!("{}", pagination_config.limit)));
+        query.push(("pagination.reverse", format!("{}", pagination_config.is_reverse())));
+        query.push(("pagination.limit", format!("{}", pagination_config.get_limit())));
         query.push(("pagination.count_total", "true".to_string()));
-        query.push(("pagination.offset", format!("{}", pagination_config.offset)));
+        query.push(("pagination.offset", format!("{}", pagination_config.get_offset())));
 
         self.rest_api_request("/cosmos/staking/v1beta1/validators", &query).await
     }
@@ -349,10 +349,10 @@ pub trait Chain<'a>: Sync {
         let mut query = vec![];
 
         query.push(("status", "BOND_STATUS_UNSPECIFIED".to_string()));
-        query.push(("pagination.reverse", format!("{}", pagination_config.reverse)));
-        query.push(("pagination.limit", format!("{}", pagination_config.limit)));
+        query.push(("pagination.reverse", format!("{}", pagination_config.is_reverse())));
+        query.push(("pagination.limit", format!("{}", pagination_config.get_limit())));
         query.push(("pagination.count_total", "true".to_string()));
-        query.push(("pagination.offset", format!("{}", pagination_config.offset)));
+        query.push(("pagination.offset", format!("{}", pagination_config.get_offset())));
 
         self.rest_api_request("/cosmos/staking/v1beta1/validators", &query).await
     }
@@ -398,10 +398,10 @@ pub trait Chain<'a>: Sync {
     async fn get_supply_of_all_tokens(&self, pagination_config: PaginationConfig) -> Result<SupplyOfAllTokensResp, String> {
         let mut query = vec![];
 
-        query.push(("pagination.reverse", format!("{}", pagination_config.reverse)));
-        query.push(("pagination.limit", format!("{}", pagination_config.limit)));
+        query.push(("pagination.reverse", format!("{}", pagination_config.is_reverse())));
+        query.push(("pagination.limit", format!("{}", pagination_config.get_limit())));
         query.push(("pagination.count_total", "true".to_string()));
-        query.push(("pagination.offset", format!("{}", pagination_config.offset)));
+        query.push(("pagination.offset", format!("{}", pagination_config.get_offset())));
 
         self.rest_api_request("/cosmos/bank/v1beta1/supply", &query).await
     }
@@ -441,10 +441,10 @@ pub trait Chain<'a>: Sync {
         let mut query = vec![];
 
         query.push(("proposal_status", status.to_string()));
-        query.push(("pagination.reverse", format!("{}", pagination_config.reverse)));
-        query.push(("pagination.limit", format!("{}", pagination_config.limit)));
+        query.push(("pagination.reverse", format!("{}", pagination_config.is_reverse())));
+        query.push(("pagination.limit", format!("{}", pagination_config.get_limit())));
         query.push(("pagination.count_total", "true".to_string()));
-        query.push(("pagination.offset", format!("{}", pagination_config.offset)));
+        query.push(("pagination.offset", format!("{}", pagination_config.get_offset())));
 
         self.rest_api_request("/cosmos/gov/v1beta1/proposals", &query).await
     }
@@ -491,10 +491,10 @@ pub trait Chain<'a>: Sync {
 
         let mut query = vec![];
 
-        query.push(("pagination.reverse", format!("{}", pagination_config.reverse)));
-        query.push(("pagination.limit", format!("{}", pagination_config.limit)));
+        query.push(("pagination.reverse", format!("{}", pagination_config.is_reverse())));
+        query.push(("pagination.limit", format!("{}", pagination_config.get_limit())));
         query.push(("pagination.count_total", "true".to_string()));
-        query.push(("pagination.offset", format!("{}", pagination_config.offset)));
+        query.push(("pagination.offset", format!("{}", pagination_config.get_offset())));
 
         self.rest_api_request(&path, &query).await
     }
@@ -527,10 +527,10 @@ pub trait Chain<'a>: Sync {
 
         let mut query = vec![];
 
-        query.push(("pagination.reverse", format!("{}", pagination_config.reverse)));
-        query.push(("pagination.limit", format!("{}", pagination_config.limit)));
+        query.push(("pagination.reverse", format!("{}", pagination_config.is_reverse())));
+        query.push(("pagination.limit", format!("{}", pagination_config.get_limit())));
         query.push(("pagination.count_total", "true".to_string()));
-        query.push(("pagination.offset", format!("{}", pagination_config.offset)));
+        query.push(("pagination.offset", format!("{}", pagination_config.get_offset())));
 
         self.rest_api_request(&path, &query).await
     }
@@ -558,10 +558,10 @@ pub trait Chain<'a>: Sync {
 
         let mut query = vec![];
 
-        query.push(("pagination.reverse", format!("{}", pagination_config.reverse)));
-        query.push(("pagination.limit", format!("{}", pagination_config.limit)));
+        query.push(("pagination.reverse", format!("{}", pagination_config.is_reverse())));
+        query.push(("pagination.limit", format!("{}", pagination_config.get_limit())));
         query.push(("pagination.count_total", "true".to_string()));
-        query.push(("pagination.offset", format!("{}", pagination_config.offset)));
+        query.push(("pagination.offset", format!("{}", pagination_config.get_offset())));
 
         self.rest_api_request(&path, &query).await
     }
@@ -576,10 +576,10 @@ pub trait Chain<'a>: Sync {
 
         let mut query = vec![];
 
-        query.push(("pagination.reverse", format!("{}", pagination_config.reverse)));
-        query.push(("pagination.limit", format!("{}", pagination_config.limit)));
+        query.push(("pagination.reverse", format!("{}", pagination_config.is_reverse())));
+        query.push(("pagination.limit", format!("{}", pagination_config.get_limit())));
         query.push(("pagination.count_total", "true".to_string()));
-        query.push(("pagination.offset", format!("{}", pagination_config.offset)));
+        query.push(("pagination.offset", format!("{}", pagination_config.get_offset())));
 
         self.rest_api_request(&path, &query).await
     }
@@ -594,10 +594,10 @@ pub trait Chain<'a>: Sync {
 
         let mut query = vec![];
 
-        query.push(("pagination.reverse", format!("{}", pagination_config.reverse)));
-        query.push(("pagination.limit", format!("{}", pagination_config.limit)));
+        query.push(("pagination.reverse", format!("{}", pagination_config.is_reverse())));
+        query.push(("pagination.limit", format!("{}", pagination_config.get_limit())));
         query.push(("pagination.count_total", "true".to_string()));
-        query.push(("pagination.offset", format!("{}", pagination_config.offset)));
+        query.push(("pagination.offset", format!("{}", pagination_config.get_offset())));
 
         self.rest_api_request(&path, &query).await
     }

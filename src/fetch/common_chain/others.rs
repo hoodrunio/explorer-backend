@@ -670,11 +670,11 @@ pub enum PublicKey {
 /// The configuration to be used while making REST API requests.
 pub struct PaginationConfig {
     /// It is set to true if results are to be returned in the descending order.
-    pub reverse: bool,
+    reverse: bool,
     /// It is the number of result to not to be returned in the result page
-    pub offset: u64,
+    offset: u64,
     /// It is the total number of results to be returned in the result page
-    pub limit: u64,
+    limit: u64,
 }
 
 impl PaginationConfig {
@@ -693,6 +693,21 @@ impl PaginationConfig {
             offset: 0,
             limit: 10,
         }
+    }
+
+    /// Returns `true` if `reverse` property is set to `true`.
+    pub fn is_reverse(&self) -> bool {
+        self.reverse
+    }
+
+    /// Returns the value `limit` property holds.
+    pub fn get_limit(&self) -> u64 {
+        self.limit
+    }
+
+    /// Returns the value `offset` property holds.
+    pub fn get_offset(&self) -> u64 {
+        self.offset
     }
 
     /// Makes the response reversed.
