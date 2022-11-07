@@ -1,1 +1,1 @@
-mod init_chain;
+mod chain;
