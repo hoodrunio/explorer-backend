@@ -1,13 +1,13 @@
 /// # `chain!()`
-/// 
+///
 /// - Generates code to add support for a new chain.
-/// 
-/// - You can leave `prefix` unset, if it is the same with `name`. 
-/// 
-/// - You can leave `decimals` unset, if it is `6`. 
-/// 
+///
+/// - You can leave `prefix` unset, if it is the same with `name`.
+///
+/// - You can leave `decimals` unset, if it is `6`.
+///
 /// - Add new chains inside `src/chains.rs` file.
-/// 
+///
 /// # Usage
 /// ```rs
 /// // Axelar.
@@ -19,7 +19,7 @@
 ///     rpc_url: "https://rpc.cosmos.directory/axelar",
 ///     rest_url: "https://axelar-api.polkachu.com",
 /// });
-/// 
+///
 /// // Evmos.
 /// chain!({
 ///     ident: Evmos,
@@ -30,7 +30,7 @@
 ///     rpc_url: "https://rpc.cosmos.directory/evmos",
 ///     rest_url: "https://evmos-api.polkachu.com",
 /// });
-/// 
+///
 #[macro_export]
 macro_rules! chain {
     (
@@ -46,7 +46,7 @@ macro_rules! chain {
         }
     ) => {
         /// Struct represents a chain.
-        pub struct $a<'a> {
+        pub struct $a {
             name: &'static str,
             sdk_ver: usize,
             prefix: &'static str,
@@ -54,10 +54,10 @@ macro_rules! chain {
             decimals: usize,
             rest_url: &'static str,
             rpc_url: &'static str,
-            client: &'a reqwest::Client,
+            client: reqwest::Client,
         }
 
-        impl<'a> crate::fetch::Chain<'a> for $a<'a> {
+        impl crate::fetch::Chain for $a {
             fn name(&self) -> &'static str {
                 self.name
             }
@@ -66,8 +66,8 @@ macro_rules! chain {
                 self.sdk_ver
             }
 
-            fn client(&self) -> &reqwest::Client {
-                self.client
+            fn client(&self) -> reqwest::Client {
+                self.client.clone()
             }
 
             fn base_prefix(&self) -> &'static str {
@@ -90,7 +90,7 @@ macro_rules! chain {
                 self.rpc_url
             }
 
-            fn new(client: &'a reqwest::Client) -> Self {
+            fn new(client: reqwest::Client) -> Self {
                 Self {
                     name: $name,
                     sdk_ver: $sdk_ver,
@@ -99,85 +99,10 @@ macro_rules! chain {
                     decimals: $decimals,
                     rest_url: $rest_url,
                     rpc_url: $rpc_url,
-                    client,
+                    client
                 }
             }
 
         }
-    };
-
-    (
-        {
-            ident: $a:ident,
-            name: $name:expr,
-            logo: $logo:expr,
-            sdk_ver: $sdk_ver:expr,
-            decimals: $decimals:expr,
-            rpc_url: $rpc_url:expr,
-            rest_url: $rest_url:expr,
-        }
-    ) => {
-        chain!(
-            {
-                ident: $a,
-                name: $name,
-                logo: $logo,
-                prefix: $name,
-                sdk_ver: $sdk_ver,
-                decimals: $decimals,
-                rpc_url: $rpc_url,
-                rest_url: $rest_url,
-            }
-        );
-    };
-
-    (
-        {
-            ident: $a:ident,
-            name: $name:expr,
-            logo: $logo:expr,
-            sdk_ver: $sdk_ver:expr,
-            rpc_url: $rpc_url:expr,
-            rest_url: $rest_url:expr,
-        }
-    ) => {
-        chain!(
-            {
-                ident: $a,
-                name: $name,
-                logo: $logo,
-                prefix: $name,
-                sdk_ver: $sdk_ver,
-                decimals: 6,
-                rpc_url: $rpc_url,
-                rest_url: $rest_url,
-            }
-        );
-    };
-
-
-    (
-        {
-            ident: $a:ident,
-            name: $name:expr,
-            logo: $logo:expr,
-            prefix: $prefix:expr,
-            sdk_ver: $sdk_ver:expr,
-            rpc_url: $rpc_url:expr,
-            rest_url: $rest_url:expr,
-        }
-    ) => {
-        chain!(
-            {
-                ident: $a,
-                name: $name,
-                logo: $logo,
-                prefix: $name,
-                sdk_ver: $sdk_ver,
-                decimals: 6,
-                rpc_url: $rpc_url,
-                rest_url: $rest_url,
-            }
-        );
     };
 }
