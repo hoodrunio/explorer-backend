@@ -5,42 +5,42 @@ use crate::fetch::Chain;
 
 /// The state of the web server.
 /// Stores reusable data.
-pub struct ServerState<'a> {
-    /// The `reqwest::Client` to make requests.
-    reqwest_client: reqwest::Client,
+pub struct ServerState {
     /// Stores all the chains.
-    chains: Chains<'a>,
+    pub chains: Chains,
 }
 
-impl<'a> ServerState<'a> {
+impl ServerState {
     /// Creates a new `ServerState`.
     pub fn new() -> Self {
-        todo!()
+        Self { chains: Chains::new() }
     }
 }
 
 /// Stores all the chains.
-pub struct Chains<'a> {
-    axelar: Axelar<'a>,
-    celestia: Celestia<'a>,
-    cosmos: Cosmos<'a>,
-    evmos: Evmos<'a>,
-    kyve: Kyve<'a>,
-    osmosis: Osmosis<'a>,
-    secret: Secret<'a>,
+pub struct Chains {
+    pub axelar: Axelar,
+    pub celestia: Celestia,
+    pub cosmos: Cosmos,
+    pub evmos: Evmos,
+    pub kyve: Kyve,
+    pub osmosis: Osmosis,
+    pub secret: Secret,
 }
 
-impl<'a> Chains<'a> {
+impl Chains {
     /// Creates a new chains object.
-    pub fn new(client: &'a reqwest::Client) -> Self {
+    pub fn new() -> Self {
+        let client = Client::new();
+
         Self {
-            axelar: Axelar::new(&client),
-            celestia: Celestia::new(&client),
-            cosmos: Cosmos::new(&client),
-            evmos: Evmos::new(&client),
-            kyve: Kyve::new(&client),
-            osmosis: Osmosis::new(&client),
-            secret: Secret::new(&client),
+            axelar: Axelar::new(client.clone()),
+            celestia: Celestia::new(client.clone()),
+            cosmos: Cosmos::new(client.clone()),
+            evmos: Evmos::new(client.clone()),
+            kyve: Kyve::new(client.clone()),
+            osmosis: Osmosis::new(client.clone()),
+            secret: Secret::new(client.clone()),
         }
     }
 }
