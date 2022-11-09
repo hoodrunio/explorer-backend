@@ -9,7 +9,7 @@
 Explorer backend is an app:
 - Deals with blockchain nodes.
 - Supports our database implementation.
-- Provides a nice websocket API.
+- Provides a nice REST & websocket API.
 
 Our backend is the fastest explorer backend possible, and it makes our website the best Cosmos explorer.
 
