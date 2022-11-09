@@ -9,7 +9,7 @@ use super::{
 
 /// The trait that provides methods for common operation types.
 #[async_trait::async_trait]
-pub trait Chain<'a>: Sync {
+pub trait Chain: Sync {
     /*
     ------------------------------------------------------
        METHODS THAT NEED TO BE IMPLEMENTED ESPECIALLY.
@@ -18,7 +18,7 @@ pub trait Chain<'a>: Sync {
     */
 
     /// Initializes the chain.
-    fn new(client: &'a reqwest::Client) -> Self;
+    fn new(client: reqwest::Client) -> Self;
 
     /// Returns the name of the chain.
     fn name(&self) -> &'static str;
@@ -42,7 +42,7 @@ pub trait Chain<'a>: Sync {
     fn decimals(&self) -> usize;
 
     /// Returns `reqwest::Client` of the chain.
-    fn client(&self) -> &reqwest::Client;
+    fn client(&self) -> reqwest::Client;
 
     /*
     --------------------------------------
@@ -122,7 +122,7 @@ pub trait Chain<'a>: Sync {
     */
 
     /// Returns the block at given height. Returns the latest block, if no height is given.
-    async fn get_block_by_height(&self, height: Option<usize>) -> Result<BlockResp, String> {
+    async fn get_block_by_height(&self, height: Option<u64>) -> Result<BlockResp, String> {
         let mut query = vec![];
 
         let height = height.and_then(|height| Some(height.to_string()));
@@ -209,10 +209,12 @@ pub trait Chain<'a>: Sync {
     }
 
     /// Returns transactions at given height.
-    async fn get_txs_by_height(&self, block_height: u64, pagination_config: PaginationConfig) -> Result<TxsResp, String> {
+    async fn get_txs_by_height(&self, block_height: Option<u64>, pagination_config: PaginationConfig) -> Result<TxsResp, String> {
         let mut query = vec![];
 
-        query.push(("events", format!("tx.height={}", block_height)));
+        if let Some(block_height) = block_height {
+            query.push(("events", format!("tx.height={}", block_height)));
+        };
         query.push(("pagination.reverse", format!("{}", pagination_config.is_reverse())));
         query.push(("pagination.limit", format!("{}", pagination_config.get_limit())));
         query.push(("pagination.count_total", "true".to_string()));
@@ -344,6 +346,7 @@ pub trait Chain<'a>: Sync {
 
         self.rest_api_request("/cosmos/staking/v1beta1/validators", &query).await
     }
+    
     /// Returns the list of validators with unspecified status.
     async fn get_validators_unspecified(&self, pagination_config: PaginationConfig) -> Result<ValidatorListResp, String> {
         let mut query = vec![];
@@ -355,6 +358,17 @@ pub trait Chain<'a>: Sync {
         query.push(("pagination.offset", format!("{}", pagination_config.get_offset())));
 
         self.rest_api_request("/cosmos/staking/v1beta1/validators", &query).await
+    }
+
+    /// Returns validator information by given delegator validator pair.
+    async fn get_delegator_validator_pair_info(
+        &self,
+        delegator_addr: &str,
+        validator_addr: &str,
+    ) -> Result<ValidatorResp, String> {
+        let path = format!("/cosmos/staking/v1beta1/delegators/{delegator_addr}/validators/{validator_addr}");
+
+        self.rest_api_request(&path, &[]).await
     }
 
     /*
@@ -373,17 +387,6 @@ pub trait Chain<'a>: Sync {
     /// Returns the rewards of given delegator address.
     async fn get_delegator_rewards(&self, delegator_addr: &str) -> Result<DelegatorRewardsResp, String> {
         let path = format!("/cosmos/distribution/v1beta1/delegators/{delegator_addr}/rewards");
-
-        self.rest_api_request(&path, &[]).await
-    }
-
-    /// Returns validator information by given delegator validator pair.
-    async fn get_delegator_validator_pair_info(
-        &self,
-        delegator_addr: &str,
-        validator_addr: &str,
-    ) -> Result<ValidatorResp, String> {
-        let path = format!("/cosmos/staking/v1beta1/delegators/{delegator_addr}/validators/{validator_addr}");
 
         self.rest_api_request(&path, &[]).await
     }
