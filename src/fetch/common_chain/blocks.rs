@@ -1,6 +1,6 @@
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Serialize, Debug)]
 pub struct BlockchainResp {
     /// Last block height. `"12733014"`
     pub last_height: String,
@@ -8,7 +8,7 @@ pub struct BlockchainResp {
     pub block_metas: Vec<BlockMeta>,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Serialize, Debug)]
 pub struct BlockMeta {
     /// Last block height. `"12733014"`
     pub block_id: BlockId,
@@ -20,20 +20,20 @@ pub struct BlockMeta {
     pub num_txs: String,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Serialize, Debug)]
 pub struct BlockResp {
     pub block_id: BlockId,
     pub block: BlockBlock,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Serialize, Debug)]
 pub struct BlockId {
     /// HEX encoded transaction hash.
     pub hash: String,
     pub parts: BlockIdParts,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Serialize, Debug)]
 pub struct BlockBlock {
     pub header: BlockHeader,
     pub data: BlockData,
@@ -41,7 +41,7 @@ pub struct BlockBlock {
     pub last_commit: BlockLastCommit,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Serialize, Debug)]
 pub struct BlockIdParts {
     /// Unknown. Eg: `1`
     pub total: usize,
@@ -49,7 +49,7 @@ pub struct BlockIdParts {
     pub hash: String,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Serialize, Debug)]
 pub struct BlockHeader {
     /// Block header version.
     pub version: BlockHeaderVersion,
@@ -81,19 +81,19 @@ pub struct BlockHeader {
     pub proposer_address: String,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Serialize, Debug)]
 pub struct BlockData {
     /// Array of very long Base64 encoded transactions. Eg: `["CoYBCoMBCiUvYXhlbGFyLmF4ZWxhcm5ldC52MWJldGExLkxpbmtSZXF1ZXN0EloKFAfFBMRZ8AeNGGkWVAcX+idm5UutEioweDM1NzkyNTRmNTgwNWQxNjZiNjhhNTg3MzIwNzA0NDQ4MjBmYTRiZjEaCGV0aGVyZXVtIgx3YnRjLXNhdG9zaGkSlQEKUQpGCh8vY29zbW9zLmNyeXB0by5zZWNwMjU2azEuUHViS2V5EiMKIQPUmMSQ2WoB0eD589u7pruIZt2gbHT2DO3QSIPX0z8WXBIECgIIARiuCBJACgsKBHVheGwSAzY3NRDh8AUiLWF4ZWxhcjFwdTJzd2MwbjB0cmZ0bGRoejU3cHlxa3c2ZDg3aGFobjdnNjk3YxpANmM1rQE1P3hbVtuFoaQEpGpnBnlygbotxEA0qR/rmAwVRB+acJ6idoF1V0Qul5eSCpi1Z0TLLwQEMya4nMdl3g=="]`
     pub txs: Vec<String>,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Serialize, Debug)]
 pub struct BlockHeaderVersion {
     /// Unknown. Eg: `"11"`
     pub block: String,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Serialize, Debug)]
 pub struct BlockLastCommitSignatures {
     /// Unknown. Eg: `2`
     pub block_id_flag: usize,
@@ -105,12 +105,12 @@ pub struct BlockLastCommitSignatures {
     pub signature: Option<String>,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Serialize, Debug)]
 pub struct BlockEvidence {
     // Property below is an unknown array. TODO!
     // evidence: Vec<UNKNOWN>
 }
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Serialize, Debug)]
 pub struct BlockLastCommit {
     /// The block height of the latest commit. Eg: `"4611327"`
     pub height: String,

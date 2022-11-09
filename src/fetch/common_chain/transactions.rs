@@ -1,15 +1,16 @@
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
+
 
 use super::others::{DenomAmount, Pagination, PublicKey};
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Serialize, Debug)]
 pub struct TxsResp {
     pub txs: Vec<TxsTransaction>,
     pub tx_responses: Vec<TxResponse>,
     pub pagination: Pagination,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Serialize, Debug)]
 pub struct TxsTransaction {
     /// Transaction body.
     pub body: TxsTransactionBody,
@@ -19,7 +20,7 @@ pub struct TxsTransaction {
     pub signatures: Vec<String>,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Serialize, Debug)]
 pub struct TxsTransactionBody {
     /// Transaction messages.
     pub messages: Vec<TxsTransactionMessage>,
@@ -33,7 +34,7 @@ pub struct TxsTransactionBody {
     pub non_critical_extension_options: Vec<u8>,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Serialize, Debug)]
 #[serde(tag = "@type")]
 pub enum ExtensionOption {
     #[serde(rename = "/ethermint.types.v1.ExtensionOptionsWeb3Tx")]
@@ -47,7 +48,7 @@ pub enum ExtensionOption {
     },
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Serialize, Debug)]
 pub struct TxsTransactionAuthInfo {
     /// Transaction signer informations.
     pub signer_infos: Vec<TxsTransactionSignerInfo>,
@@ -55,7 +56,7 @@ pub struct TxsTransactionAuthInfo {
     pub fee: TxsTransactionAuthInfoFee,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Serialize, Debug)]
 #[serde(tag = "@type")]
 pub enum TxsTransactionMessage {
     #[serde(rename = "/cosmos.bank.v1beta1.MsgSend")]
@@ -102,7 +103,7 @@ pub enum TxsTransactionMessage {
     },
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Serialize, Debug)]
 pub struct TimeoutHeight {
     /// Timeout revision number. Eg: `"1"`
     pub revision_number: String,
@@ -110,7 +111,7 @@ pub struct TimeoutHeight {
     pub revision_height: String,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Serialize, Debug)]
 pub struct TxsTransactionAuthInfoFee {
     /// Amount.
     pub amount: Vec<DenomAmount>,
@@ -122,25 +123,25 @@ pub struct TxsTransactionAuthInfoFee {
     pub granter: String,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Serialize, Debug)]
 pub struct TxsTransactionSignerInfo {
     pub public_key: PublicKey,
     pub mode_info: TxsTransactionModeInfo,
     /// Transaction signer info sequence. Eg: `"1"`
     pub sequence: String,
 }
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Serialize, Debug)]
 pub struct TxsTransactionModeInfo {
     pub single: TxsTransactionModeInfoSingle,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Serialize, Debug)]
 pub struct TxsTransactionModeInfoSingle {
     /// Mode. Eg: `"SIGN_MODE_LEGACY_AMINO_JSON"`
     pub mode: String,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Serialize, Debug)]
 pub struct TxResponse {
     /// Block height. Eg: `"12713829"`
     pub height: String,
@@ -170,7 +171,7 @@ pub struct TxResponse {
     pub events: Vec<TxsResponseEvent<UnparsedTxEventAttribute>>,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Serialize, Debug)]
 #[serde(tag = "@type")]
 pub enum TxsResponseTx {
     #[serde(rename = "/cosmos.tx.v1beta1.Tx")]
@@ -183,7 +184,7 @@ pub enum TxsResponseTx {
         signatures: Vec<String>,
     },
 }
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Serialize, Debug)]
 pub struct Tx {
     // Tx body.
     pub body: TxsTransactionBody,
@@ -193,7 +194,7 @@ pub struct Tx {
     pub signatures: Vec<String>,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Serialize, Debug)]
 pub struct TxsResponseLog {
     /// Message index. Eg: `0`
     pub msg_index: usize,
@@ -203,7 +204,7 @@ pub struct TxsResponseLog {
     pub events: Vec<TxsResponseEvent<TxResponseLogEventAttribute>>,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Serialize, Debug)]
 #[serde(tag = "type")]
 #[serde(rename_all = "snake_case")]
 pub enum TxsResponseEvent<T> {
@@ -246,7 +247,7 @@ pub enum TxsResponseEvent<T> {
     },
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Serialize, Debug)]
 pub struct UnparsedTxEventAttribute {
     /// Unparsed event attribute key. Eg: `"cmVjaXBpZW50"`
     pub key: String,
@@ -256,7 +257,7 @@ pub struct UnparsedTxEventAttribute {
     pub index: Option<bool>,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Serialize, Debug)]
 #[serde(tag = "key")]
 #[serde(rename_all = "snake_case")]
 pub enum TxResponseLogEventAttribute {
@@ -368,7 +369,7 @@ pub enum TxResponseLogEventAttribute {
     },
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Serialize, Debug)]
 pub struct TxResp {
     pub tx: Tx,
     pub tx_response: TxResponse,

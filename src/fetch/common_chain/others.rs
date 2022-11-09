@@ -1,4 +1,5 @@
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
+
 
 // Returns the mint parameters of the chain.
 /* async fn get_mint_params(&self) -> Option<MintParams> {
@@ -16,7 +17,7 @@ use serde::Deserialize;
 }
 */
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Serialize, Debug)]
 pub struct Pagination {
     /// Pagination next key. Might be `None`. Eg: `"FGxWOxzuw4bZozVHta3qYgdKOuRC"`
     pub next_key: Option<String>,
@@ -24,7 +25,7 @@ pub struct Pagination {
     pub total: String,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Serialize, Debug)]
 pub struct DenomAmount {
     /// The name of the token. Eg: `"uatom"`
     pub denom: String,
@@ -32,13 +33,13 @@ pub struct DenomAmount {
     pub amount: String,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Serialize, Debug)]
 pub struct TallyingParamsResp {
     /// Tally parameters.
     pub tally_params: TallyParams,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Serialize, Debug)]
 pub struct TallyParams {
     /// Quorum. Eg: `"0.400000000000000000"`
     pub quorum: String,
@@ -48,13 +49,13 @@ pub struct TallyParams {
     pub veto_threshold: String,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Serialize, Debug)]
 pub struct DepositParamsResp {
     /// Deposit parameters.
     pub deposit_params: DepositParams,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Serialize, Debug)]
 pub struct DepositParams {
     /// Array of denoms and amounts.
     pub min_deposit: Vec<DenomAmount>,
@@ -62,19 +63,19 @@ pub struct DepositParams {
     pub max_deposit_period: String,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Serialize, Debug)]
 pub struct VotingParamsResp {
     /// Voting parameters.
     pub voting_params: VotingParams,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Serialize, Debug)]
 pub struct VotingParams {
     /// Voting period. Eg: `"1209600s"`
     pub voting_period: String,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Serialize, Debug)]
 pub struct DelegatorRewardsResp {
     /// Array of rewards.
     pub rewards: Vec<DelegatorReward>,
@@ -82,7 +83,7 @@ pub struct DelegatorRewardsResp {
     pub total: Vec<DenomAmount>,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Serialize, Debug)]
 pub struct DelegatorReward {
     /// Validator address. Eg: `"cosmosvaloper1c4k24jzduc365kywrsvf5ujz4ya6mwympnc4en"`
     pub validator_address: String,
@@ -90,25 +91,25 @@ pub struct DelegatorReward {
     pub reward: Vec<DenomAmount>,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Serialize, Debug)]
 pub struct WithdrawAddressResp {
     /// Delegator withdraw address. Eg: `"cosmos1a3yjj7d3qnx4spgvjcwjq9cw9snrrrhu3rw8nv"`
     pub withdraw_address: String,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Serialize, Debug)]
 pub struct SigningInfoResp {
     /// Validator signing info.
     pub val_signing_info: SlashingSigningInfoItem,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Serialize, Debug)]
 pub struct ValidatorResp {
     /// Validator.
     pub validator: ValidatorListValidator,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Serialize, Debug)]
 pub struct ValidatorsResp {
     /// Array of validators.
     pub validators: Vec<ValidatorListValidator>,
@@ -116,7 +117,7 @@ pub struct ValidatorsResp {
     pub pagination: Pagination,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Serialize, Debug)]
 pub struct UnbondingDelegationResp {
     /// Array of unbonding delegation responses.
     pub unbonding_responses: Vec<UnbondingDelegationResponse>,
@@ -124,7 +125,7 @@ pub struct UnbondingDelegationResp {
     pub pagination: Pagination,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Serialize, Debug)]
 pub struct UnbondingDelegationResponse {
     /// Delegator address. Eg: `cosmos156gqf9837u7d4c4678yt3rl4ls9c5vuuxyhkw6`
     pub delegator_address: String,
@@ -134,7 +135,7 @@ pub struct UnbondingDelegationResponse {
     pub entries: Vec<UnbondingDelegationEntry>,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Serialize, Debug)]
 pub struct UnbondingDelegationEntry {
     /// Unbonding entry creation height. Eg: `"524000"`
     pub creation_height: String,
@@ -146,7 +147,7 @@ pub struct UnbondingDelegationEntry {
     pub balance: String,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Serialize, Debug)]
 pub struct RedelagationsResp {
     /// Array of redelegation responses.
     pub redelegation_responses: Vec<RedelegationResponse>,
@@ -154,7 +155,7 @@ pub struct RedelagationsResp {
     pub pagination: Pagination,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Serialize, Debug)]
 pub struct RedelegationResponse {
     /// Delegation.
     pub redelegation: Redelegation,
@@ -162,7 +163,7 @@ pub struct RedelegationResponse {
     pub entries: Vec<RedelegationEntry>,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Serialize, Debug)]
 pub struct Redelegation {
     /// Delegator address. Eg: `"cosmos156gqf9837u7d4c4678yt3rl4ls9c5vuuxyhkw6"`
     pub delegator_address: String,
@@ -174,7 +175,7 @@ pub struct Redelegation {
     pub entries: Vec<RedelegationEntry>,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Serialize, Debug)]
 pub struct RedelegationResponseEntry {
     /// Redelegation entry.
     pub redelegation_entry: RedelegationEntry,
@@ -182,7 +183,7 @@ pub struct RedelegationResponseEntry {
     pub balance: String,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Serialize, Debug)]
 pub struct RedelegationEntry {
     /// Redelagation creation height. Eg: `"524000"`
     pub creation_height: String,
@@ -194,7 +195,7 @@ pub struct RedelegationEntry {
     pub shares_dst: String,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Serialize, Debug)]
 pub struct DelagationsResp {
     /// Array of delegation responses.
     pub delegation_responses: Vec<DelegationResponse>,
@@ -202,7 +203,7 @@ pub struct DelagationsResp {
     pub pagination: Pagination,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Serialize, Debug)]
 pub struct DelegationResponse {
     /// Delegation.
     pub delegation: Delegation,
@@ -210,7 +211,7 @@ pub struct DelegationResponse {
     pub balance: DenomAmount,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Serialize, Debug)]
 pub struct Delegation {
     /// Delegator address. Eg: `"cosmos156gqf9837u7d4c4678yt3rl4ls9c5vuuxyhkw6"`
     pub delegator_address: String,
@@ -220,13 +221,13 @@ pub struct Delegation {
     pub shares: String,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Serialize, Debug)]
 pub struct ProposalVoteByVoterResp {
     /// Proposal vote.
     pub vote: ProposalVote,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Serialize, Debug)]
 pub struct ProposalVotesResp {
     /// Array of proposal votes.
     pub votes: Vec<ProposalVote>,
@@ -234,7 +235,7 @@ pub struct ProposalVotesResp {
     pub pagination: Pagination,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Serialize, Debug)]
 pub struct ProposalVote {
     /// Proposal ID. Eg: `"34"`
     pub proposal_id: String,
@@ -246,7 +247,7 @@ pub struct ProposalVote {
     pub options: Vec<ProposalOption>,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Serialize, Debug)]
 pub struct ProposalOption {
     /// Proposal vote option. Eg: `"VOTE_OPTION_UNSPECIFIED"`
     pub option: String,
@@ -254,19 +255,19 @@ pub struct ProposalOption {
     pub weight: String,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Serialize, Debug)]
 pub struct ProposalTallyResp {
     /// Proposal tally.
     pub tally: ProposalFinalTallyResult,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Serialize, Debug)]
 pub struct ProposalDepositByDepositorResp {
     /// Proposal deposit.
     pub deposit: ProposalDeposit,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Serialize, Debug)]
 pub struct ProposalDepositsResp {
     /// Proposal deposits.
     pub deposits: Vec<ProposalDeposit>,
@@ -274,7 +275,7 @@ pub struct ProposalDepositsResp {
     pub pagination: Pagination,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Serialize, Debug)]
 pub struct ProposalDeposit {
     /// Proposal ID. Eg: `"35"`
     pub proposal_id: String,
@@ -284,13 +285,13 @@ pub struct ProposalDeposit {
     pub amount: DenomAmount,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Serialize, Debug)]
 pub struct ProposalsDetailsResp {
     /// Proposal details.
     pub proposal: Proposal,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Serialize, Debug)]
 pub struct ProposalsResp {
     /// Array of proposals.
     pub proposals: Vec<Proposal>,
@@ -298,7 +299,7 @@ pub struct ProposalsResp {
     pub pagination: Pagination,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Serialize, Debug)]
 pub struct Proposal {
     /// Proposal ID. Eg: `"79"`
     pub proposal_id: String,
@@ -320,7 +321,7 @@ pub struct Proposal {
     pub voting_end_time: String,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Serialize, Debug)]
 #[serde(tag = "@type")]
 pub enum ProposalContent {
     #[serde(rename = "/cosmos.distribution.v1beta1.CommunityPoolSpendProposal")]
@@ -372,7 +373,7 @@ pub enum ProposalContent {
     },
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Serialize, Debug)]
 pub struct SoftwareUpgradeProposalPlan {
     /// Software upgrade proposal plan name. Eg: `"Signal Proposal to Adopt the Liquidity Module onto the Cosmos Hub"`
     pub name: String,
@@ -387,7 +388,7 @@ pub struct SoftwareUpgradeProposalPlan {
     // upgraded_client_state: Option<>
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Serialize, Debug)]
 pub struct ParameterChangeProposalChange {
     /// Subspace. Eg: `"mint"`
     pub subspace: String,
@@ -397,7 +398,7 @@ pub struct ParameterChangeProposalChange {
     pub value: String,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Serialize, Debug)]
 pub struct ProposalFinalTallyResult {
     /// Number of `yes` votes. Eg: `"50"`
     pub yes: String,
@@ -409,7 +410,7 @@ pub struct ProposalFinalTallyResult {
     pub no_with_veto: String,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Serialize, Debug)]
 pub struct InflationParams {
     /// Mint denom. Eg: `"aevmos"`
     pub mint_denom: String,
@@ -421,7 +422,7 @@ pub struct InflationParams {
     pub enable_inflation: bool,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Serialize, Debug)]
 pub struct InflationParamsInflationDistribution {
     /// Staking rewards inflation. Eg: `"0.533333334000000000"`
     pub staking_rewards: String,
@@ -431,7 +432,7 @@ pub struct InflationParamsInflationDistribution {
     pub community_pool: String,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Serialize, Debug)]
 pub struct InflationParamsExponentialCalculation {
     /// Unknown. Eg: `"300000000.000000000000000000"`
     pub a: String,
@@ -445,7 +446,7 @@ pub struct InflationParamsExponentialCalculation {
     pub max_variance: String,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Serialize, Debug)]
 pub struct MintParams {
     /// Mint denom. Eg: `"uatom"`
     pub mint_denom: String,
@@ -461,7 +462,7 @@ pub struct MintParams {
     pub blocks_per_year: String,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Serialize, Debug)]
 pub struct SlashingParams {
     /// Slashing, signed blocks window. Eg: `"10000"`
     pub signed_blocks_window: String,
@@ -475,7 +476,7 @@ pub struct SlashingParams {
     pub slash_fraction_downtime: String,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Serialize, Debug)]
 pub struct ValidatorListResp {
     /// Array of validators.
     pub validators: Vec<ValidatorListValidator>,
@@ -483,7 +484,7 @@ pub struct ValidatorListResp {
     pub pagination: Pagination,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Serialize, Debug)]
 pub struct ValidatorListValidator {
     /// Operator address. Eg: `"evmosvaloper1qq95x6dhrdnrfunlth5uh24tkrfphzl9crd3xr"`
     pub operator_address: String,
@@ -509,7 +510,7 @@ pub struct ValidatorListValidator {
     pub min_self_delegation: String,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Serialize, Debug)]
 pub struct ValidatorListValidatorCommission {
     /// Validator commission rates.
     pub commission_rates: ValidatorListValidatorCommissionRates,
@@ -517,7 +518,7 @@ pub struct ValidatorListValidatorCommission {
     pub update_time: String,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Serialize, Debug)]
 pub struct ValidatorListValidatorCommissionRates {
     /// Validator commission rate. Eg: `"0.050000000000000000"`
     pub rate: String,
@@ -527,7 +528,7 @@ pub struct ValidatorListValidatorCommissionRates {
     pub max_change_rate: String,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Serialize, Debug)]
 pub struct ValidatorListValidatorDescription {
     /// Validator moniker. Eg: `"heisenbug"`
     pub moniker: String,
@@ -541,13 +542,13 @@ pub struct ValidatorListValidatorDescription {
     pub details: String,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Serialize, Debug)]
 pub struct ParamsResp<T> {
     /// The parameters.
     pub params: T,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Serialize, Debug)]
 pub struct StakingParams {
     /// Unbonding time. Eg: `"1814400s"`
     pub unbonding_time: String,
@@ -561,25 +562,25 @@ pub struct StakingParams {
     pub bond_denom: String,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Serialize, Debug)]
 pub struct MintingInflationResp {
     /// Minting inflation rate. Eg: `"0.131020685388983473"`
     pub inflation: String,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Serialize, Debug)]
 pub struct MintingInflationRateResp {
     /// Minting inflation rate. Eg: `"91.087708112747866100"`
     pub inflation_rate: String,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Serialize, Debug)]
 pub struct StakingPoolResp {
     /// Staking pool information.
     pub pool: StakingPool,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Serialize, Debug)]
 pub struct StakingPool {
     /// Tokens not bonded. Eg: `"15241580330282"`
     pub not_bonded_tokens: String,
@@ -587,13 +588,13 @@ pub struct StakingPool {
     pub bonded_tokens: String,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Serialize, Debug)]
 pub struct SupplyByDenomResp {
     /// Amount and denom.
     pub amount: DenomAmount,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Serialize, Debug)]
 pub struct SupplyOfAllTokensResp {
     /// Array of amounts and denoms.
     pub supply: Vec<DenomAmount>,
@@ -601,37 +602,37 @@ pub struct SupplyOfAllTokensResp {
     pub pagination: Pagination,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Serialize, Debug)]
 pub struct ValidatorCommisionResp {
     /// Validator commission.
     pub commission: ValidatorCommision,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Serialize, Debug)]
 pub struct ValidatorCommision {
     /// Array of amounts and demons.
     pub commission: Vec<DenomAmount>,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Serialize, Debug)]
 pub struct ValidatorRewardsResp {
     /// Validator rewards.
     pub rewards: ValidatorCommision,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Serialize, Debug)]
 pub struct ValidatorRewards {
     /// Array of amounts and denoms.
     pub rewards: Vec<DenomAmount>,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Serialize, Debug)]
 pub struct SlashingSigningInfo {
     pub info: Vec<SlashingSigningInfoItem>,
     pub pagination: Pagination,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Serialize, Debug)]
 pub struct SlashingSigningInfoItem {
     /// Validator address. Eg: `"evmosvalcons1qx4hehfny66jfzymzn6d5t38m0ely3cvw6zn06"`
     pub address: String,
@@ -647,7 +648,7 @@ pub struct SlashingSigningInfoItem {
     pub missed_blocks_counter: String,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Serialize, Debug)]
 #[serde(tag = "@type")]
 pub enum PublicKey {
     #[serde(rename = "/cosmos.crypto.secp256k1.PubKey")]
