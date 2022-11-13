@@ -9,6 +9,6 @@ mod utils;
 
 #[tokio::main]
 async fn main() {
-    println!("Server is starting...");
+    println!("Server is running...");
     start_web_server().await.unwrap()
 }
