@@ -42,7 +42,7 @@ impl Chain {
                                     self.update_latest_txs(new_tx);
                                 }
                                 Err(error) => {
-                                    write("hex.log", format!("{}\n{}", error, msg));
+                                    println!("{}\n{}", error, msg)
                                 }
                             }
                         }
