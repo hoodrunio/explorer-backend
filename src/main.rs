@@ -1,13 +1,14 @@
 use crate::server::start_web_server;
-
-mod chains;
+mod chain;
+mod data;
 mod fetch;
-mod macros;
+mod routes;
 mod server;
+mod state;
+mod utils;
 
 #[tokio::main]
 async fn main() {
-    println!("Hello, world!");
-
+    println!("Server is starting...");
     start_web_server().await.unwrap()
 }
