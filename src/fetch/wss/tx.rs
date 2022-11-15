@@ -1,65 +1,99 @@
 use std::fs::write;
 
-use crate::{chain::Chain, data::latest_txs::TransactionItem, fetch::rest::requests::RPCSuccessResponse};
+use crate::{
+    chain::Chain,
+    data::latest_txs::TransactionItem,
+    fetch::rest::requests::{RPCResponse, RPCSuccessResponse},
+};
 use serde::{Deserialize, Serialize};
+use strum_macros::IntoStaticStr;
 use tungstenite::{connect, Message};
 
 use super::others::{Event, SocketResponse, SubscribeData};
 
-pub type TxSocketResp = RPCSuccessResponse<RespResult>;
+pub type TxSocketResp = RPCSuccessResponse<TxSocketResult>;
 
 impl Chain {
     /// Subscribes to new blocks.
-    pub async fn subscribe_tx(&self) {
-        match connect(self.wss_url) {
+    pub async fn subscribe_to_tx(&self) {
+        // We make a connection to Web Socket endpoint of the chain.
+        // Then we send the message and start listening incoming messages.
+        // We store a reference to the previous response.
+        // Because the hash of a block is given on the next response.
+
+        // Make a new connection.
+        let connection = connect(self.wss_url);
+
+        // Match the connection.
+        match connection {
             Ok((mut socket, _)) => {
-                if let Ok(()) = socket.write_message(Message::Text(
-                    r#"{ "jsonrpc": "2.0", "method": "subscribe", "params": ["tm.event='Tx'"], "id": 1 }"#.into(),
-                )) {
+                // Create the message to be sent.
+                let msg = r#"{ "jsonrpc": "2.0", "method": "subscribe", "params": ["tm.event='Tx'"], "id": 1 }"#;
+
+                // Write the message via socket.
+                if socket.write_message(msg.into()).is_ok() {
+                    // Start the loop
                     loop {
+                        // Read incoming messages.
                         if let Ok(Message::Text(msg)) = socket.read_message() {
-                            match serde_json::from_str::<TxSocketResp>(&msg) {
-                                Ok(resp) => {
-                                    let new_tx = (|resp: TxSocketResp| {
-                                        let fee_str = resp.result.events.tx_fee.get(0)?;
+                            type Response = RPCResponse<TxSocketResult>;
 
-                                        let fee = if fee_str.len() > self.main_denom.len() {
-                                            fee_str[..fee_str.len() - self.main_denom.len()].parse::<f64>().ok()?
-                                        } else {
-                                            0.0
-                                        };
+                            // Parse JSON.
+                            match serde_json::from_str::<Response>(&msg) {
+                                Ok(RPCResponse::Success(resp)) => {
+                                    if let (Some(data), Some(events)) = (resp.result.data, resp.result.events) {
+                                        // Add the block from the old response.
 
-                                        Some(TransactionItem {
-                                            height: resp.result.data.value.tx_result.height.parse::<u64>().ok()?,
-                                            r#type: "todo".to_string(),
-                                            hash: resp.result.events.tx_hash.get(0)?.to_string(),
-                                            result: "todo".to_string(),
-                                            timestamp: 0, // TODO
-                                            fee,
-                                        })
-                                    })(resp);
+                                        let tx = data.value.tx_result;
+                                        println!("a");
 
-                                    self.update_latest_txs(new_tx);
+                                        let r#type: String = tx
+                                            .result
+                                            .events
+                                            .get(0)
+                                            .and_then(|e| Some(e.into()))
+                                            .unwrap_or("Unknown")
+                                            .to_string();
+
+                                        self.update_latest_txs(
+                                            async move {
+                                                Some(TransactionItem {
+                                                    height: tx.height.parse().ok()?,
+                                                    r#type,
+                                                    hash: events.tx_hash.get(0)?.to_string(),
+                                                    result: "".into(), // TODO
+                                                    timestamp: 0, // TODO
+                                                    fee: events.tx_fee.get(0).and_then(|fee| {
+                                                        if fee.len() > self.main_denom.len() {
+                                                            Some(fee[..fee.len() - 1 - self.main_denom.len()].parse().ok()?)
+                                                        } else {
+                                                            None
+                                                        }
+                                                    })?,
+                                                })
+                                            }
+                                            .await,
+                                        );
+                                    };
                                 }
-                                Err(error) => {
-                                    println!("{}\n{}", error, msg)
-                                }
+                                Ok(RPCResponse::Error(resp_err)) => eprintln!("{}", resp_err.error.data),
+                                Err(ser_error) => eprintln!("{ser_error}"),
                             }
                         }
                     }
                 }
             }
-            Err(error) => {
-                println!("Websocket error: {}", error)
+            Err(_) => {
+                eprintln!("Couldn't connect to {}", self.wss_url);
             }
         }
     }
 }
 
 #[derive(Deserialize, Serialize, Debug)]
-pub struct RespResult {
-    data: SubscribeData<Tx>,
-    events: RespResultEvents,
+pub struct TxSocketResult {
+    data: Option<SubscribeData<Tx>>,
+    events: Option<RespResultEvents>,
 }
 
 #[derive(Deserialize, Serialize, Debug)]
