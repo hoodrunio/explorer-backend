@@ -3,69 +3,116 @@ use crate::{
     data::latest_blocks::BlockItem,
     fetch::rest::{
         blocks::Block,
+        others::PublicKey,
         requests::{RPCResponse, RPCSuccessResponse},
-        validators::ValidatorListValidator,
     },
     utils::get_validator_logo,
 };
+use chrono::DateTime;
 use serde::{Deserialize, Serialize};
 use tungstenite::{connect, Message};
 
-use super::others::{Event, SocketResponse, SubscribeResult};
-
-pub type NewBlockResponse = RPCSuccessResponse<SubscribeResult<NewBlock>>;
+use super::others::Event;
 
 impl Chain {
-    /// Subscribes to new blocks.
-    pub async fn subscribe_new_blocks(&self) {
-        match connect(self.wss_url) {
+    /// Subscribes to specified subscription method.
+    pub async fn subscribe_to_new_blocks(&self) {
+        // We make a connection to Web Socket endpoint of the chain.
+        // Then we send the message and start listening incoming messages.
+        // We store a reference to the previous response.
+        // Because the hash of a block is given on the next response.
+
+        // Make a new connection.
+        let connection = connect(self.wss_url);
+
+        // Match the connection.
+        match connection {
             Ok((mut socket, _)) => {
-                if let Ok(()) = socket.write_message(Message::Text(
-                    r#"{ "jsonrpc": "2.0", "method": "subscribe", "params": ["tm.event='NewBlock'"], "id": 2 }"#.into(),
-                )) {
+                // Create the message to be sent.
+                let msg = r#"{ "jsonrpc": "2.0", "method": "subscribe", "params": ["tm.event='NewBlock'"], "id": 2 }"#;
+
+                // Write the message via socket.
+                if socket.write_message(msg.into()).is_ok() {
+                    let mut old_resp: Option<NewBlock> = None;
+
+                    // Start the loop
                     loop {
+                        // Read incoming messages.
                         if let Ok(Message::Text(msg)) = socket.read_message() {
-                            match serde_json::from_str::<NewBlockResponse>(&msg) {
+                            type Response = RPCSuccessResponse<NewBlocksSocketResult>;
+
+                            // Parse JSON.
+                            match serde_json::from_str::<Response>(&msg) {
                                 Ok(resp) => {
-                                    if let Some(resp) = resp.result.data {
-                                        if let Ok(proposer) = self
-                                            .get_validator(&resp.value.block.header.proposer_address)
-                                            .await
-                                        {
-                                            let logo =
-                                                get_validator_logo(self.client.clone(), &proposer.description.identity).await;
+                                    if let Some(data) = resp.result.data {
+                                        match old_resp {
+                                            Some(old_block) => {
+                                                let new_block = data.value;
 
-                                            let new_block = (|value: NewBlock, proposer: ValidatorListValidator| {
-                                                Some(BlockItem {
-                                                    proposer_name: proposer.description.moniker,
-                                                    proposer_logo: logo.ok()?,
-                                                    height: value.block.header.height.parse::<u64>().ok()?,
-                                                    hash: value.block.header.data_hash,
-                                                    tx_count: 0, // TODO.
-                                                    timestamp: chrono::DateTime::parse_from_rfc3339(&value.block.header.time)
-                                                        .ok()?
-                                                        .timestamp_millis()
-                                                        as u32,
-                                                })
-                                            })(
-                                                resp.value, proposer
-                                            );
+                                                let hash = &new_block.block.header.last_block_id.hash;
 
-                                            self.update_latest_block(new_block);
-                                        }
-                                    }
+                                                // Add the block from the old response.
+                                                self.update_latest_block(
+                                                    async move {
+                                                        // Get validator description.
+                                                        let validator_description = self
+                                                            .get_validator(&old_block.block.header.proposer_address)
+                                                            .await
+                                                            .ok()?
+                                                            .description;
+
+                                                        // Get validator logo.
+                                                        let proposer_logo = get_validator_logo(
+                                                            self.client.clone(),
+                                                            &validator_description.identity,
+                                                        )
+                                                        .await
+                                                        .ok()?;
+
+                                                        Some(BlockItem {
+                                                            proposer_name: validator_description.moniker,
+                                                            proposer_logo,
+                                                            height: old_block.block.header.height.parse().ok()?,
+                                                            hash: hash.to_string(),
+                                                            tx_count: 0,
+                                                            timestamp: DateTime::parse_from_rfc3339(&old_block.block.header.time)
+                                                                .ok()?
+                                                                .timestamp_millis()
+                                                                as u32,
+                                                        })
+                                                    }
+                                                    .await,
+                                                );
+                                                old_resp = Some(new_block);
+                                            }
+                                            None => old_resp = Some(data.value),
+                                        };
+                                    };
                                 }
-                                Err(error) => println!("{} msg: {}", error, msg),
+
+                                Err(ser_error) => eprintln!("{ser_error}"),
                             }
                         }
                     }
                 }
             }
-            Err(error) => {
-                println!("Websocket error: {}", error)
+            Err(_) => {
+                eprintln!("Couldn't connect to {}", self.wss_url);
             }
         }
     }
+}
+
+#[derive(Deserialize, Serialize, Debug)]
+pub struct NewBlocksSocketResult {
+    /// Data.
+    pub data: Option<NewBlocksSocketData>,
+}
+
+#[derive(Deserialize, Serialize, Debug)]
+pub struct NewBlocksSocketData {
+    /// Value.
+    pub value: NewBlock,
 }
 
 #[derive(Deserialize, Serialize, Debug)]
@@ -87,11 +134,27 @@ pub struct ResultBeginBlock {
 #[derive(Deserialize, Serialize, Debug)]
 pub struct ResultEndBlock {
     /// Validator updates.
-    pub validator_updates: Vec<u8>,
+    pub validator_updates: Vec<ValidatorUpdate>,
     /// Consensus param updates.
     pub consensus_param_updates: ConsensusParamUpdates,
     /// Array of events.
-    pub events: Vec<u8>,
+    pub events: Vec<Event>,
+}
+
+#[derive(Deserialize, Serialize, Debug)]
+pub struct ValidatorUpdate {
+    /// Public key.
+    pub_key: PublicKeySum,
+
+    /// Validator power. Eg: `"26544215"`
+    power: String,
+}
+
+#[derive(Deserialize, Serialize, Debug)]
+pub struct PublicKeySum {
+    /// Public key sum.
+    #[serde(rename = "Sum")]
+    sum: PublicKey,
 }
 
 #[derive(Deserialize, Serialize, Debug)]
