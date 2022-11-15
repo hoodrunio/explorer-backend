@@ -23,7 +23,7 @@ impl Chain {
         let mut proposals = vec![];
 
         for proposal in resp.proposals {
-            match InternalProposal::try_from(proposal, self.decimals) {
+            match InternalProposal::try_from(proposal, self.decimals_pow) {
                 Ok(proposal) => proposals.push(proposal),
                 Err(error) => eprintln!("{}", error),
             }
@@ -65,7 +65,7 @@ impl Chain {
 
         let resp = self.rest_api_request::<ProposalsDetailsResp>(&path, &[]).await?;
 
-        let proposal = InternalProposal::try_from(resp.proposal, self.decimals)?;
+        let proposal = InternalProposal::try_from(resp.proposal, self.decimals_pow)?;
 
         // We specify page as 0. Because that means there is no need for pagination.
         OutRestResponse::new(proposal, 0)
@@ -339,7 +339,7 @@ pub struct InternalProposal {
 }
 
 impl InternalProposal {
-    fn try_from(value: Proposal, decimals: u8) -> Result<Self, String> {
+    fn try_from(value: Proposal, decimals_pow: u64) -> Result<Self, String> {
         Ok(Self {
             proposal_id: value
                 .proposal_id
@@ -357,7 +357,7 @@ impl InternalProposal {
             total_deposit: value
                 .total_deposit
                 .get(0)
-                .and_then(|td| td.amount.parse::<f64>().and_then(|a| Ok(a / 10_f64.powi(decimals as i32))).ok())
+                .and_then(|td| td.amount.parse::<f64>().and_then(|a| Ok(a / decimals_pow as f64)).ok())
                 .unwrap_or(0.0),
             voting_start_time: DateTime::parse_from_rfc3339(&value.submit_time)
                 .or_else(|_| Err(format!("Cannot parse proposal voting start time, '{}'", value.voting_start_time)))?
@@ -422,6 +422,19 @@ pub enum ProposalContent {
         /// Client update proposal substitue client ID. Eg: `"07-tendermint-643"`
         substitute_client_id: String,
     },
+    #[serde(rename(deserialize = "/evmos.incentives.v1.RegisterIncentiveProposal", serialize = "RegisterIncentiveProposal"))]
+    RegisterIncentiveProposal {
+        /// Register incentive proposal title. Eg: `"Incentivise Diffusion Usage"`
+        title: String,
+        /// Register incentive proposal description. Eg: `"We are requesting Diffusion smart contracts to be whitelisted to get gas subsidies for their users for a period of six months in order to make it easier to onboard users to Evmos.\\n 25% of the Evmos block emission is going toward a pool dedicated to incentivizing users in the form of deferred Gas Rebates.\\nDiffusion is currently the leading DEX on Evmos with a 99% Dominance in liquidity. This will sponsor gas payments for end users when they perform actions like SWAP, STAKE and more on Diffusion. The only constraint is that these incentives have to be less than the fees. Incentives can be up to 120% the total amount of fees burned, so users can end up being paid to use Diffusion. Beware that users will still have to pay for the fees upfront but will get reimbursed each epoch (1 week by default), so they are accumulated and then reimbursed."`
+        description: String,
+        /// HEX encoded EVM contract address. Eg: `"0xFCd2Ce20ef8ed3D43Ab4f8C2dA13bbF1C6d9512F"`
+        contract: String,
+        /// Allocations.
+        allocations: Vec<DenomAmount>,
+        /// Epochs count. Eg: `13`
+        epochs: u32,
+    },
 }
 
 #[derive(Deserialize, Serialize, Debug)]
@@ -439,13 +452,13 @@ pub struct ProposalFinalTallyResult {
 #[derive(Deserialize, Serialize, Debug)]
 pub struct InternalProposalFinalTallyResult {
     /// Number of `yes` votes. Eg: `50`
-    pub yes: u64,
+    pub yes: f64,
     /// Number of `abstain` votes. Eg: `35`
-    pub abstain: u64,
+    pub abstain: f64,
     /// Number of `no` votes. Eg: `12`
-    pub no: u64,
+    pub no: f64,
     /// Number of `no with veto` votes.  Eg: `7`
-    pub no_with_veto: u64,
+    pub no_with_veto: f64,
 }
 
 impl TryFrom<ProposalFinalTallyResult> for InternalProposalFinalTallyResult {
