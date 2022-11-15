@@ -4,7 +4,7 @@ use tokio::join;
 
 use crate::chain::Chain;
 
-use super::{latest_blocks::BlockItem, latest_txs::TransactionItem};
+use super::{latest_blocks::BlockItem, latest_txs::TransactionItem, params::Params};
 
 impl Chain {
     /// Returns the latest blocks.
@@ -23,6 +23,14 @@ impl Chain {
         }
     }
 
+    /// Returns the chain params.
+    pub fn data_params(&self) -> Result<Params, &str> {
+        match self.data.params.lock() {
+            Ok(params) => Ok(params.clone()),
+            Err(_) => Err("Cannot send chain params."),
+        }
+    }
+
     /// Updates general data.
     pub async fn update_data(&self) {
         join!(
@@ -30,16 +38,19 @@ impl Chain {
             self.update_inflation(),
             self.update_supply(),
             self.update_tokenomics(),
+            self.update_params(),
         );
     }
 
     /// Subscribes to WebSocket.
     pub async fn subscribe_data(&self) {
-        join!(self.subscribe_new_blocks(), self.subscribe_tx(),);
+        println!("'{}' is started.", self.name);
+        join!(self.subscribe_to_new_blocks(), self.subscribe_to_tx());
     }
 
     /// Updates the native coin price and the chart.
     pub async fn update_price(&self, new_price: Option<&f64>) {
+        println!("{:?}", new_price);
         match new_price {
             Some(new_price) => {
                 if let Ok(mut price) = self.data.price.lock() {
@@ -57,6 +68,7 @@ impl Chain {
     pub fn update_latest_block(&self, new_block: Option<BlockItem>) {
         if let Some(new_block) = new_block {
             let mut new_avg_block_time = None;
+            println!("{:?}", new_block);
 
             // Update the latest blocks.
             if let Ok(mut blocks) = self.data.blocks.lock() {
@@ -80,6 +92,7 @@ impl Chain {
 
     /// Updates the latest transactions.
     pub fn update_latest_txs(&self, new_tx: Option<TransactionItem>) {
+        println!("{:?}", new_tx);
         if let Some(new_tx) = new_tx {
             if let Ok(mut transactions) = self.data.transactions.lock() {
                 transactions.add_new(new_tx);
@@ -145,6 +158,60 @@ impl Chain {
 
             if let Ok(mut unbonded) = self.data.unbonded.lock() {
                 *unbonded = new_unbonded;
+            }
+        }
+    }
+
+    /// Updates the chain params.
+    async fn update_params(&self) {
+        let (tally, voting, deposit, staking, slashing) = join!(
+            self.get_tally_params(),
+            self.get_voting_params(),
+            self.get_deposit_params(),
+            self.get_staking_params(),
+            self.get_slashing_params()
+        );
+
+        let tally = match tally {
+            Ok(tally) => tally,
+            Err(error) => return eprintln!("{}", error),
+        };
+
+        let voting = match voting {
+            Ok(voting) => voting,
+            Err(error) => return eprintln!("{}", error),
+        };
+
+        let deposit = match deposit {
+            Ok(deposit) => deposit,
+            Err(error) => return eprintln!("{}", error),
+        };
+
+        let staking = match staking {
+            Ok(staking) => staking,
+            Err(error) => return eprintln!("{}", error),
+        };
+
+        let slashing = match slashing {
+            Some(slashing) => slashing,
+            None => return eprintln!("No slashing parameters for '{}' chain.", self.name),
+        };
+
+        if let Ok(mut params) = self.data.params.lock() {
+            *params = Params {
+                bond_denom: self.main_denom.to_string(),
+                downtime_jail_duration: slashing.downtime_jail_duration,
+                historical_entries: staking.historical_entries,
+                max_entries: staking.max_entries,
+                max_validators: staking.max_validators,
+                min_signed_per_window: slashing.min_signed_per_window,
+                quorum: tally.quorum,
+                signed_blocks_window: slashing.signed_blocks_window,
+                slash_fraction_double_sign: slashing.slash_fraction_double_sign,
+                slash_fraction_downtime: slashing.slash_fraction_downtime,
+                threshold: tally.threshold,
+                unbonding_time: staking.unbonding_time,
+                veto_threshold: tally.veto_threshold,
             }
         }
     }
