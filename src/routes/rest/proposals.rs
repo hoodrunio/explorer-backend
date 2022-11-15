@@ -3,71 +3,84 @@ use crate::{
     state::State,
 };
 
+use super::QueryParams;
+
 use actix_web::{
     get,
-    web::{Data, Json, Path},
+    web::{Data, Json, Path, Query},
     Responder,
 };
-
 
 // ======== 'axelar' Propsals Methods ========
 
 #[get("{chain}/proposals-passed")]
-pub async fn proposals_passed(path: Path<String>, chains: Data<State>) -> impl Responder {
+pub async fn proposals_passed(path: Path<String>, chains: Data<State>, query: Query<QueryParams>) -> impl Responder {
     let chain = path.into_inner();
 
+    let config = PaginationConfig::new().limit(6).page(query.page.unwrap_or(1));
+
     Json(match chains.get(&chain) {
-        Ok(chain) => chain.get_proposals_passed(PaginationConfig::new()).await.into(),
+        Ok(chain) => chain.get_proposals_passed(config).await.into(),
         Err(err) => Response::Error(err),
     })
 }
 
 #[get("{chain}/proposals-voting")]
-pub async fn proposals_voting(path: Path<String>, chains: Data<State>) -> impl Responder {
+pub async fn proposals_voting(path: Path<String>, chains: Data<State>, query: Query<QueryParams>) -> impl Responder {
     let chain = path.into_inner();
 
+    let config = PaginationConfig::new().limit(6).page(query.page.unwrap_or(1));
+
     Json(match chains.get(&chain) {
-        Ok(chain) => chain.get_proposals_in_voting_period(PaginationConfig::new()).await.into(),
+        Ok(chain) => chain.get_proposals_in_voting_period(config).await.into(),
         Err(err) => Response::Error(err),
     })
 }
 
 #[get("{chain}/proposals-failed")]
-pub async fn proposals_failed(path: Path<String>, chains: Data<State>) -> impl Responder {
+pub async fn proposals_failed(path: Path<String>, chains: Data<State>, query: Query<QueryParams>) -> impl Responder {
     let chain = path.into_inner();
 
+    let config = PaginationConfig::new().limit(6).page(query.page.unwrap_or(1));
+
     Json(match chains.get(&chain) {
-        Ok(chain) => chain.get_proposals_failed(PaginationConfig::new()).await.into(),
+        Ok(chain) => chain.get_proposals_failed(config).await.into(),
         Err(err) => Response::Error(err),
     })
 }
 
 #[get("{chain}/proposals-rejected")]
-pub async fn proposals_rejected(path: Path<String>, chains: Data<State>) -> impl Responder {
+pub async fn proposals_rejected(path: Path<String>, chains: Data<State>, query: Query<QueryParams>) -> impl Responder {
     let chain = path.into_inner();
 
+    let config = PaginationConfig::new().limit(6).page(query.page.unwrap_or(1));
+
     Json(match chains.get(&chain) {
-        Ok(chain) => chain.get_proposals_rejected(PaginationConfig::new()).await.into(),
+        Ok(chain) => chain.get_proposals_rejected(config).await.into(),
         Err(err) => Response::Error(err),
     })
 }
 
 #[get("{chain}/proposals-unspecified")]
-pub async fn proposals_unspecified(path: Path<String>, chains: Data<State>) -> impl Responder {
+pub async fn proposals_unspecified(path: Path<String>, chains: Data<State>, query: Query<QueryParams>) -> impl Responder {
     let chain = path.into_inner();
 
+    let config = PaginationConfig::new().limit(6).page(query.page.unwrap_or(1));
+
     Json(match chains.get(&chain) {
-        Ok(chain) => chain.get_proposals_unspecified(PaginationConfig::new()).await.into(),
+        Ok(chain) => chain.get_proposals_unspecified(config).await.into(),
         Err(err) => Response::Error(err),
     })
 }
 
 #[get("{chain}/proposal-deposits/{id}")]
-pub async fn proposal_deposits(path: Path<(String, u64)>, chains: Data<State>) -> impl Responder {
+pub async fn proposal_deposits(path: Path<(String, u64)>, chains: Data<State>, query: Query<QueryParams>) -> impl Responder {
     let (chain, proposal_id) = path.into_inner();
 
+    let config = PaginationConfig::new().limit(6).page(query.page.unwrap_or(1));
+
     Json(match chains.get(&chain) {
-        Ok(chain) => chain.get_proposal_deposits(proposal_id, PaginationConfig::new()).await.into(),
+        Ok(chain) => chain.get_proposal_deposits(proposal_id, config).await.into(),
         Err(err) => Response::Error(err),
     })
 }
@@ -93,11 +106,13 @@ pub async fn proposal_tally(path: Path<(String, u64)>, chains: Data<State>) -> i
 }
 
 #[get("{chain}/proposal-votes/{id}")]
-pub async fn proposal_votes(path: Path<(String, u64)>, chains: Data<State>) -> impl Responder {
+pub async fn proposal_votes(path: Path<(String, u64)>, chains: Data<State>, query: Query<QueryParams>) -> impl Responder {
     let (chain, proposal_id) = path.into_inner();
 
+    let config = PaginationConfig::new().limit(6).page(query.page.unwrap_or(1));
+
     Json(match chains.get(&chain) {
-        Ok(chain) => chain.get_proposal_votes(proposal_id, PaginationConfig::new()).await.into(),
+        Ok(chain) => chain.get_proposal_votes(proposal_id, config).await.into(),
         Err(err) => Response::Error(err),
     })
 }
@@ -117,10 +132,7 @@ pub async fn proposal_deposit(path: Path<(String, u64, String)>, chains: Data<St
     let (chain, proposal_id, depositor_addr) = path.into_inner();
 
     Json(match chains.get(&chain) {
-        Ok(chain) => chain
-            .get_proposal_deposit_by_depositor(proposal_id, &depositor_addr)
-            .await
-            .into(),
+        Ok(chain) => chain.get_proposal_deposit_by_depositor(proposal_id, &depositor_addr).await.into(),
         Err(err) => Response::Error(err),
     })
 }
