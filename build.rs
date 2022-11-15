@@ -17,6 +17,7 @@ pub struct Chain<'a> {
     pub rest_url: &'a str,
     pub wss_url: &'a str,
     pub decimals: u8,
+    pub decimals_pow: u64,
     pub sdk_version: u8,
     pub manual_versioning: bool,
 }
@@ -69,7 +70,8 @@ async fn create_chain<'a>(chain_map: &HashMap<&'a str, &'a str>, client: Client)
     let rpc_url = chain_map.get("rpc").unwrap();
     let rest_url = chain_map.get("rest").unwrap();
     let wss_url = chain_map.get("wss").unwrap();
-    let decimals = chain_map.get("decimals").unwrap_or(&"6").parse().unwrap();
+    let decimals: u8 = chain_map.get("decimals").unwrap_or(&"6").parse().unwrap();
+    let decimals_pow = 10_u64.pow(decimals.into());
 
     let (sdk_version, manual_versioning) = match chain_map.get("version") {
         Some(version) => (version[2..4].parse().unwrap(), true),
@@ -91,6 +93,7 @@ async fn create_chain<'a>(chain_map: &HashMap<&'a str, &'a str>, client: Client)
         rest_url,
         wss_url,
         decimals,
+        decimals_pow,
         sdk_version,
         manual_versioning,
     }
@@ -185,7 +188,7 @@ fn update_state_rs(chains: &[Chain]) {
                 rest_url: "{rest}",
                 wss_url: "{wss}",
                 sdk_version: {ver},
-                decimals: {dec},
+                decimals_pow: {dec_pow},
                 client: client.clone(),
                 data: ChainData::new(),
             }}),"#,
@@ -200,7 +203,7 @@ fn update_state_rs(chains: &[Chain]) {
             rest = chain.rest_url,
             wss = chain.wss_url,
             ver = chain.sdk_version,
-            dec = chain.decimals,
+            dec_pow = chain.decimals_pow,
         );
 
         get_fn += &format!("\n            \"{chain}\" => Ok(self.{chain}.clone()),", chain = chain.name);
