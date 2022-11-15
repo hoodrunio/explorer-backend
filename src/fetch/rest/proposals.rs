@@ -1,74 +1,107 @@
+use chrono::DateTime;
 use serde::{Deserialize, Serialize};
 
-use super::others::{DenomAmount, Pagination, PaginationConfig};
-use crate::chain::Chain;
+use super::others::{DenomAmount, InternalDenomAmount, Pagination, PaginationConfig};
+use crate::{
+    chain::Chain,
+    routes::rest::{calc_pages, OutRestResponse},
+};
 
 impl Chain {
     /// Returns all the proposals in voting period.
-    pub async fn get_proposals_by_status(
-        &self,
-        status: &str,
-        pagination_config: PaginationConfig,
-    ) -> Result<ProposalsResp, String> {
+    pub async fn get_proposals_by_status(&self, status: &str, config: PaginationConfig) -> Result<OutRestResponse<Vec<InternalProposal>>, String> {
         let mut query = vec![];
 
         query.push(("proposal_status", status.to_string()));
-        query.push(("pagination.reverse", format!("{}", pagination_config.is_reverse())));
-        query.push(("pagination.limit", format!("{}", pagination_config.get_limit())));
+        query.push(("pagination.reverse", format!("{}", config.is_reverse())));
+        query.push(("pagination.limit", format!("{}", config.get_limit())));
         query.push(("pagination.count_total", "true".to_string()));
-        query.push(("pagination.offset", format!("{}", pagination_config.get_offset())));
+        query.push(("pagination.offset", format!("{}", config.get_offset())));
 
-        self.rest_api_request("/cosmos/gov/v1beta1/proposals", &query).await
+        let resp = self.rest_api_request::<ProposalsResp>("/cosmos/gov/v1beta1/proposals", &query).await?;
+
+        let mut proposals = vec![];
+
+        for proposal in resp.proposals {
+            match InternalProposal::try_from(proposal, self.decimals) {
+                Ok(proposal) => proposals.push(proposal),
+                Err(error) => eprintln!("{}", error),
+            }
+        }
+
+        let pages = calc_pages(resp.pagination, config)?;
+
+        OutRestResponse::new(proposals, pages)
     }
 
     /// Returns all the proposals unspecified.
-    pub async fn get_proposals_unspecified(&self, pagination_config: PaginationConfig) -> Result<ProposalsResp, String> {
-        self.get_proposals_by_status("1", pagination_config).await
+    pub async fn get_proposals_unspecified(&self, config: PaginationConfig) -> Result<OutRestResponse<Vec<InternalProposal>>, String> {
+        self.get_proposals_by_status("1", config).await
     }
 
     /// Returns all the proposals in voting period.
-    pub async fn get_proposals_in_voting_period(&self, pagination_config: PaginationConfig) -> Result<ProposalsResp, String> {
-        self.get_proposals_by_status("2", pagination_config).await
+    pub async fn get_proposals_in_voting_period(&self, config: PaginationConfig) -> Result<OutRestResponse<Vec<InternalProposal>>, String> {
+        self.get_proposals_by_status("2", config).await
     }
 
     /// Returns all the proposals passed.
-    pub async fn get_proposals_passed(&self, pagination_config: PaginationConfig) -> Result<ProposalsResp, String> {
-        self.get_proposals_by_status("3", pagination_config).await
+    pub async fn get_proposals_passed(&self, config: PaginationConfig) -> Result<OutRestResponse<Vec<InternalProposal>>, String> {
+        self.get_proposals_by_status("3", config).await
     }
 
     /// Returns all the proposals rejected.
-    pub async fn get_proposals_rejected(&self, pagination_config: PaginationConfig) -> Result<ProposalsResp, String> {
-        self.get_proposals_by_status("4", pagination_config).await
+    pub async fn get_proposals_rejected(&self, config: PaginationConfig) -> Result<OutRestResponse<Vec<InternalProposal>>, String> {
+        self.get_proposals_by_status("4", config).await
     }
 
     /// Returns all the proposals failed.
-    pub async fn get_proposals_failed(&self, pagination_config: PaginationConfig) -> Result<ProposalsResp, String> {
-        self.get_proposals_by_status("5", pagination_config).await
+    pub async fn get_proposals_failed(&self, config: PaginationConfig) -> Result<OutRestResponse<Vec<InternalProposal>>, String> {
+        self.get_proposals_by_status("5", config).await
     }
 
     /// Returns the details of given proposal.
-    pub async fn get_proposal_details(&self, proposal_id: u64) -> Result<ProposalsDetailsResp, String> {
+    pub async fn get_proposal_details(&self, proposal_id: u64) -> Result<OutRestResponse<InternalProposal>, String> {
         let path = format!("/cosmos/gov/v1beta1/proposals/{proposal_id}");
 
-        self.rest_api_request(&path, &[]).await
+        let resp = self.rest_api_request::<ProposalsDetailsResp>(&path, &[]).await?;
+
+        let proposal = InternalProposal::try_from(resp.proposal, self.decimals)?;
+
+        // We specify page as 0. Because that means there is no need for pagination.
+        OutRestResponse::new(proposal, 0)
     }
 
     /// Returns the deposits of given proposal.
     pub async fn get_proposal_deposits(
         &self,
         proposal_id: u64,
-        pagination_config: PaginationConfig,
-    ) -> Result<ProposalDepositsResp, String> {
+        config: PaginationConfig,
+    ) -> Result<OutRestResponse<Vec<InternalProposalDeposit>>, String> {
         let path = format!("/cosmos/gov/v1beta1/proposals/{proposal_id}/deposits");
 
         let mut query = vec![];
 
-        query.push(("pagination.reverse", format!("{}", pagination_config.is_reverse())));
-        query.push(("pagination.limit", format!("{}", pagination_config.get_limit())));
+        query.push(("pagination.reverse", format!("{}", config.is_reverse())));
+        query.push(("pagination.limit", format!("{}", config.get_limit())));
         query.push(("pagination.count_total", "true".to_string()));
-        query.push(("pagination.offset", format!("{}", pagination_config.get_offset())));
+        query.push(("pagination.offset", format!("{}", config.get_offset())));
 
-        self.rest_api_request(&path, &query).await
+        let resp = self.rest_api_request::<ProposalDepositsResp>(&path, &query).await?;
+
+        println!("{:?}", resp);
+
+        let mut proposal_deposits = vec![];
+
+        for proposal_deposit in resp.deposits {
+            match proposal_deposit.try_into() {
+                Ok(proposal_deposit) => proposal_deposits.push(proposal_deposit),
+                Err(error) => eprintln!("{}", error),
+            }
+        }
+
+        let pages = calc_pages(resp.pagination, config)?;
+
+        OutRestResponse::new(proposal_deposits, pages)
     }
 
     /// Returns the deposit of given proposal by given depositor.
@@ -76,42 +109,59 @@ impl Chain {
         &self,
         proposal_id: u64,
         depositor: &str,
-    ) -> Result<ProposalDepositByDepositorResp, String> {
+    ) -> Result<OutRestResponse<InternalProposalDeposit>, String> {
         let path = format!("/cosmos/gov/v1beta1/proposals/{proposal_id}/deposits/{depositor}");
 
-        self.rest_api_request(&path, &[]).await
+        let resp = self.rest_api_request::<ProposalDepositByDepositorResp>(&path, &[]).await?;
+
+        OutRestResponse::new(resp.deposit.try_into()?, 0)
     }
 
     /// Returns the tally of given proposal.
-    pub async fn get_proposal_tally(&self, proposal_id: u64) -> Result<ProposalTallyResp, String> {
+    pub async fn get_proposal_tally(&self, proposal_id: u64) -> Result<OutRestResponse<InternalProposalFinalTallyResult>, String> {
         let path = format!("/cosmos/gov/v1beta1/proposals/{proposal_id}/tally");
 
-        self.rest_api_request(&path, &[]).await
+        let resp = self.rest_api_request::<ProposalTallyResp>(&path, &[]).await?;
+
+        OutRestResponse::new(resp.tally.try_into()?, 0)
     }
 
     /// Returns the votes of given proposal.
-    pub async fn get_proposal_votes(
-        &self,
-        proposal_id: u64,
-        pagination_config: PaginationConfig,
-    ) -> Result<ProposalVotesResp, String> {
+    pub async fn get_proposal_votes(&self, proposal_id: u64, config: PaginationConfig) -> Result<OutRestResponse<Vec<InternalProposalVote>>, String> {
         let path = format!("/cosmos/gov/v1beta1/proposals/{proposal_id}/votes");
 
         let mut query = vec![];
 
-        query.push(("pagination.reverse", format!("{}", pagination_config.is_reverse())));
-        query.push(("pagination.limit", format!("{}", pagination_config.get_limit())));
+        query.push(("pagination.reverse", format!("{}", config.is_reverse())));
+        query.push(("pagination.limit", format!("{}", config.get_limit())));
         query.push(("pagination.count_total", "true".to_string()));
-        query.push(("pagination.offset", format!("{}", pagination_config.get_offset())));
+        query.push(("pagination.offset", format!("{}", config.get_offset())));
 
-        self.rest_api_request(&path, &query).await
+        let resp = self.rest_api_request::<ProposalVotesResp>(&path, &query).await?;
+
+        let mut proposal_votes = vec![];
+
+        for proposal_vote in resp.votes {
+            match proposal_vote.try_into() {
+                Ok(proposal_vote) => proposal_votes.push(proposal_vote),
+                Err(error) => eprintln!("{}", error),
+            }
+        }
+
+        let pages = calc_pages(resp.pagination, config)?;
+
+        OutRestResponse::new(proposal_votes, pages)
     }
 
     /// Returns the vote of given proposal by given voter.
-    pub async fn get_proposal_vote_by_voter(&self, proposal_id: u64, voter: &str) -> Result<ProposalVoteByVoterResp, String> {
+    pub async fn get_proposal_vote_by_voter(&self, proposal_id: u64, voter: &str) -> Result<OutRestResponse<InternalProposalVote>, String> {
         let path = format!("/cosmos/gov/v1beta1/proposals/{proposal_id}/votes/{voter}");
 
-        self.rest_api_request(&path, &[]).await
+        let resp = self.rest_api_request::<ProposalVoteByVoterResp>(&path, &[]).await?;
+
+        let proposal_vote = resp.vote.try_into()?;
+
+        OutRestResponse::new(proposal_vote, 0)
     }
 }
 
@@ -139,6 +189,33 @@ pub struct ProposalVote {
     pub option: String,
     /// Array of proposal options.
     pub options: Vec<ProposalOption>,
+}
+
+#[derive(Deserialize, Serialize, Debug)]
+pub struct InternalProposalVote {
+    /// Proposal ID. Eg: `34`
+    pub proposal_id: u32,
+    /// Proposal voter. Eg: `""`
+    pub voter: String,
+    /// Proposal vote option. Eg: `"VOTE_OPTION_UNSPECIFIED"`
+    pub option: String,
+    /// Array of proposal options.
+    pub options: Vec<ProposalOption>,
+}
+
+impl TryFrom<ProposalVote> for InternalProposalVote {
+    type Error = String;
+    fn try_from(value: ProposalVote) -> Result<Self, Self::Error> {
+        Ok(Self {
+            proposal_id: value
+                .proposal_id
+                .parse()
+                .or_else(|_| Err(format!("Cannot parse proposal id, '{}'.", value.proposal_id)))?,
+            voter: value.voter,
+            option: value.option,
+            options: value.options,
+        })
+    }
 }
 
 #[derive(Deserialize, Serialize, Debug)]
@@ -175,8 +252,32 @@ pub struct ProposalDeposit {
     pub proposal_id: String,
     /// Proposal depositor. Eg: `""`
     pub depositor: String,
-    /// Array of amounts and denoms deposited.
+    /// Amounts and denom deposited.
     pub amount: DenomAmount,
+}
+
+#[derive(Deserialize, Serialize, Debug)]
+pub struct InternalProposalDeposit {
+    /// Proposal ID. Eg: `35`
+    pub proposal_id: u32,
+    /// Proposal depositor. Eg: `""`
+    pub depositor: String,
+    /// Amount deposited.
+    pub amount: f64,
+}
+
+impl TryFrom<ProposalDeposit> for InternalProposalDeposit {
+    type Error = String;
+    fn try_from(value: ProposalDeposit) -> Result<Self, Self::Error> {
+        Ok(Self {
+            proposal_id: value
+                .proposal_id
+                .parse()
+                .or_else(|_| Err(format!("Cannot parse proposal ID, '{}'.", value.proposal_id)))?,
+            depositor: value.depositor,
+            amount: 0.0,
+        })
+    }
 }
 
 #[derive(Deserialize, Serialize, Debug)]
@@ -216,9 +317,65 @@ pub struct Proposal {
 }
 
 #[derive(Deserialize, Serialize, Debug)]
+pub struct InternalProposal {
+    /// Proposal ID. Eg: `79`
+    pub proposal_id: u32,
+    /// Proposal content.
+    pub content: ProposalContent,
+    /// Proposal status. Eg: `"PROPOSAL_STATUS_VOTING_PERIOD"`
+    pub status: String,
+    /// Proposal final tally result.
+    pub final_tally_result: InternalProposalFinalTallyResult,
+    /// Proposal submit timestamp in milliseconds.
+    pub submit_time: u32,
+    /// Proposal deposit deadline timestamp in milliseconds.
+    pub deposit_end_time: u32,
+    /// Proposal total deposit in the native coin of the chain..
+    pub total_deposit: f64,
+    /// Proposal voting start timestamp in milliseconds.
+    pub voting_start_time: u32,
+    /// Proposal voting start timestamp in milliseconds.
+    pub voting_end_time: u32,
+}
+
+impl InternalProposal {
+    fn try_from(value: Proposal, decimals: u8) -> Result<Self, String> {
+        Ok(Self {
+            proposal_id: value
+                .proposal_id
+                .parse()
+                .or_else(|_| Err(format!("Proposal ID cannot be parsed, '{}'.", value.proposal_id)))?,
+            content: value.content,
+            status: value.status,
+            final_tally_result: value.final_tally_result.try_into()?,
+            submit_time: DateTime::parse_from_rfc3339(&value.submit_time)
+                .or_else(|_| Err(format!("Cannot parse proposal submit time, '{}'", value.submit_time)))?
+                .timestamp_millis() as u32,
+            deposit_end_time: DateTime::parse_from_rfc3339(&value.submit_time)
+                .or_else(|_| Err(format!("Cannot parse proposal deposit end time, '{}'", value.deposit_end_time)))?
+                .timestamp_millis() as u32,
+            total_deposit: value
+                .total_deposit
+                .get(0)
+                .and_then(|td| td.amount.parse::<f64>().and_then(|a| Ok(a / 10_f64.powi(decimals as i32))).ok())
+                .unwrap_or(0.0),
+            voting_start_time: DateTime::parse_from_rfc3339(&value.submit_time)
+                .or_else(|_| Err(format!("Cannot parse proposal voting start time, '{}'", value.voting_start_time)))?
+                .timestamp_millis() as u32,
+            voting_end_time: DateTime::parse_from_rfc3339(&value.submit_time)
+                .or_else(|_| Err(format!("Cannot parse proposal voting end time, '{}'", value.voting_end_time)))?
+                .timestamp_millis() as u32,
+        })
+    }
+}
+
+#[derive(Deserialize, Serialize, Debug)]
 #[serde(tag = "@type")]
 pub enum ProposalContent {
-    #[serde(rename = "/cosmos.distribution.v1beta1.CommunityPoolSpendProposal")]
+    #[serde(rename(
+        deserialize = "/cosmos.distribution.v1beta1.CommunityPoolSpendProposal",
+        serialize = "CommunityPoolSpendProposal"
+    ))]
     CommunityPoolSpendProposal {
         /// Community pool spend proposal title. Eg: `"Adan: non-profit fighting for sound crypto regulation"`
         title: String,
@@ -229,14 +386,14 @@ pub enum ProposalContent {
         /// Community pool spend proposal amount. Array of amounts and denoms.
         amount: Vec<DenomAmount>,
     },
-    #[serde(rename = "/cosmos.gov.v1beta1.TextProposal")]
+    #[serde(rename(deserialize = "/cosmos.gov.v1beta1.TextProposal", serialize = "TextProposal"))]
     TextProposal {
         /// Text proposal title. Eg: `"Risk and financial analysis of ATOM2.0"`
         title: String,
         /// Text proposal description. `"In depth financial analysis of ATOM2.0:\nhttps://pastebin.com/fVQ81d7H\n\nIn depth risk analysis of ATOM2.0:\nhttps://cryptpad.fr/pad/#/2/pad/view/v3QYkKeqenjgK+yPi8bDmuYv4cOBalDaei4sLta6RTg/\nhttps://pastebin.com/bgEqdKct      - backup link\n\n\nWhile many only make claims of faith, these papers make claim of empirical liablity and risk.\n\nGroups to discuss the various proposals:\nhttps://t.me/AtomPrice\nhttps://t.me/atomgov \nhttps://t.me/+uNNyjiYO38lhZDYx\n\nOpen source community lab with the goal of finding an alternative to dilution:\nhttps://forum.cosmos.network/t/atom-zero-a-open-source-non-dilutive-communitylab-for-atom2-0/7860"`
         description: String,
     },
-    #[serde(rename = "/cosmos.params.v1beta1.ParameterChangeProposal")]
+    #[serde(rename(deserialize = "/cosmos.params.v1beta1.ParameterChangeProposal", serialize = "ParameterChangeProposal"))]
     ParameterChangeProposal {
         /// Parameter change proposal title. Eg: `"Adjust Blocks Per Year to 4.36M"`
         title: String,
@@ -245,7 +402,7 @@ pub enum ProposalContent {
         /// Array of changes wanted.
         changes: Vec<ParameterChangeProposalChange>,
     },
-    #[serde(rename = "/cosmos.upgrade.v1beta1.SoftwareUpgradeProposal")]
+    #[serde(rename(deserialize = "/cosmos.upgrade.v1beta1.SoftwareUpgradeProposal", serialize = "SoftwareUpgradeProposal"))]
     SoftwareUpgradeProposal {
         /// Software upgrade proposal title. Eg: `"Signal Proposal to Adopt the Liquidity Module onto the Cosmos Hub"`
         title: String,
@@ -254,7 +411,7 @@ pub enum ProposalContent {
         /// Software upgrade proposal plan.
         plan: SoftwareUpgradeProposalPlan,
     },
-    #[serde(rename = "/ibc.core.client.v1.ClientUpdateProposal")]
+    #[serde(rename(deserialize = "/ibc.core.client.v1.ClientUpdateProposal", serialize = "ClientUpdateProposal"))]
     ClientUpdateProposal {
         /// Client update proposal title. Eg: `"Update expired client between Cosmoshub and Bostrom"`
         title: String,
@@ -277,6 +434,42 @@ pub struct ProposalFinalTallyResult {
     pub no: String,
     /// Number of `no with veto` votes.  Eg: `"7"`
     pub no_with_veto: String,
+}
+
+#[derive(Deserialize, Serialize, Debug)]
+pub struct InternalProposalFinalTallyResult {
+    /// Number of `yes` votes. Eg: `50`
+    pub yes: u64,
+    /// Number of `abstain` votes. Eg: `35`
+    pub abstain: u64,
+    /// Number of `no` votes. Eg: `12`
+    pub no: u64,
+    /// Number of `no with veto` votes.  Eg: `7`
+    pub no_with_veto: u64,
+}
+
+impl TryFrom<ProposalFinalTallyResult> for InternalProposalFinalTallyResult {
+    type Error = String;
+    fn try_from(value: ProposalFinalTallyResult) -> Result<Self, Self::Error> {
+        Ok(Self {
+            yes: value
+                .yes
+                .parse()
+                .or_else(|_| Err(format!("Cannot parse 'yes' votes count, '{}'.", value.yes)))?,
+            abstain: value
+                .abstain
+                .parse()
+                .or_else(|_| Err(format!("Cannot parse 'abstain' votes count, '{}'.", value.abstain)))?,
+            no: value
+                .no
+                .parse()
+                .or_else(|_| Err(format!("Cannot parse 'no' votes count, '{}'.", value.no)))?,
+            no_with_veto: value
+                .no_with_veto
+                .parse()
+                .or_else(|_| Err(format!("Cannot parse 'no' votes with veto count, '{}'.", value.no_with_veto)))?,
+        })
+    }
 }
 
 #[derive(Deserialize, Serialize, Debug)]
