@@ -200,18 +200,18 @@ impl Chain {
         if let Ok(mut params) = self.data.params.lock() {
             *params = Params {
                 bond_denom: self.main_denom.to_string(),
-                downtime_jail_duration: slashing.downtime_jail_duration,
-                historical_entries: staking.historical_entries,
-                max_entries: staking.max_entries,
-                max_validators: staking.max_validators,
-                min_signed_per_window: slashing.min_signed_per_window,
-                quorum: tally.quorum,
-                signed_blocks_window: slashing.signed_blocks_window,
-                slash_fraction_double_sign: slashing.slash_fraction_double_sign,
-                slash_fraction_downtime: slashing.slash_fraction_downtime,
-                threshold: tally.threshold,
-                unbonding_time: staking.unbonding_time,
-                veto_threshold: tally.veto_threshold,
+                downtime_jail_duration: slashing.value.downtime_jail_duration,
+                historical_entries: staking.value.historical_entries,
+                max_entries: staking.value.max_entries,
+                max_validators: staking.value.max_validators,
+                min_signed_per_window: slashing.value.min_signed_per_window,
+                quorum: tally.value.quorum,
+                signed_blocks_window: slashing.value.signed_blocks_window,
+                slash_fraction_double_sign: slashing.value.slash_fraction_double_sign,
+                slash_fraction_downtime: slashing.value.slash_fraction_downtime,
+                threshold: tally.value.threshold,
+                unbonding_time: staking.value.unbonding_time,
+                veto_threshold: tally.value.veto_threshold,
             }
         }
     }
