@@ -1,4 +1,5 @@
 mod blocks;
+mod common;
 mod community_pool;
 mod delegations;
 mod delegators;
@@ -12,6 +13,7 @@ mod validators;
 
 pub use blocks::*;
 pub use blocks::*;
+pub use common::*;
 pub use community_pool::*;
 pub use delegations::*;
 pub use delegators::*;
