@@ -32,13 +32,12 @@ cargo run
 - **APR** calculation.
 - Parsing some data for transactions and blocks at
 [`src/fetch/wss/new_blocks.rs`](https://github.com/testnetrunn/explorer-backend/blob/main/src/fetch/wss/new_blocks.rs), and
-[`src/fetch/wss/tx.rs`](https://github.com/testnetrunn/explorer-backend/blob/main/src/fetch/wss/tx.rs).
+[`src/fetch/wss/tx.rs`](https://github.com/testnetrunn/explorer-backend/blob/main/src/fetch/wss/tx.rs). ✅ HALFLY DONE
 - **Validators**. To be added via creating a new file inside 
 [`src/fetch/wss/`](https://github.com/testnetrunn/explorer-backend/blob/main/src/fetch/wss/).
 - **Proposals**. To be added via creating a new file inside 
-[`src/fetch/wss/`](https://github.com/testnetrunn/explorer-backend/blob/main/src/fetch/wss/).
-- **Params**. To be added via creating a new file inside 
-[`src/fetch/wss/`](https://github.com/testnetrunn/explorer-backend/blob/main/src/fetch/wss/).
+[`src/fetch/wss/`](https://github.com/testnetrunn/explorer-backend/blob/main/src/fetch/wss).
+- **Params**. ✅ DONE
 - Create a nice interface to interact with Web Socket endpoint.
 
 
