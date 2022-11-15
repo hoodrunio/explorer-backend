@@ -104,7 +104,7 @@ impl Chain {
     async fn update_supply(&self) {
         match self.get_supply_of_native_coin().await {
             Ok(resp) => {
-                let new_supply = (resp.amount / 10_u128.pow(self.decimals.into())) as u64;
+                let new_supply = (resp.amount / self.decimals_pow as u128) as u64;
 
                 if let Ok(mut supply) = self.data.supply.lock() {
                     *supply = new_supply;
@@ -139,7 +139,7 @@ impl Chain {
 
         if let Ok(new_community_pool) = new_community_pool {
             if let Ok(mut pool) = self.data.pool.lock() {
-                *pool = new_community_pool
+                *pool = new_community_pool.value
             }
         }
     }
@@ -149,8 +149,8 @@ impl Chain {
         let staking_pool = self.get_staking_pool().await;
 
         if let Ok(staking_pool) = staking_pool {
-            let new_bonded = staking_pool.bonded;
-            let new_unbonded = staking_pool.unbonded;
+            let new_bonded = staking_pool.value.bonded;
+            let new_unbonded = staking_pool.value.unbonded;
 
             if let Ok(mut bonded) = self.data.bonded.lock() {
                 *bonded = new_bonded;
