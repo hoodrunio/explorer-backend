@@ -5,10 +5,7 @@ use crate::chain::Chain;
 impl Chain {
     /// Returns staking pool information.
     pub async fn get_staking_pool(&self) -> Result<InternalStakingPool, String> {
-        match self
-            .rest_api_request::<StakingPoolResp>("/cosmos/staking/v1beta1/pool", &[])
-            .await
-        {
+        match self.rest_api_request::<StakingPoolResp>("/cosmos/staking/v1beta1/pool", &[]).await {
             Ok(resp) => {
                 let bonded = match resp.pool.bonded_tokens.parse::<u128>() {
                     Ok(bonded_tokens) => (bonded_tokens / 10_u128.pow(self.decimals.into())) as u64,
@@ -105,10 +102,7 @@ impl TryFrom<DenomAmount> for InternalDenomAmount {
             Err(_) => return Err(format!("Cannot parse amount, '{}'.", value.amount)),
         };
 
-        Ok(InternalDenomAmount {
-            denom: value.denom,
-            amount,
-        })
+        Ok(InternalDenomAmount { denom: value.denom, amount })
     }
 }
 
@@ -239,9 +233,9 @@ pub struct PaginationConfig {
     /// It is set to true if results are to be returned in the descending order.
     reverse: bool,
     /// It is the number of result to not to be returned in the result page
-    offset: u64,
+    offset: u32,
     /// It is the total number of results to be returned in the result page
-    limit: u64,
+    limit: u32,
 }
 
 impl PaginationConfig {
@@ -254,7 +248,7 @@ impl PaginationConfig {
     ///     limit: 10,
     /// }
     /// ```
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self {
             reverse: false,
             offset: 0,
@@ -263,33 +257,42 @@ impl PaginationConfig {
     }
 
     /// Returns `true` if `reverse` property is set to `true`.
-    pub fn is_reverse(&self) -> bool {
+    pub const fn is_reverse(&self) -> bool {
         self.reverse
     }
 
     /// Returns the value `limit` property holds.
-    pub fn get_limit(&self) -> u64 {
+    pub const fn get_limit(&self) -> u32 {
         self.limit
     }
 
     /// Returns the value `offset` property holds.
-    pub fn get_offset(&self) -> u64 {
+    pub const fn get_offset(&self) -> u32 {
         self.offset
     }
 
     /// Makes the response reversed.
-    pub fn reverse(self) -> Self {
+    pub const fn reverse(self) -> Self {
         Self { reverse: true, ..self }
     }
 
     /// Sets a limit for results to be returned in the result page
-    pub fn limit(self, limit: u64) -> Self {
+    pub const fn limit(self, limit: u32) -> Self {
         Self { limit, ..self }
     }
 
     /// Sets an offset for padding from the first result.
-    pub fn offset(self, offset: u64) -> Self {
+    pub const fn offset(self, offset: u32) -> Self {
         Self { offset, ..self }
+    }
+
+    /// Specifies the offset by given page. \
+    /// **Base index is 1/ONE.**
+    pub fn page(self, page: u32) -> Self {
+        Self {
+            offset: if page < 2 { 0 } else { self.limit * (page - 1) },
+            ..self
+        }
     }
 }
 
