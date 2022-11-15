@@ -1,6 +1,5 @@
 use std::{
     fmt::Display,
-    str::FromStr,
     sync::Arc,
     time::{Duration, Instant},
 };
@@ -63,6 +62,7 @@ pub struct WebSocket {
 pub enum Mode {
     Blocks,
     Txs,
+    Params,
     None,
 }
 impl From<&str> for Mode {
@@ -70,6 +70,7 @@ impl From<&str> for Mode {
         match s {
             "blocks" => Mode::Blocks,
             "txs" => Mode::Txs,
+            "params" => Mode::Params,
             _ => Mode::None,
         }
     }
@@ -107,6 +108,7 @@ impl WebSocket {
                     }
                 }
             }
+
             Mode::Txs => {
                 if let Ok(transactions) = act.chain.data_txs() {
                     if let Ok(json) = serde_json::to_string(&transactions) {
@@ -114,7 +116,15 @@ impl WebSocket {
                     }
                 }
             }
-            _ => {}
+
+            Mode::Params => {
+                if let Ok(params) = act.chain.data_params() {
+                    if let Ok(json) = serde_json::to_string(&params) {
+                        ctx.text(json)
+                    }
+                }
+            }
+            _ => (),
         });
     }
 }
