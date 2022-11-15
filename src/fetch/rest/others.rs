@@ -1,50 +1,48 @@
+use chrono::DateTime;
 use serde::{Deserialize, Serialize};
 
-use crate::chain::Chain;
+use crate::{chain::Chain, routes::rest::OutRestResponse};
 
 impl Chain {
     /// Returns staking pool information.
-    pub async fn get_staking_pool(&self) -> Result<InternalStakingPool, String> {
-        match self.rest_api_request::<StakingPoolResp>("/cosmos/staking/v1beta1/pool", &[]).await {
-            Ok(resp) => {
-                let bonded = match resp.pool.bonded_tokens.parse::<u128>() {
-                    Ok(bonded_tokens) => (bonded_tokens / 10_u128.pow(self.decimals.into())) as u64,
-                    Err(_) => return Err("Tokenomics parsing error.".to_string()),
-                };
+    pub async fn get_staking_pool(&self) -> Result<OutRestResponse<InternalStakingPool>, String> {
+        let resp = self.rest_api_request::<StakingPoolResp>("/cosmos/staking/v1beta1/pool", &[]).await?;
 
-                let unbonded = match resp.pool.not_bonded_tokens.parse::<u128>() {
-                    Ok(not_bonded_tokens) => (not_bonded_tokens / 10_u128.pow(self.decimals.into())) as u64,
-                    Err(_) => return Err("Tokenomics parsing error.".to_string()),
-                };
+        let staking_pool = InternalStakingPool::try_from(resp.pool, self.decimals_pow)?;
 
-                Ok(InternalStakingPool { unbonded, bonded })
-            }
-            Err(error) => Err(error),
-        }
+        OutRestResponse::new(staking_pool, 0)
     }
 
     /// Returns the signing info by given cons address.
-    pub async fn get_signing_info(&self, cons_addr: &str) -> Result<SigningInfoResp, String> {
+    pub async fn get_signing_info(&self, cons_addr: &str) -> Result<OutRestResponse<InternalSlashingSigningInfoItem>, String> {
         let path = format!("/cosmos/slashing/v1beta1/signing_infos/{cons_addr}");
 
-        self.rest_api_request(&path, &[]).await
+        let resp = self.rest_api_request::<SigningInfoResp>(&path, &[]).await?;
+
+        let signing_info = resp.val_signing_info.try_into()?;
+
+        OutRestResponse::new(signing_info, 0)
     }
 
     /// Returns the native coin amount in the community pool.
-    pub async fn get_community_pool(&self) -> Result<u64, String> {
-        match self
+    pub async fn get_community_pool(&self) -> Result<OutRestResponse<u64>, String> {
+        let resp = self
             .rest_api_request::<CommunityPoolResp>("/cosmos/distribution/v1beta1/community_pool", &[])
-            .await
-        {
-            Ok(resp) => match resp.pool.get(0) {
-                Some(amount) => match amount.amount.parse::<f64>() {
-                    Ok(community_pool_amount) => Ok((community_pool_amount / 10_f64.powi(self.decimals.into())) as u64),
-                    _ => Err(format!("Cannot parse number, {}.", amount.amount)),
-                },
-                None => Err(format!("There is no community pool for '{}'", self.name)),
-            },
-            Err(error) => Err(error),
-        }
+            .await?;
+
+        let pool = resp
+            .pool
+            .get(0)
+            .ok_or_else(|| format!("There is no community pool for '{}' chain.", self.name))?;
+
+        let community_pool_amount = pool
+            .amount
+            .parse::<f64>()
+            .or_else(|_| Err(format!("Cannot parse community pool coin amount, '{}'.", pool.amount)))?;
+
+        let community_pool_amount = (community_pool_amount / self.decimals_pow as f64) as u64;
+
+        OutRestResponse::new(community_pool_amount, 0)
     }
 }
 
@@ -186,6 +184,15 @@ pub struct InternalStakingPool {
     pub bonded: u64,
 }
 
+impl InternalStakingPool {
+    fn try_from(value: StakingPool, decimals_pow: u64) -> Result<Self, String> {
+        Ok(Self {
+            unbonded: (value.not_bonded_tokens.parse::<u128>().or_else(|_| Err(format!("")))? / decimals_pow as u128) as u64,
+            bonded: (value.bonded_tokens.parse::<u128>().or_else(|_| Err(format!("")))? / decimals_pow as u128) as u64,
+        })
+    }
+}
+
 #[derive(Deserialize, Serialize, Debug)]
 pub struct SlashingSigningInfo {
     pub info: Vec<SlashingSigningInfoItem>,
@@ -206,6 +213,47 @@ pub struct SlashingSigningInfoItem {
     pub tombstoned: bool,
     /// The count of missed blocks. Eg: `"16433"`
     pub missed_blocks_counter: String,
+}
+
+#[derive(Deserialize, Serialize, Debug)]
+pub struct InternalSlashingSigningInfoItem {
+    /// Validator address. Eg: `"evmosvalcons1qx4hehfny66jfzymzn6d5t38m0ely3cvw6zn06"`
+    pub address: String,
+    /// The block height slashing is started at. Eg: `0`
+    pub start_height: u64,
+    /// Unknown. Eg: `5888077`
+    pub index_offset: u64,
+    /// The timestamp in milliseconds jailed until.
+    pub jailed_until: i64,
+    /// Tombstoned state. Eg: `false`
+    pub tombstoned: bool,
+    /// The count of missed blocks. Eg: `16433`
+    pub missed_blocks_counter: u64,
+}
+
+impl TryFrom<SlashingSigningInfoItem> for InternalSlashingSigningInfoItem {
+    type Error = String;
+    fn try_from(value: SlashingSigningInfoItem) -> Result<Self, Self::Error> {
+        Ok(Self {
+            address: value.address,
+            start_height: value
+                .start_height
+                .parse()
+                .or_else(|_| Err(format!("Cannot parse slashing start height, `{}`.", value.start_height)))?,
+            index_offset: value
+                .start_height
+                .parse()
+                .or_else(|_| Err(format!("Cannot parse slashing index offset, `{}`.", value.index_offset)))?,
+            jailed_until: DateTime::parse_from_rfc3339(&value.jailed_until)
+                .or_else(|_| Err(format!("Cannot parse jailed untile datetime, '{}'", value.jailed_until)))?
+                .timestamp_millis(),
+            tombstoned: value.tombstoned,
+            missed_blocks_counter: value
+                .missed_blocks_counter
+                .parse()
+                .or_else(|_| Err(format!("Cannot parse missed blocks counter, `{}`.", value.missed_blocks_counter)))?,
+        })
+    }
 }
 
 #[derive(Deserialize, Serialize, Debug)]
