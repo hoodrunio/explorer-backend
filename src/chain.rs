@@ -23,7 +23,7 @@ pub struct Chain {
     /// The Cosmos SDK version of the chain.
     pub sdk_version: u8,
     /// The decimals of the native coin of the chain.
-    pub decimals: u8,
+    pub decimals_pow: u64,
     /// The request client.
     pub client: reqwest::Client,
     /// The chain data.
