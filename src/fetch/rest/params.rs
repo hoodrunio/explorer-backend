@@ -1,43 +1,63 @@
 use serde::{Deserialize, Serialize};
 
 use super::others::DenomAmount;
-use crate::chain::Chain;
+use crate::{chain::Chain, routes::rest::OutRestResponse};
 
 impl Chain {
     /// Returns the slashing parameters of the chain.
-    pub async fn get_slashing_params(&self) -> Option<InternalSlashingParams> {
-        self.rest_api_request::<ParamsResp<SlashingParams>>("/cosmos/slashing/v1beta1/params", &[])
+    pub async fn get_slashing_params(&self) -> Option<OutRestResponse<InternalSlashingParams>> {
+        let resp = self
+            .rest_api_request::<ParamsResp<SlashingParams>>("/cosmos/slashing/v1beta1/params", &[])
             .await
-            .ok()
-            .and_then(|res| res.params.try_into().ok())
+            .ok()?;
+
+        let slashing_params = resp.params.try_into().ok()?;
+
+        OutRestResponse::new(slashing_params, 0).ok()
     }
 
     /// Returns the staking parameters.
-    pub async fn get_staking_params(&self) -> Result<InternalStakingParams, String> {
-        self.rest_api_request::<ParamsResp<StakingParams>>("/cosmos/staking/v1beta1/params", &[])
-            .await
-            .and_then(|res| res.params.try_into())
+    pub async fn get_staking_params(&self) -> Result<OutRestResponse<InternalStakingParams>, String> {
+        let resp = self
+            .rest_api_request::<ParamsResp<StakingParams>>("/cosmos/staking/v1beta1/params", &[])
+            .await?;
+
+        let staking_params = resp.params.try_into()?;
+
+        OutRestResponse::new(staking_params, 0)
     }
 
     /// Returns the voting parameters.
-    pub async fn get_voting_params(&self) -> Result<InternalVotingParams, String> {
-        self.rest_api_request::<VotingParamsResp>("/cosmos/gov/v1beta1/params/voting", &[])
-            .await
-            .and_then(|res| res.voting_params.try_into())
+    pub async fn get_voting_params(&self) -> Result<OutRestResponse<InternalVotingParams>, String> {
+        let resp = self
+            .rest_api_request::<VotingParamsResp>("/cosmos/gov/v1beta1/params/voting", &[])
+            .await?;
+
+        let voting_params = resp.voting_params.try_into()?;
+
+        OutRestResponse::new(voting_params, 0)
     }
 
     /// Returns the deposit parameters.
-    pub async fn get_deposit_params(&self) -> Result<InternalDepositParams, String> {
-        self.rest_api_request::<DepositParamsResp>("/cosmos/gov/v1beta1/params/deposit", &[])
-            .await
-            .and_then(|res| InternalDepositParams::try_from(res.deposit_params, self.decimals))
+    pub async fn get_deposit_params(&self) -> Result<OutRestResponse<InternalDepositParams>, String> {
+        let resp = self
+            .rest_api_request::<DepositParamsResp>("/cosmos/gov/v1beta1/params/deposit", &[])
+            .await?;
+
+        let deposit_params = InternalDepositParams::try_from(resp.deposit_params, self.decimals)?;
+
+        OutRestResponse::new(deposit_params, 0)
     }
 
     /// Returns the tallying parameters.
-    pub async fn get_tally_params(&self) -> Result<InternalTallyParams, String> {
-        self.rest_api_request::<TallyingParamsResp>("/cosmos/gov/v1beta1/params/tallying", &[])
-            .await
-            .and_then(|res| res.tally_params.try_into())
+    pub async fn get_tally_params(&self) -> Result<OutRestResponse<InternalTallyParams>, String> {
+        let resp = self
+            .rest_api_request::<TallyingParamsResp>("/cosmos/gov/v1beta1/params/tallying", &[])
+            .await?;
+
+        let tally_params = resp.tally_params.try_into()?;
+
+        OutRestResponse::new(tally_params, 0)
     }
 }
 
@@ -118,12 +138,7 @@ impl InternalDepositParams {
         let max_deposit_period: u32 = if value.max_deposit_period.ends_with("s") {
             match value.max_deposit_period[..value.max_deposit_period.len() - 2].parse() {
                 Ok(v) => v,
-                Err(_) => {
-                    return Err(format!(
-                        "Cannot parse maximum deposit period, '{}'.",
-                        value.max_deposit_period
-                    ))
-                }
+                Err(_) => return Err(format!("Cannot parse maximum deposit period, '{}'.", value.max_deposit_period)),
             }
         } else {
             return Err(format!("Maximum deposit params couldn't be parsed!"));
@@ -260,12 +275,7 @@ impl TryFrom<SlashingParams> for InternalSlashingParams {
         let downtime_jail_duration: u32 = if value.downtime_jail_duration.ends_with("s") {
             match value.downtime_jail_duration[..value.downtime_jail_duration.len() - 2].parse() {
                 Ok(v) => v,
-                Err(_) => {
-                    return Err(format!(
-                        "Cannot parse downtime jail time, '{}'.",
-                        value.downtime_jail_duration
-                    ))
-                }
+                Err(_) => return Err(format!("Cannot parse downtime jail time, '{}'.", value.downtime_jail_duration)),
             }
         } else {
             return Err(format!("Downtime jail couldn't be parsed!"));
@@ -273,22 +283,12 @@ impl TryFrom<SlashingParams> for InternalSlashingParams {
 
         let signed_blocks_window = match value.signed_blocks_window.parse() {
             Ok(v) => v,
-            Err(_) => {
-                return Err(format!(
-                    "Cannot parse signed blocks window, '{}'.",
-                    value.signed_blocks_window
-                ))
-            }
+            Err(_) => return Err(format!("Cannot parse signed blocks window, '{}'.", value.signed_blocks_window)),
         };
 
         let min_signed_per_window = match value.min_signed_per_window.parse() {
             Ok(v) => v,
-            Err(_) => {
-                return Err(format!(
-                    "Cannot parse minimum signed per window, '{}'.",
-                    value.min_signed_per_window
-                ))
-            }
+            Err(_) => return Err(format!("Cannot parse minimum signed per window, '{}'.", value.min_signed_per_window)),
         };
 
         let slash_fraction_double_sign = match value.slash_fraction_double_sign.parse() {
@@ -303,12 +303,7 @@ impl TryFrom<SlashingParams> for InternalSlashingParams {
 
         let slash_fraction_downtime = match value.slash_fraction_downtime.parse() {
             Ok(v) => v,
-            Err(_) => {
-                return Err(format!(
-                    "Cannot parse slash fraction downtime, '{}'.",
-                    value.slash_fraction_downtime
-                ))
-            }
+            Err(_) => return Err(format!("Cannot parse slash fraction downtime, '{}'.", value.slash_fraction_downtime)),
         };
 
         Ok(Self {
