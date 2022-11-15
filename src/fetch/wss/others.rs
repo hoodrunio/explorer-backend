@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use strum_macros::IntoStaticStr;
 
 use crate::fetch::rest::requests::RPCSuccessResponse;
 
@@ -19,8 +20,8 @@ pub struct SubscribeData<T> {
     pub value: T,
 }
 
-#[derive(Deserialize, Serialize, Debug)]
-#[serde(tag = "type", rename_all = "snake_case")]
+#[derive(Deserialize, Serialize, Debug, IntoStaticStr)]
+#[serde(tag = "type")]
 pub enum Event {
     #[serde(rename = "acknowledge_packet")]
     AcknowledgePacket { attributes: Vec<UnparsedEventAttribute> },
@@ -42,6 +43,10 @@ pub enum Event {
     AxelarMultisigSigningStarted { attributes: Vec<UnparsedEventAttribute> },
     #[serde(rename = "axelar.vote.v1beta1.Voted")]
     AxelarVoteVoted { attributes: Vec<UnparsedEventAttribute> },
+    #[serde(rename = "block_bloom")]
+    BlockBloom { attributes: Vec<UnparsedEventAttribute> },
+    #[serde(rename = "block_gas")]
+    BlockGas { attributes: Vec<UnparsedEventAttribute> },
     #[serde(rename = "burn")]
     Burn { attributes: Vec<UnparsedEventAttribute> },
     #[serde(rename = "coin_received")]
@@ -68,12 +73,16 @@ pub enum Event {
     EthereumTx { attributes: Vec<UnparsedEventAttribute> },
     #[serde(rename = "eventConfirmation")]
     EventConfirmation { attributes: Vec<UnparsedEventAttribute> },
+    #[serde(rename = "fee_market")]
+    FeeMarket { attributes: Vec<UnparsedEventAttribute> },
     #[serde(rename = "fungible_token_packet")]
     FungibleTokenPacket { attributes: Vec<UnparsedEventAttribute> },
     #[serde(rename = "ibc_transfer")]
     IbcTransfer { attributes: Vec<UnparsedEventAttribute> },
     #[serde(rename = "link")]
     Link { attributes: Vec<UnparsedEventAttribute> },
+    #[serde(rename = "liveness")]
+    Liveness { attributes: Vec<UnparsedEventAttribute> },
     #[serde(rename = "message")]
     Message { attributes: Vec<UnparsedEventAttribute> },
     #[serde(rename = "mint")]
