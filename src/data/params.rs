@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 /// The chain params.
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Params {
     pub unbonding_time: u32,
     pub max_validators: u32,
