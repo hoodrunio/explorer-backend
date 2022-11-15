@@ -76,6 +76,10 @@ ws.addEventListener('message', (e) => {
 ws.addEventListener('close', (e) => {
   console.log('Connection is closed!')
 });
+
+// Available options are "blocks", "tx", "params".
+setTimeout(() => ws.send("blocks"), 1000)
+// Then it starts listening "blocks"
 ```
 > The data from the backend arrives as JSON encoded `string`.
 
