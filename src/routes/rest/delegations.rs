@@ -11,7 +11,7 @@ use actix_web::{
 
 // ======== Delegation Methods ========
 
-#[get("{chains}/delegations/{delegator_address}")]
+#[get("{chain}/delegations/{delegator_address}")]
 pub async fn delegations(path: Path<(String, String)>, chains: Data<State>) -> impl Responder {
     let (chain, delegator_addr) = path.into_inner();
 
@@ -24,7 +24,7 @@ pub async fn delegations(path: Path<(String, String)>, chains: Data<State>) -> i
     })
 }
 
-#[get("axelar/unbonding-delegations/{delegator_address}")]
+#[get("{chain}/unbonding-delegations/{delegator_address}")]
 pub async fn unbonding_delegations(path: Path<(String, String)>, chains: Data<State>) -> impl Responder {
     let (chain, delegator_addr) = path.into_inner();
 
@@ -37,7 +37,7 @@ pub async fn unbonding_delegations(path: Path<(String, String)>, chains: Data<St
     })
 }
 
-#[get("axelar/redelegations/{delegator_address}")]
+#[get("{chain}/redelegations/{delegator_address}")]
 pub async fn redelegations(path: Path<(String, String)>, chains: Data<State>) -> impl Responder {
     let (chain, delegator_addr) = path.into_inner();
 
