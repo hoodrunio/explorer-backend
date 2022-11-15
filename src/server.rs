@@ -8,10 +8,8 @@ use web::Data;
 use crate::routes::{rest, wss};
 use crate::state::State;
 
-pub async fn run_cron_job(chains: Data<State>) {
-    spawn(async move {
-        chains.subscribe_data().await;
-    });
+pub async fn run_cron_job(_chains: Data<State>) {
+    
 }
 
 /// Starts the web server.
