@@ -97,6 +97,21 @@ pub struct InternalDenomAmount {
     pub amount: u128,
 }
 
+impl TryFrom<DenomAmount> for InternalDenomAmount {
+    type Error = String;
+    fn try_from(value: DenomAmount) -> Result<Self, Self::Error> {
+        let amount: u128 = match value.amount.parse() {
+            Ok(v) => v,
+            Err(_) => return Err(format!("Cannot parse amount, '{}'.", value.amount)),
+        };
+
+        Ok(InternalDenomAmount {
+            denom: value.denom,
+            amount,
+        })
+    }
+}
+
 #[derive(Deserialize, Serialize, Debug)]
 pub struct SigningInfoResp {
     /// Validator signing info.
