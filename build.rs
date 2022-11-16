@@ -173,7 +173,7 @@ fn update_state_rs(chains: &[Chain]) {
     let mut get_prices_props = String::new();
 
     for chain in chains {
-        state_props += &format!("\n    {}: Arc<Chain>,", chain.name);
+        state_props += &format!("\n    pub {}: Arc<Chain>,", chain.name);
 
         new_fn += &format!(
             r#"
