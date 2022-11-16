@@ -9,7 +9,6 @@ use actix_web::{
     Responder,
 };
 
-
 // ======== Tokenomic Methods ========
 
 #[get("{chain}/supply/{denom}")]
@@ -27,10 +26,7 @@ pub async fn supplies(path: Path<String>, chains: Data<State>) -> impl Responder
     let chain = path.into_inner();
 
     Json(match chains.get(&chain) {
-        Ok(chain) => chain
-            .get_supply_of_all_tokens(PaginationConfig::new().limit(1000))
-            .await
-            .into(),
+        Ok(chain) => chain.get_supply_of_all_tokens(PaginationConfig::new().limit(1000)).await.into(),
         Err(err) => Response::Error(err),
     })
 }

@@ -35,12 +35,7 @@ impl std::error::Error for WebSocketError {
 
 impl actix_web::error::ResponseError for WebSocketError {}
 
-pub async fn socket(
-    req: HttpRequest,
-    stream: web::Payload,
-    chains: Data<State>,
-    path: Path<String>,
-) -> Result<HttpResponse, WebSocketError> {
+pub async fn socket(req: HttpRequest, stream: web::Payload, chains: Data<State>, path: Path<String>) -> Result<HttpResponse, WebSocketError> {
     let chain = path.into_inner();
 
     match chains.get(&chain) {

@@ -9,7 +9,6 @@ use actix_web::{
     Responder,
 };
 
-
 // ======== Transaction Methods ========
 
 #[get("{chain}/tx/{hash}")]
@@ -37,10 +36,7 @@ pub async fn txs_by_height(path: Path<(String, u64)>, chains: Data<State>) -> im
     let (chain, height) = path.into_inner();
 
     Json(match chains.get(&chain) {
-        Ok(chain) => chain
-            .get_txs_by_height(Some(height), PaginationConfig::new().limit(100))
-            .await
-            .into(),
+        Ok(chain) => chain.get_txs_by_height(Some(height), PaginationConfig::new().limit(100)).await.into(),
         Err(err) => Response::Error(err),
     })
 }
@@ -50,10 +46,7 @@ pub async fn txs_of_sender(path: Path<(String, String)>, chains: Data<State>) ->
     let (chain, sender_addr) = path.into_inner();
 
     Json(match chains.get(&chain) {
-        Ok(chain) => chain
-            .get_txs_by_sender(&sender_addr, PaginationConfig::new().limit(100))
-            .await
-            .into(),
+        Ok(chain) => chain.get_txs_by_sender(&sender_addr, PaginationConfig::new().limit(100)).await.into(),
         Err(err) => Response::Error(err),
     })
 }

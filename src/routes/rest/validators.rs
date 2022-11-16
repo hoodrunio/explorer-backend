@@ -86,10 +86,7 @@ pub async fn validators_of_delegator(path: Path<(String, String)>, chains: Data<
     let (chain, delegator_addr) = path.into_inner();
 
     Json(match chains.get(&chain) {
-        Ok(chain) => chain
-            .get_validators_by_delegator(&delegator_addr, PaginationConfig::new())
-            .await
-            .into(),
+        Ok(chain) => chain.get_validators_by_delegator(&delegator_addr, PaginationConfig::new()).await.into(),
         Err(err) => Response::Error(err),
     })
 }
@@ -99,10 +96,7 @@ pub async fn validator_delegator_pair(path: Path<(String, String, String)>, chai
     let (chain, validator_addr, delegator_addr) = path.into_inner();
 
     Json(match chains.get(&chain) {
-        Ok(chain) => chain
-            .get_delegator_validator_pair_info(&delegator_addr, &validator_addr)
-            .await
-            .into(),
+        Ok(chain) => chain.get_delegator_validator_pair_info(&delegator_addr, &validator_addr).await.into(),
         Err(err) => Response::Error(err),
     })
 }
