@@ -5,11 +5,7 @@ use crate::chain::Chain;
 
 impl Chain {
     /// Makes a request to the RPC node.
-    pub(super) async fn rpc_request<T: DeserializeOwned>(
-        &self,
-        path: &str,
-        query: &[(&'static str, String)],
-    ) -> Result<T, String> {
+    pub(super) async fn rpc_request<T: DeserializeOwned>(&self, path: &str, query: &[(&'static str, String)]) -> Result<T, String> {
         // Create the URL request to.
         let url = format!("{}{}", self.rpc_url, path);
 
@@ -26,11 +22,7 @@ impl Chain {
     }
 
     /// Makes a request to the REST API node.
-    pub(super) async fn rest_api_request<T: DeserializeOwned>(
-        &self,
-        path: &str,
-        query: &[(&'static str, String)],
-    ) -> Result<T, String> {
+    pub(super) async fn rest_api_request<T: DeserializeOwned>(&self, path: &str, query: &[(&'static str, String)]) -> Result<T, String> {
         // Create the URL request to.
         let url = format!("{}{}", self.rest_url, path);
 

@@ -44,7 +44,7 @@ impl Chain {
             .rest_api_request::<DepositParamsResp>("/cosmos/gov/v1beta1/params/deposit", &[])
             .await?;
 
-        let deposit_params = InternalDepositParams::try_from(resp.deposit_params, self.decimals)?;
+        let deposit_params = InternalDepositParams::try_from(resp.deposit_params, self.decimals_pow)?;
 
         OutRestResponse::new(deposit_params, 0)
     }
@@ -134,7 +134,7 @@ pub struct InternalDepositParams {
 }
 
 impl InternalDepositParams {
-    fn try_from(value: DepositParams, decimals: u8) -> Result<Self, String> {
+    fn try_from(value: DepositParams, decimals_pow: u64) -> Result<Self, String> {
         let max_deposit_period: u32 = if value.max_deposit_period.ends_with("s") {
             match value.max_deposit_period[..value.max_deposit_period.len() - 2].parse() {
                 Ok(v) => v,
@@ -145,7 +145,7 @@ impl InternalDepositParams {
         };
         let min_deposit = match value.min_deposit.get(0) {
             Some(den) => match den.amount.parse::<u128>() {
-                Ok(v) => (v / 10_u128.pow(decimals.into())) as f64,
+                Ok(v) => (v / decimals_pow as u128) as f64,
                 Err(_) => return Err(format!("Cannor parse amount, '{}'.", den.amount)),
             },
             None => return Err(format!("There is no min deposit amount.")),

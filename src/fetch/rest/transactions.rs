@@ -1,6 +1,5 @@
 use serde::{Deserialize, Serialize};
 
-
 use super::others::{DenomAmount, Pagination, PaginationConfig, PublicKey};
 use crate::chain::Chain;
 
@@ -27,11 +26,7 @@ impl Chain {
     }
 
     /// Returns transactions with given recipient.
-    pub async fn get_txs_by_recipient(
-        &self,
-        recipient_address: &str,
-        pagination_config: PaginationConfig,
-    ) -> Result<TxsResp, String> {
+    pub async fn get_txs_by_recipient(&self, recipient_address: &str, pagination_config: PaginationConfig) -> Result<TxsResp, String> {
         let mut query = vec![];
 
         query.push(("events", format!("message.recipient='{}'", recipient_address)));
@@ -45,11 +40,7 @@ impl Chain {
     }
 
     /// Returns transactions at given height.
-    pub async fn get_txs_by_height(
-        &self,
-        block_height: Option<u64>,
-        pagination_config: PaginationConfig,
-    ) -> Result<TxsResp, String> {
+    pub async fn get_txs_by_height(&self, block_height: Option<u64>, pagination_config: PaginationConfig) -> Result<TxsResp, String> {
         let mut query = vec![];
 
         if let Some(block_height) = block_height {

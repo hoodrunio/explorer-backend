@@ -1,6 +1,5 @@
 use serde::{Deserialize, Serialize};
 
-
 use super::others::{DenomAmount, Pagination, PaginationConfig, PublicKey};
 use crate::chain::Chain;
 
@@ -16,11 +15,7 @@ impl Chain {
     }
 
     /// Returns all the validators by given delegator address.
-    pub async fn get_validators_by_delegator(
-        &self,
-        delegator_addr: &str,
-        pagination_config: PaginationConfig,
-    ) -> Result<ValidatorsResp, String> {
+    pub async fn get_validators_by_delegator(&self, delegator_addr: &str, pagination_config: PaginationConfig) -> Result<ValidatorsResp, String> {
         let path = format!("/cosmos/staking/v1beta1/delegators/{delegator_addr}/validators");
 
         let mut query = vec![];
@@ -100,11 +95,7 @@ impl Chain {
     }
 
     /// Returns validator information by given delegator validator pair.
-    pub async fn get_delegator_validator_pair_info(
-        &self,
-        delegator_addr: &str,
-        validator_addr: &str,
-    ) -> Result<ValidatorResp, String> {
+    pub async fn get_delegator_validator_pair_info(&self, delegator_addr: &str, validator_addr: &str) -> Result<ValidatorResp, String> {
         let path = format!("/cosmos/staking/v1beta1/delegators/{delegator_addr}/validators/{validator_addr}");
 
         self.rest_api_request(&path, &[]).await

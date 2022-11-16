@@ -100,10 +100,7 @@ impl Chain {
                     })
                 }
 
-                Ok(InternalBlockchainResp {
-                    last_height,
-                    block_metas,
-                })
+                Ok(InternalBlockchainResp { last_height, block_metas })
             }
             Err(error) => Err(error),
         }

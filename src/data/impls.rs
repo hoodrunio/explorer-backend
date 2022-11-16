@@ -43,10 +43,7 @@ impl Chain {
     }
 
     /// Subscribes to WebSocket.
-    pub async fn subscribe_data(&self) {
-        println!("'{}' is started.", self.name);
-        join!(self.subscribe_to_new_blocks(), self.subscribe_to_tx());
-    }
+    pub async fn subscribe_data(&self) {}
 
     /// Updates the native coin price and the chart.
     pub async fn update_price(&self, new_price: Option<&f64>) {
@@ -66,9 +63,9 @@ impl Chain {
 
     /// Updates the latest blocks, latest height, and the average block time.
     pub fn update_latest_block(&self, new_block: Option<BlockItem>) {
+        println!("{:?}", new_block);
         if let Some(new_block) = new_block {
             let mut new_avg_block_time = None;
-            println!("{:?}", new_block);
 
             // Update the latest blocks.
             if let Ok(mut blocks) = self.data.blocks.lock() {
@@ -92,7 +89,6 @@ impl Chain {
 
     /// Updates the latest transactions.
     pub fn update_latest_txs(&self, new_tx: Option<TransactionItem>) {
-        println!("{:?}", new_tx);
         if let Some(new_tx) = new_tx {
             if let Ok(mut transactions) = self.data.transactions.lock() {
                 transactions.add_new(new_tx);
