@@ -26,19 +26,19 @@ pub struct CoinGeckoPrice {
 }
 
 /// Returns the logo url of the given validator.
-pub async fn get_validator_logo(client: Client, validator_identity: &str) -> Result<String, String> {
+pub async fn get_validator_logo(client: Client, validator_identity: &str) -> String {
     let url = format!("https://keybase.io/_/api/1.0/user/lookup.json?key_suffix={validator_identity}&fields=pictures");
 
-    match client.get(url).send().await {
-        Ok(resp) => match resp.json::<LogoResp>().await {
-            Ok(resp) => match resp.them.get(0) {
-                Some(picture) => Ok(picture.pictures.primary.url.clone()),
-                None => Err(format!("There is no logo of the validator with identity, {validator_identity}")),
-            },
-            _z => Err(format!("Cannot parse the logo of the validator with identity, '{validator_identity}'.")),
-        },
-        _ => Err(format!("Cannot request the logo of the validator with identity, '{validator_identity}'.")),
+    if let Ok(resp) = client.get(url).send().await {
+        if let Ok(json) = resp.json::<LogoResp>().await {
+            if let Some(picture) = json.them.get(0) {
+                return picture.pictures.primary.url.to_string();
+            }
+        }
     }
+
+    // Here, we will set a URL as the default logo.
+    String::from("example.com")
 }
 
 #[derive(Deserialize)]
