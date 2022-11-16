@@ -45,6 +45,7 @@ impl Chain {
                             match serde_json::from_str::<Response>(&msg) {
                                 Ok(resp) => {
                                     if let Some(data) = resp.result.data {
+                                        println!("block {}", self.name);
                                         match old_resp {
                                             Some(old_block) => {
                                                 let new_block = data.value;
@@ -55,19 +56,12 @@ impl Chain {
                                                 self.update_latest_block(
                                                     async move {
                                                         // Get validator description.
-                                                        let validator_description = self
-                                                            .get_validator(&old_block.block.header.proposer_address)
-                                                            .await
-                                                            .ok()?
-                                                            .description;
+                                                        let validator_description =
+                                                            self.get_validator(&old_block.block.header.proposer_address).await.ok()?.description;
 
                                                         // Get validator logo.
-                                                        let proposer_logo = get_validator_logo(
-                                                            self.client.clone(),
-                                                            &validator_description.identity,
-                                                        )
-                                                        .await
-                                                        .ok()?;
+                                                        let proposer_logo =
+                                                            get_validator_logo(self.client.clone(), &validator_description.identity).await.ok()?;
 
                                                         Some(BlockItem {
                                                             proposer_name: validator_description.moniker,

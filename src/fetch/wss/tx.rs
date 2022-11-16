@@ -45,15 +45,9 @@ impl Chain {
                                         // Add the block from the old response.
 
                                         let tx = data.value.tx_result;
-                                        println!("a");
+                                        println!("tx {}", self.name);
 
-                                        let r#type: String = tx
-                                            .result
-                                            .events
-                                            .get(0)
-                                            .and_then(|e| Some(e.into()))
-                                            .unwrap_or("Unknown")
-                                            .to_string();
+                                        let r#type: String = tx.result.events.get(0).and_then(|e| Some(e.into())).unwrap_or("Unknown").to_string();
 
                                         self.update_latest_txs(
                                             async move {
@@ -62,7 +56,7 @@ impl Chain {
                                                     r#type,
                                                     hash: events.tx_hash.get(0)?.to_string(),
                                                     result: "".into(), // TODO
-                                                    timestamp: 0, // TODO
+                                                    timestamp: 0,      // TODO
                                                     fee: events.tx_fee.get(0).and_then(|fee| {
                                                         if fee.len() > self.main_denom.len() {
                                                             Some(fee[..fee.len() - 1 - self.main_denom.len()].parse().ok()?)
