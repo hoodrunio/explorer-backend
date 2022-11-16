@@ -6,11 +6,11 @@ use tokio::join;
 
 /// The state of the server.
 pub struct State {
-    axelar: Arc<Chain>,
-    evmos: Arc<Chain>,
-    kyve: Arc<Chain>,
-    osmosis: Arc<Chain>,
-    secret: Arc<Chain>,
+    pub axelar: Arc<Chain>,
+    pub evmos: Arc<Chain>,
+    pub kyve: Arc<Chain>,
+    pub osmosis: Arc<Chain>,
+    pub secret: Arc<Chain>,
     reqwest_client: reqwest::Client,
 }
 
