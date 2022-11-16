@@ -27,23 +27,17 @@ pub struct CoinGeckoPrice {
 
 /// Returns the logo url of the given validator.
 pub async fn get_validator_logo(client: Client, validator_identity: &str) -> Result<String, String> {
-    let url = format!("https://keybase.io/_/api/1.0/user/lookup.json?key_suffix=${validator_identity}&fields=pictures");
+    let url = format!("https://keybase.io/_/api/1.0/user/lookup.json?key_suffix={validator_identity}&fields=pictures");
 
     match client.get(url).send().await {
         Ok(resp) => match resp.json::<LogoResp>().await {
             Ok(resp) => match resp.them.get(0) {
                 Some(picture) => Ok(picture.pictures.primary.url.clone()),
-                None => Err(format!(
-                    "There is no logo of the validator with identity, {validator_identity}"
-                )),
+                None => Err(format!("There is no logo of the validator with identity, {validator_identity}")),
             },
-            _ => Err(format!(
-                "Cannot parse the logo of the validator with identity, '{validator_identity}'."
-            )),
+            _z => Err(format!("Cannot parse the logo of the validator with identity, '{validator_identity}'.")),
         },
-        _ => Err(format!(
-            "Cannot request the logo of the validator with identity, '{validator_identity}'."
-        )),
+        _ => Err(format!("Cannot request the logo of the validator with identity, '{validator_identity}'.")),
     }
 }
 
