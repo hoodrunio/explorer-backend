@@ -8,7 +8,10 @@ impl Chain {
     pub async fn get_staking_pool(&self) -> Result<OutRestResponse<InternalStakingPool>, String> {
         let resp = self.rest_api_request::<StakingPoolResp>("/cosmos/staking/v1beta1/pool", &[]).await?;
 
-        let staking_pool = InternalStakingPool::try_from(resp.pool, self.inner.decimals_pow)?;
+        let staking_pool = InternalStakingPool {
+            unbonded: self.calc_amount_u128_to_u64(resp.pool.not_bonded_tokens.parse::<u128>().or_else(|_| Err(format!("")))?),
+            bonded: self.calc_amount_u128_to_u64(resp.pool.bonded_tokens.parse::<u128>().or_else(|_| Err(format!("")))?),
+        };
 
         OutRestResponse::new(staking_pool, 0)
     }
@@ -40,7 +43,7 @@ impl Chain {
             .parse::<f64>()
             .or_else(|_| Err(format!("Cannot parse community pool coin amount, '{}'.", pool.amount)))?;
 
-        let community_pool_amount = (community_pool_amount / self.inner.decimals_pow as f64) as u64;
+        let community_pool_amount = self.calc_amount_f64_to_u64(community_pool_amount);
 
         OutRestResponse::new(community_pool_amount, 0)
     }
@@ -182,15 +185,6 @@ pub struct InternalStakingPool {
     pub unbonded: u64,
     /// Tokens bonded. Eg: `203496656637783`
     pub bonded: u64,
-}
-
-impl InternalStakingPool {
-    fn try_from(value: StakingPool, decimals_pow: u64) -> Result<Self, String> {
-        Ok(Self {
-            unbonded: (value.not_bonded_tokens.parse::<u128>().or_else(|_| Err(format!("")))? / decimals_pow as u128) as u64,
-            bonded: (value.bonded_tokens.parse::<u128>().or_else(|_| Err(format!("")))? / decimals_pow as u128) as u64,
-        })
-    }
 }
 
 #[derive(Deserialize, Serialize, Debug)]
