@@ -8,7 +8,7 @@ impl Chain {
     pub async fn get_staking_pool(&self) -> Result<OutRestResponse<InternalStakingPool>, String> {
         let resp = self.rest_api_request::<StakingPoolResp>("/cosmos/staking/v1beta1/pool", &[]).await?;
 
-        let staking_pool = InternalStakingPool::try_from(resp.pool, self.decimals_pow)?;
+        let staking_pool = InternalStakingPool::try_from(resp.pool, self.inner.decimals_pow)?;
 
         OutRestResponse::new(staking_pool, 0)
     }
@@ -33,14 +33,14 @@ impl Chain {
         let pool = resp
             .pool
             .get(0)
-            .ok_or_else(|| format!("There is no community pool for '{}' chain.", self.name))?;
+            .ok_or_else(|| format!("There is no community pool for '{}' chain.", self.inner.name))?;
 
         let community_pool_amount = pool
             .amount
             .parse::<f64>()
             .or_else(|_| Err(format!("Cannot parse community pool coin amount, '{}'.", pool.amount)))?;
 
-        let community_pool_amount = (community_pool_amount / self.decimals_pow as f64) as u64;
+        let community_pool_amount = (community_pool_amount / self.inner.decimals_pow as f64) as u64;
 
         OutRestResponse::new(community_pool_amount, 0)
     }
@@ -277,13 +277,14 @@ pub enum PublicKey {
 }
 
 /// The configuration to be used while making REST API requests.
+#[derive(Clone, Copy)]
 pub struct PaginationConfig {
     /// It is set to true if results are to be returned in the descending order.
     reverse: bool,
     /// It is the number of result to not to be returned in the result page
     offset: u32,
     /// It is the total number of results to be returned in the result page
-    limit: u32,
+    limit: u8,
 }
 
 impl PaginationConfig {
@@ -310,7 +311,7 @@ impl PaginationConfig {
     }
 
     /// Returns the value `limit` property holds.
-    pub const fn get_limit(&self) -> u32 {
+    pub const fn get_limit(&self) -> u8 {
         self.limit
     }
 
@@ -325,7 +326,7 @@ impl PaginationConfig {
     }
 
     /// Sets a limit for results to be returned in the result page
-    pub const fn limit(self, limit: u32) -> Self {
+    pub const fn limit(self, limit: u8) -> Self {
         Self { limit, ..self }
     }
 
@@ -336,9 +337,9 @@ impl PaginationConfig {
 
     /// Specifies the offset by given page. \
     /// **Base index is 1/ONE.**
-    pub fn page(self, page: u32) -> Self {
+    pub fn page(self, page: u8) -> Self {
         Self {
-            offset: if page < 2 { 0 } else { self.limit * (page - 1) },
+            offset: if page < 2 { 0 } else { (self.limit * (page - 1)).into() },
             ..self
         }
     }
