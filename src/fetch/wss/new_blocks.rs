@@ -23,7 +23,7 @@ impl Chain {
         // Because the hash of a block is given on the next response.
 
         // Make a new connection.
-        let connection = connect(self.wss_url);
+        let connection = connect(self.inner.wss_url);
 
         // Match the connection.
         match connection {
@@ -45,7 +45,7 @@ impl Chain {
                             match serde_json::from_str::<Response>(&msg) {
                                 Ok(resp) => {
                                     if let Some(data) = resp.result.data {
-                                        println!("block {}", self.name);
+                                        println!("block {}", self.inner.name);
                                         match old_resp {
                                             Some(old_block) => {
                                                 let new_block = data.value;
@@ -61,7 +61,7 @@ impl Chain {
 
                                                         // Get validator logo.
                                                         let proposer_logo =
-                                                            get_validator_logo(self.client.clone(), &validator_description.identity).await.ok()?;
+                                                            get_validator_logo(self.inner.client.clone(), &validator_description.identity).await;
 
                                                         Some(BlockItem {
                                                             proposer_name: validator_description.moniker,
@@ -91,7 +91,7 @@ impl Chain {
                 }
             }
             Err(_) => {
-                eprintln!("Couldn't connect to {}", self.wss_url);
+                eprintln!("Couldn't connect to {}", self.inner.wss_url);
             }
         }
     }
