@@ -8,15 +8,11 @@ use web::Data;
 use crate::routes::{rest, wss};
 use crate::state::State;
 
-pub async fn run_cron_job(_chains: Data<State>) {
-    
-}
-
 /// Starts the web server.
 pub async fn start_web_server() -> std::io::Result<()> {
     let state = Data::new(State::new());
 
-    run_cron_job(state.clone()).await;
+    state.clone().subscribe_data();
 
     HttpServer::new(move || {
         App::new()
@@ -24,6 +20,7 @@ pub async fn start_web_server() -> std::io::Result<()> {
             .app_data(state.clone())
             .service(web::resource("{chain}/socket").route(web::get().to(wss::socket)))
             // Common services.
+            .service(rest::avg_block_time)
             .service(rest::block_by_hash)
             .service(rest::block_by_height)
             .service(rest::blockchain_by_heights)
@@ -62,6 +59,9 @@ pub async fn start_web_server() -> std::io::Result<()> {
             .service(rest::validator_commission)
             .service(rest::validator_delegator_pair)
             .service(rest::validator_rewards)
+            .service(rest::validator_delegations)
+            .service(rest::validator_redelegations)
+            .service(rest::validator_unbondings)
             .service(rest::validators_bonded)
             .service(rest::validators_of_delegator)
             .service(rest::validators_unbonded)
