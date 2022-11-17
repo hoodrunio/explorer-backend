@@ -29,7 +29,7 @@ impl Chain {
         for delegation_response in resp.delegation_responses {
             jobs.push(async move {
                 let validator = self.get_validator(&delegation_response.delegation.validator_address).await?;
-                let validator_logo = get_validator_logo(self.inner.client.clone(), &validator.description.identity).await?;
+                let validator_logo = get_validator_logo(self.inner.client.clone(), &validator.description.identity).await;
                 let validator_name = validator.description.moniker;
                 let amount = (delegation_response
                     .balance
@@ -93,9 +93,6 @@ impl Chain {
                     get_validator_logo(self.inner.client.clone(), &validator_from.description.identity),
                     get_validator_logo(self.inner.client.clone(), &validator_to.description.identity),
                 );
-
-                let validator_from_logo = validator_from_logo?;
-                let validator_to_logo = validator_to_logo?;
 
                 let validator_from_name = validator_from.description.moniker;
                 let validator_to_name = validator_to.description.moniker;
@@ -167,7 +164,7 @@ impl Chain {
         for unbonding_response in resp.unbonding_responses {
             jobs.push(async move {
                 let validator = self.get_validator(&unbonding_response.validator_address).await?;
-                let validator_logo = get_validator_logo(self.inner.client.clone(), &validator.description.identity).await?;
+                let validator_logo = get_validator_logo(self.inner.client.clone(), &validator.description.identity).await;
                 let validator_name = validator.description.moniker;
 
                 let unbonding_entry = unbonding_response.entries.get(0).ok_or_else(|| format!("There is no completion time."))?;
