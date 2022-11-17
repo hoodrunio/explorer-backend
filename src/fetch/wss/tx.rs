@@ -22,7 +22,7 @@ impl Chain {
         // Because the hash of a block is given on the next response.
 
         // Make a new connection.
-        let connection = connect(self.wss_url);
+        let connection = connect(self.inner.wss_url);
 
         // Match the connection.
         match connection {
@@ -45,7 +45,7 @@ impl Chain {
                                         // Add the block from the old response.
 
                                         let tx = data.value.tx_result;
-                                        println!("tx {}", self.name);
+                                        println!("tx {}", self.inner.name);
 
                                         let r#type: String = tx.result.events.get(0).and_then(|e| Some(e.into())).unwrap_or("Unknown").to_string();
 
@@ -58,8 +58,8 @@ impl Chain {
                                                     result: "".into(), // TODO
                                                     timestamp: 0,      // TODO
                                                     fee: events.tx_fee.get(0).and_then(|fee| {
-                                                        if fee.len() > self.main_denom.len() {
-                                                            Some(fee[..fee.len() - 1 - self.main_denom.len()].parse().ok()?)
+                                                        if fee.len() > self.inner.main_denom.len() {
+                                                            Some(fee[..fee.len() - 1 - self.inner.main_denom.len()].parse().ok()?)
                                                         } else {
                                                             None
                                                         }
@@ -78,7 +78,7 @@ impl Chain {
                 }
             }
             Err(_) => {
-                eprintln!("Couldn't connect to {}", self.wss_url);
+                eprintln!("Couldn't connect to {}", self.inner.wss_url);
             }
         }
     }
