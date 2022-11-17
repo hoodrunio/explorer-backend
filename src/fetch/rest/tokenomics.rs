@@ -33,16 +33,16 @@ impl Chain {
 
     /// Returns the supply of the native coin.
     pub async fn get_supply_of_native_coin(&self) -> Result<InternalDenomAmount, String> {
-        self.get_supply_by_denom(self.main_denom).await
+        self.get_supply_by_denom(self.inner.main_denom).await
     }
 
     /// Returns the minting inflation rate of native coin of the chain.
     pub async fn get_inflation_rate(&self) -> f64 {
-        if self.name == "evmos" {
+        if self.inner.name == "evmos" {
             self.rest_api_request::<MintingInflationRateResp>("/evmos/inflation/v1/inflation_rate", &[])
                 .await
                 .and_then(|res| Ok(res.inflation_rate.parse::<f64>().unwrap_or(0.0)))
-        } else if self.name == "echelon" {
+        } else if self.inner.name == "echelon" {
             self.rest_api_request::<MintingInflationRateResp>("/echelon/inflation/v1/inflation_rate", &[])
                 .await
                 .and_then(|res| Ok(res.inflation_rate.parse::<f64>().unwrap_or(0.0)))
