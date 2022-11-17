@@ -47,7 +47,12 @@ impl Chain {
                                         let tx = data.value.tx_result;
                                         println!("tx {}", self.inner.name);
 
-                                        let r#type: String = tx.result.events.get(0).and_then(|e| Some(e.into())).unwrap_or("Unknown").to_string();
+                                        let r#type: String = tx
+                                            .result
+                                            .events
+                                            .get(0)
+                                            .and_then(|e| Some(e.r#type.to_string()))
+                                            .unwrap_or("Unknown".to_string());
 
                                         self.update_latest_txs(
                                             async move {
