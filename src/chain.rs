@@ -1,7 +1,22 @@
+use std::sync::Arc;
+
 use crate::data::ChainData;
 
 /// The struct that represents any Cosmos based chain.
+#[derive(Clone)]
 pub struct Chain {
+    pub inner: Arc<ChainConfig>,
+}
+
+impl Chain {
+    /// Creates a new chain.
+    pub fn new(chainfig: ChainConfig) -> Chain {
+        Chain { inner: Arc::new(chainfig) }
+    }
+}
+
+/// The configuration of a chain.
+pub struct ChainConfig {
     /// The name of the chain.
     pub name: &'static str,
     /// The optional Coin Gecko ID.
