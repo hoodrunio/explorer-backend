@@ -38,8 +38,10 @@ impl actix_web::error::ResponseError for WebSocketError {}
 pub async fn socket(req: HttpRequest, stream: web::Payload, chains: Data<State>, path: Path<String>) -> Result<HttpResponse, WebSocketError> {
     let chain = path.into_inner();
 
+    println!("asad");
+
     match chains.get(&chain) {
-        Ok(chain) => match ws::start(WebSocket::new(chain), &req, stream) {
+        Ok(chain) => match ws::start(WebSocket::new(chain.clone()), &req, stream) {
             Ok(ws) => Ok(ws),
             Err(error) => Err(WebSocketError(error.to_string())),
         },
@@ -50,7 +52,7 @@ pub async fn socket(req: HttpRequest, stream: web::Payload, chains: Data<State>,
 /// The Web Socket actor.
 pub struct WebSocket {
     heartbeat: Instant,
-    chain: Arc<Chain>,
+    chain: Chain,
     mode: Mode,
 }
 
@@ -73,7 +75,7 @@ impl From<&str> for Mode {
 
 impl WebSocket {
     /// Creates a new web socket.
-    pub fn new(chain: Arc<Chain>) -> Self {
+    pub fn new(chain: Chain) -> Self {
         Self {
             heartbeat: Instant::now(),
             chain,
