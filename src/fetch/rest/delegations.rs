@@ -31,12 +31,13 @@ impl Chain {
                 let validator = self.get_validator(&delegation_response.delegation.validator_address).await?;
                 let validator_logo = get_validator_logo(self.inner.client.clone(), &validator.description.identity).await;
                 let validator_name = validator.description.moniker;
-                let amount = (delegation_response
-                    .balance
-                    .amount
-                    .parse::<u128>()
-                    .or_else(|_| Err(format!("Cannot parse delegation amount, '{}'", delegation_response.balance.amount)))?
-                    / self.inner.decimals_pow as u128) as f64;
+                let amount = self.calc_amount_u128_to_f64(
+                    delegation_response
+                        .balance
+                        .amount
+                        .parse::<u128>()
+                        .or_else(|_| Err(format!("Cannot parse delegation amount, '{}'", delegation_response.balance.amount)))?,
+                );
                 let reward = 0.0;
                 Ok::<InternalDelegation, String>(InternalDelegation {
                     amount,
@@ -103,11 +104,12 @@ impl Chain {
                     .get(0)
                     .ok_or_else(|| format!("There is no completion time."))?;
 
-                let amount = (redelegation_resp_entry
-                    .balance
-                    .parse::<u128>()
-                    .or_else(|_| Err(format!("Cannot parse redelegation amount, '{}'", redelegation_resp_entry.balance)))?
-                    / self.inner.decimals_pow as u128) as f64;
+                let amount = self.calc_amount_u128_to_f64(
+                    redelegation_resp_entry
+                        .balance
+                        .parse::<u128>()
+                        .or_else(|_| Err(format!("Cannot parse redelegation amount, '{}'", redelegation_resp_entry.balance)))?,
+                );
 
                 let completion_time = DateTime::parse_from_rfc3339(&redelegation_resp_entry.redelegation_entry.completion_time)
                     .or_else(|_| {
@@ -169,11 +171,12 @@ impl Chain {
 
                 let unbonding_entry = unbonding_response.entries.get(0).ok_or_else(|| format!("There is no completion time."))?;
 
-                let balance = (unbonding_entry
-                    .balance
-                    .parse::<u128>()
-                    .or_else(|_| Err(format!("Cannot parse unbonding delegation balance, '{}'", unbonding_entry.balance)))?
-                    / self.inner.decimals_pow as u128) as f64;
+                let balance = self.calc_amount_u128_to_f64(
+                    unbonding_entry
+                        .balance
+                        .parse::<u128>()
+                        .or_else(|_| Err(format!("Cannot parse unbonding delegation balance, '{}'", unbonding_entry.balance)))?,
+                );
 
                 let completion_time = DateTime::parse_from_rfc3339(&unbonding_entry.completion_time)
                     .or_else(|_| {
