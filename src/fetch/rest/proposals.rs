@@ -1,7 +1,7 @@
 use chrono::DateTime;
 use serde::{Deserialize, Serialize};
 
-use super::others::{DenomAmount, InternalDenomAmount, Pagination, PaginationConfig};
+use super::others::{DenomAmount, Pagination, PaginationConfig};
 use crate::{
     chain::Chain,
     routes::rest::{calc_pages, OutRestResponse},
@@ -23,7 +23,7 @@ impl Chain {
         let mut proposals = vec![];
 
         for proposal in resp.proposals {
-            match InternalProposal::try_from(proposal, self.decimals_pow) {
+            match InternalProposal::try_from(proposal, self.inner.decimals_pow) {
                 Ok(proposal) => proposals.push(proposal),
                 Err(error) => eprintln!("{}", error),
             }
@@ -65,7 +65,7 @@ impl Chain {
 
         let resp = self.rest_api_request::<ProposalsDetailsResp>(&path, &[]).await?;
 
-        let proposal = InternalProposal::try_from(resp.proposal, self.decimals_pow)?;
+        let proposal = InternalProposal::try_from(resp.proposal, self.inner.decimals_pow)?;
 
         // We specify page as 0. Because that means there is no need for pagination.
         OutRestResponse::new(proposal, 0)
