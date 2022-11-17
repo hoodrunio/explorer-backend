@@ -1,3 +1,4 @@
+use chrono::DateTime;
 use serde::{Deserialize, Serialize};
 
 use super::others::{DenomAmount, Pagination, PaginationConfig, PublicKey};
@@ -46,7 +47,6 @@ impl Chain {
                     .parse::<u128>()
                     .or_else(|_| Err(format!("Cannot parse delegation balance, '{}'.", delegation.balance.amount)))?
                     / self.inner.decimals_pow as u128) as f64,
-                time: 0, // TODO!
             })
         }
 
@@ -74,8 +74,25 @@ impl Chain {
 
         let mut unbondings = vec![];
 
-        for unbonding in resp.unbonding_responses {
-            todo!() // TODO!
+        for unbonding in &resp.unbonding_responses {
+            for entry in &unbonding.entries {
+                unbondings.push(InternalUnbonding {
+                    address: unbonding.delegator_address.to_string(),
+                    balance: (entry
+                        .balance
+                        .parse::<u128>()
+                        .or_else(|_| Err(format!("Cannot parse unbonding delegation balance, '{}'.", entry.balance)))?
+                        / self.inner.decimals_pow as u128) as f64,
+                    completion_time: DateTime::parse_from_rfc3339(&entry.completion_time)
+                        .or_else(|_| {
+                            Err(format!(
+                                "Cannot parse unbonding delegation completion datetime, '{}'.",
+                                entry.completion_time
+                            ))
+                        })?
+                        .timestamp_millis(),
+                })
+            }
         }
 
         let pages = calc_pages(resp.pagination, config)?;
@@ -229,7 +246,7 @@ impl Chain {
 pub struct InternalUnbonding {
     address: String,
     balance: f64,
-    time: i64,
+    completion_time: i64,
 }
 
 #[derive(Deserialize, Serialize, Debug)]
@@ -255,7 +272,7 @@ pub struct ValidatorUnbondingEntry {
     /// Unbonding entry creation height. Eg: `"6883291"`
     creation_height: String,
     /// Unbonding entry completion time. Eg: `"2022-11-22T16:06:08.996987184Z"`
-    completion_time: i64,
+    completion_time: String,
     /// Unbonding entry initial balance. Eg: `"300000000000000000"`
     initial_balance: String,
     /// Unbonding entry initial balance. Eg: `"300000000000000000"`
@@ -266,7 +283,6 @@ pub struct ValidatorUnbondingEntry {
 pub struct InternalDelegation {
     address: String,
     amount: f64,
-    time: i64,
 }
 
 #[derive(Deserialize, Serialize, Debug)]
