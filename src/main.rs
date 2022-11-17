@@ -1,4 +1,5 @@
-use crate::server::start_web_server;
+use server::start_web_server;
+
 mod chain;
 mod data;
 mod fetch;
