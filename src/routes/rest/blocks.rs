@@ -8,6 +8,16 @@ use actix_web::{
 
 // ====== Block Methods ======
 
+#[get("{chain}/average-block-time")]
+pub async fn avg_block_time(path: Path<String>, chains: Data<State>) -> impl Responder {
+    let chain = path.into_inner();
+
+    Json(match chains.get(&chain) {
+        Ok(chain) => chain.get_avg_block_time().into(),
+        Err(err) => Response::Error(err),
+    })
+}
+
 #[get("{chain}/block-by-height/{height}")]
 pub async fn block_by_height(path: Path<(String, u64)>, chains: Data<State>) -> impl Responder {
     let (chain, height) = path.into_inner();
