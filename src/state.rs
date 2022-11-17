@@ -3,14 +3,15 @@ use crate::data::ChainData;
 use crate::utils::get_prices;
 use std::sync::Arc;
 use tokio::join; 
+use crate::init_chain;
 
 /// The state of the server.
 pub struct State {
-    pub axelar: Arc<Chain>,
-    pub evmos: Arc<Chain>,
-    pub kyve: Arc<Chain>,
-    pub osmosis: Arc<Chain>,
-    pub secret: Arc<Chain>,
+    axelar: Chain,
+    evmos: Chain,
+    kyve: Chain,
+    osmosis: Chain,
+    secret: Chain,
     reqwest_client: reqwest::Client,
 }
 
@@ -20,7 +21,7 @@ impl State {
         let client = reqwest::Client::new();
 
         State {
-            axelar: Arc::new(Chain {
+            axelar: init_chain!{
                 name: "axelar",
                 gecko: Some("axelar"),
                 base_prefix: "axelar",
@@ -33,9 +34,8 @@ impl State {
                 sdk_version: 45,
                 decimals_pow: 1000000,
                 client: client.clone(),
-                data: ChainData::new(),
-            }),
-            evmos: Arc::new(Chain {
+            },
+            evmos: init_chain!{
                 name: "evmos",
                 gecko: Some("evmos"),
                 base_prefix: "evmos",
@@ -48,9 +48,8 @@ impl State {
                 sdk_version: 45,
                 decimals_pow: 1000000000000000000,
                 client: client.clone(),
-                data: ChainData::new(),
-            }),
-            kyve: Arc::new(Chain {
+            },
+            kyve: init_chain!{
                 name: "kyve",
                 gecko: None,
                 base_prefix: "kyve",
@@ -63,9 +62,8 @@ impl State {
                 sdk_version: 45,
                 decimals_pow: 1000000,
                 client: client.clone(),
-                data: ChainData::new(),
-            }),
-            osmosis: Arc::new(Chain {
+            },
+            osmosis: init_chain!{
                 name: "osmosis",
                 gecko: Some("osmosis"),
                 base_prefix: "osmo",
@@ -78,9 +76,8 @@ impl State {
                 sdk_version: 46,
                 decimals_pow: 1000000,
                 client: client.clone(),
-                data: ChainData::new(),
-            }),
-            secret: Arc::new(Chain {
+            },
+            secret: init_chain!{
                 name: "secret",
                 gecko: Some("secret"),
                 base_prefix: "secret",
@@ -93,14 +90,13 @@ impl State {
                 sdk_version: 45,
                 decimals_pow: 1000000,
                 client: client.clone(),
-                data: ChainData::new(),
-            }),
+            },
             reqwest_client: client,
         }
     }
     
     /// Returns the matched chain.
-    pub fn get(&self, name: &str) -> Result<Arc<Chain>, String> {
+    pub fn get(&self, name: &str) -> Result<Chain, String> {
         match name {
             "axelar" => Ok(self.axelar.clone()),
             "evmos" => Ok(self.evmos.clone()),
@@ -123,14 +119,12 @@ impl State {
     }
 
     /// Updates all the chains' data.
-    pub async fn subscribe_data(&self) {
-        join!(
-            self.axelar.subscribe_data(),
-            self.evmos.subscribe_data(),
-            self.kyve.subscribe_data(),
-            self.osmosis.subscribe_data(),
-            self.secret.subscribe_data(),
-        );
+    pub fn subscribe_data(&self) {
+        self.axelar.subscribe_data();
+        self.evmos.subscribe_data();
+        self.kyve.subscribe_data();
+        self.osmosis.subscribe_data();
+        self.secret.subscribe_data();
     }
 
     /// Updates all the prices' of chains.
