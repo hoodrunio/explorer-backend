@@ -1,8 +1,21 @@
 use serde::{Deserialize, Serialize};
 
-use crate::chain::Chain;
+use crate::{chain::Chain, routes::rest::OutRestResponse};
 
 impl Chain {
+    /// Returns the average block time on the chain.
+    pub fn get_avg_block_time(&self) -> Result<OutRestResponse<u32>, String> {
+        let avg_block_time = self
+            .inner
+            .data
+            .avg_block_time
+            .lock()
+            .or_else(|_| Err(format!("Cannot find the average block time on '{}' chain.", self.inner.name)))?
+            .clone();
+
+        OutRestResponse::new(avg_block_time, 0)
+    }
+
     /// Returns the block at given height. Returns the latest block, if no height is given.
     pub async fn get_block_by_height(&self, height: Option<u64>) -> Result<BlockResp, String> {
         let mut query = vec![];
