@@ -44,7 +44,28 @@ impl Chain {
             .rest_api_request::<DepositParamsResp>("/cosmos/gov/v1beta1/params/deposit", &[])
             .await?;
 
-        let deposit_params = InternalDepositParams::try_from(resp.deposit_params, self.inner.decimals_pow)?;
+        let deposit_params = InternalDepositParams {
+            max_deposit_period: if resp.deposit_params.max_deposit_period.ends_with("s") {
+                match resp.deposit_params.max_deposit_period[..resp.deposit_params.max_deposit_period.len() - 2].parse() {
+                    Ok(v) => v,
+                    Err(_) => {
+                        return Err(format!(
+                            "Cannot parse maximum deposit period, '{}'.",
+                            resp.deposit_params.max_deposit_period
+                        ))
+                    }
+                }
+            } else {
+                return Err(format!("Maximum deposit params couldn't be parsed!"));
+            },
+            min_deposit: match resp.deposit_params.min_deposit.get(0) {
+                Some(den) => match den.amount.parse::<u128>() {
+                    Ok(amount) => self.calc_amount_u128_to_f64(amount),
+                    Err(_) => return Err(format!("Cannor parse amount, '{}'.", den.amount)),
+                },
+                None => return Err(format!("There is no min deposit amount.")),
+            },
+        };
 
         OutRestResponse::new(deposit_params, 0)
     }
@@ -131,31 +152,6 @@ pub struct InternalDepositParams {
     pub min_deposit: f64,
     /// Maximum deposit period in seconds. Eg: `0`
     pub max_deposit_period: u32,
-}
-
-impl InternalDepositParams {
-    fn try_from(value: DepositParams, decimals_pow: u64) -> Result<Self, String> {
-        let max_deposit_period: u32 = if value.max_deposit_period.ends_with("s") {
-            match value.max_deposit_period[..value.max_deposit_period.len() - 2].parse() {
-                Ok(v) => v,
-                Err(_) => return Err(format!("Cannot parse maximum deposit period, '{}'.", value.max_deposit_period)),
-            }
-        } else {
-            return Err(format!("Maximum deposit params couldn't be parsed!"));
-        };
-        let min_deposit = match value.min_deposit.get(0) {
-            Some(den) => match den.amount.parse::<u128>() {
-                Ok(v) => (v / decimals_pow as u128) as f64,
-                Err(_) => return Err(format!("Cannor parse amount, '{}'.", den.amount)),
-            },
-            None => return Err(format!("There is no min deposit amount.")),
-        };
-
-        Ok(Self {
-            max_deposit_period,
-            min_deposit,
-        })
-    }
 }
 
 #[derive(Deserialize, Serialize, Debug)]
