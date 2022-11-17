@@ -110,7 +110,7 @@ impl Chain {
     async fn update_supply(&self) {
         match self.get_supply_of_native_coin().await {
             Ok(resp) => {
-                let new_supply = (resp.amount / self.inner.decimals_pow as u128) as u64;
+                let new_supply = self.calc_amount_u128_to_u64(resp.amount);
 
                 if let Ok(mut supply) = self.inner.data.supply.lock() {
                     *supply = new_supply;
