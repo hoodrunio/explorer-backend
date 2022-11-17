@@ -5,9 +5,11 @@ use crate::{
 
 use actix_web::{
     get,
-    web::{Data, Json, Path},
+    web::{Data, Json, Path, Query},
     Responder,
 };
+
+use super::QueryParams;
 
 // ======== Validator Methods ========
 
@@ -16,7 +18,43 @@ pub async fn validator(path: Path<(String, String)>, chains: Data<State>) -> imp
     let (chain, validator_addr) = path.into_inner();
 
     Json(match chains.get(&chain) {
-        Ok(chain) => chain.get_validator(&validator_addr).await.into(),
+        Ok(chain) => chain.get_validator_info(&validator_addr).await.into(),
+        Err(err) => Response::Error(err),
+    })
+}
+
+#[get("{chain}/validator-delegations/{address}")]
+pub async fn validator_delegations(path: Path<(String, String)>, chains: Data<State>, query: Query<QueryParams>) -> impl Responder {
+    let (chain, validator_addr) = path.into_inner();
+
+    let config = PaginationConfig::new().limit(6).page(query.page.unwrap_or(1));
+
+    Json(match chains.get(&chain) {
+        Ok(chain) => chain.get_validator_delegations(&validator_addr, config).await.into(),
+        Err(err) => Response::Error(err),
+    })
+}
+
+#[get("{chain}/validator-unbondings/{address}")]
+pub async fn validator_unbondings(path: Path<(String, String)>, chains: Data<State>, query: Query<QueryParams>) -> impl Responder {
+    let (chain, validator_addr) = path.into_inner();
+
+    let config = PaginationConfig::new().limit(6).page(query.page.unwrap_or(1));
+
+    Json(match chains.get(&chain) {
+        Ok(chain) => chain.get_validator_unbondings(&validator_addr, config).await.into(),
+        Err(err) => Response::Error(err),
+    })
+}
+
+#[get("{chain}/validator-redelegations/{address}")]
+pub async fn validator_redelegations(path: Path<(String, String)>, chains: Data<State>, query: Query<QueryParams>) -> impl Responder {
+    let (chain, validator_addr) = path.into_inner();
+
+    let config = PaginationConfig::new().limit(6).page(query.page.unwrap_or(1));
+
+    Json(match chains.get(&chain) {
+        Ok(chain) => chain.get_validator_redelegations(&validator_addr, config).await.into(),
         Err(err) => Response::Error(err),
     })
 }
