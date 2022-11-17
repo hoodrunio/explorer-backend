@@ -41,12 +41,13 @@ impl Chain {
         for delegation in resp.delegation_responses {
             delegations.push(InternalDelegation {
                 address: delegation.delegation.delegator_address,
-                amount: (delegation
-                    .balance
-                    .amount
-                    .parse::<u128>()
-                    .or_else(|_| Err(format!("Cannot parse delegation balance, '{}'.", delegation.balance.amount)))?
-                    / self.inner.decimals_pow as u128) as f64,
+                amount: self.calc_amount_u128_to_f64(
+                    delegation
+                        .balance
+                        .amount
+                        .parse::<u128>()
+                        .or_else(|_| Err(format!("Cannot parse delegation balance, '{}'.", delegation.balance.amount)))?,
+                ),
             })
         }
 
@@ -78,11 +79,12 @@ impl Chain {
             for entry in &unbonding.entries {
                 unbondings.push(InternalUnbonding {
                     address: unbonding.delegator_address.to_string(),
-                    balance: (entry
-                        .balance
-                        .parse::<u128>()
-                        .or_else(|_| Err(format!("Cannot parse unbonding delegation balance, '{}'.", entry.balance)))?
-                        / self.inner.decimals_pow as u128) as f64,
+                    balance: self.calc_amount_u128_to_f64(
+                        entry
+                            .balance
+                            .parse::<u128>()
+                            .or_else(|_| Err(format!("Cannot parse unbonding delegation balance, '{}'.", entry.balance)))?,
+                    ),
                     completion_time: DateTime::parse_from_rfc3339(&entry.completion_time)
                         .or_else(|_| {
                             Err(format!(
