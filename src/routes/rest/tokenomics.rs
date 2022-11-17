@@ -5,9 +5,11 @@ use crate::{
 
 use actix_web::{
     get,
-    web::{Data, Json, Path},
+    web::{Data, Json, Path, Query},
     Responder,
 };
+
+use super::QueryParams;
 
 // ======== Tokenomic Methods ========
 
@@ -22,11 +24,13 @@ pub async fn supply(path: Path<(String, String)>, chains: Data<State>) -> impl R
 }
 
 #[get("{chain}/supplies")]
-pub async fn supplies(path: Path<String>, chains: Data<State>) -> impl Responder {
+pub async fn supplies(path: Path<String>, chains: Data<State>, query: Query<QueryParams>) -> impl Responder {
     let chain = path.into_inner();
 
+    let config = PaginationConfig::new().limit(60).page(query.page.unwrap_or(1));
+
     Json(match chains.get(&chain) {
-        Ok(chain) => chain.get_supply_of_all_tokens(PaginationConfig::new().limit(1000)).await.into(),
+        Ok(chain) => chain.get_supply_of_all_tokens(config).await.into(),
         Err(err) => Response::Error(err),
     })
 }
