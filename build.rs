@@ -51,10 +51,7 @@ async fn main() {
         })
         .collect();
 
-    let jobs: Vec<_> = chain_maps
-        .iter()
-        .map(|chain_map| create_chain(chain_map, client.clone()))
-        .collect();
+    let jobs: Vec<_> = chain_maps.iter().map(|chain_map| create_chain(chain_map, client.clone())).collect();
 
     let chains = join_all(jobs).await;
 
@@ -100,14 +97,7 @@ async fn create_chain<'a>(chain_map: &HashMap<&'a str, &'a str>, client: Client)
 }
 
 async fn get_sdk_ver(rest_url: &str, client: Client) -> u8 {
-    let value: Value = client
-        .get(&format!("{rest_url}/node_info"))
-        .send()
-        .await
-        .unwrap()
-        .json()
-        .await
-        .unwrap();
+    let value: Value = client.get(&format!("{rest_url}/node_info")).send().await.unwrap().json().await.unwrap();
 
     value["application_version"]["cosmos_sdk_version"].as_str().unwrap()[3..5]
         .parse()
@@ -173,11 +163,11 @@ fn update_state_rs(chains: &[Chain]) {
     let mut get_prices_props = String::new();
 
     for chain in chains {
-        state_props += &format!("\n    pub {}: Arc<Chain>,", chain.name);
+        state_props += &format!("\n    {}: Chain,", chain.name);
 
         new_fn += &format!(
             r#"
-            {name}: Arc::new(Chain {{
+            {name}: init_chain!{{
                 name: "{name}",
                 gecko: {gecko},
                 base_prefix: "{fix}",
@@ -190,8 +180,7 @@ fn update_state_rs(chains: &[Chain]) {
                 sdk_version: {ver},
                 decimals_pow: {dec_pow},
                 client: client.clone(),
-                data: ChainData::new(),
-            }}),"#,
+            }},"#,
             name = chain.name,
             gecko = chain
                 .gecko
@@ -209,14 +198,11 @@ fn update_state_rs(chains: &[Chain]) {
         get_fn += &format!("\n            \"{chain}\" => Ok(self.{chain}.clone()),", chain = chain.name);
 
         update_data_fn += &format!("\n            self.{chain}.update_data(),", chain = chain.name);
-        subscribe_data_fn += &format!("\n            self.{chain}.subscribe_data(),", chain = chain.name);
+        subscribe_data_fn += &format!("\n        self.{chain}.subscribe_data();", chain = chain.name);
 
         match chain.gecko {
             Some(gecko) => {
-                update_prices_fn += &format!(
-                    "\n            self.{chain}.update_price(prices.get(\"{gecko}\")),",
-                    chain = chain.name
-                );
+                update_prices_fn += &format!("\n            self.{chain}.update_price(prices.get(\"{gecko}\")),", chain = chain.name);
                 get_prices_props += &format!("\"{gecko}\", ");
             }
             _ => (),
@@ -230,6 +216,7 @@ use crate::data::ChainData;
 use crate::utils::get_prices;
 use std::sync::Arc;
 use tokio::join; 
+use crate::init_chain;
 
 /// The state of the server.
 pub struct State {{{state_props}
@@ -247,7 +234,7 @@ impl State {{
     }}
     
     /// Returns the matched chain.
-    pub fn get(&self, name: &str) -> Result<Arc<Chain>, String> {{
+    pub fn get(&self, name: &str) -> Result<Chain, String> {{
         match name {{{get_fn}
             _ => Err(format!(\"{{name}} is not a supported chain.\")),
         }}
@@ -260,9 +247,7 @@ impl State {{
     }}
 
     /// Updates all the chains' data.
-    pub async fn subscribe_data(&self) {{
-        join!({subscribe_data_fn}
-        );
+    pub fn subscribe_data(&self) {{{subscribe_data_fn}
     }}
 
     /// Updates all the prices' of chains.
