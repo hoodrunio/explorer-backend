@@ -44,7 +44,7 @@ impl Chain {
             .rest_api_request::<DepositParamsResp>("/cosmos/gov/v1beta1/params/deposit", &[])
             .await?;
 
-        let deposit_params = InternalDepositParams::try_from(resp.deposit_params, self.decimals_pow)?;
+        let deposit_params = InternalDepositParams::try_from(resp.deposit_params, self.inner.decimals_pow)?;
 
         OutRestResponse::new(deposit_params, 0)
     }
