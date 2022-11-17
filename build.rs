@@ -68,7 +68,7 @@ async fn create_chain<'a>(chain_map: &HashMap<&'a str, &'a str>, client: Client)
     let rest_url = chain_map.get("rest").unwrap();
     let wss_url = chain_map.get("wss").unwrap();
     let decimals: u8 = chain_map.get("decimals").unwrap_or(&"6").parse().unwrap();
-    let decimals_pow = 10_u64.pow(decimals.into());
+    let decimals_pow = 10_u64.pow(decimals as u32 - 2);
 
     let (sdk_version, manual_versioning) = match chain_map.get("version") {
         Some(version) => (version[2..4].parse().unwrap(), true),
