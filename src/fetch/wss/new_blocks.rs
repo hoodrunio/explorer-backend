@@ -1,18 +1,15 @@
+use super::others::Event;
 use crate::{
     chain::Chain,
     data::latest_blocks::BlockItem,
-    fetch::rest::{
-        blocks::Block,
-        others::PublicKey,
-        requests::{RPCResponse, RPCSuccessResponse},
-    },
+    fetch::rest::{blocks::Block, others::PublicKey, requests::RPCSuccessResponse},
     utils::get_validator_logo,
 };
+use bech32::ToBase32;
 use chrono::DateTime;
+use futures::{SinkExt, StreamExt};
 use serde::{Deserialize, Serialize};
-use tungstenite::{connect, Message};
-
-use super::others::Event;
+use tokio_tungstenite::{connect_async, tungstenite::Message};
 
 impl Chain {
     /// Subscribes to specified subscription method.
@@ -22,30 +19,33 @@ impl Chain {
         // We store a reference to the previous response.
         // Because the hash of a block is given on the next response.
 
-        // Make a new connection.
-        let connection = connect(self.inner.wss_url);
+        // Create the message to be sent.
+        let msg_to_send = r#"{ "jsonrpc": "2.0", "method": "subscribe", "params": ["tm.event='NewBlock'"], "id": 2 }"#;
 
+        let url = self.inner.wss_url;
+
+        let (ws_stream, _response) = connect_async(url).await.expect(&format!("Failed to connect to {}", url));
+
+        let (mut write, read) = ws_stream.split();
+
+        // Write the message via socket.
         // Match the connection.
-        match connection {
-            Ok((mut socket, _)) => {
-                // Create the message to be sent.
-                let msg = r#"{ "jsonrpc": "2.0", "method": "subscribe", "params": ["tm.event='NewBlock'"], "id": 2 }"#;
-
-                // Write the message via socket.
-                if socket.write_message(msg.into()).is_ok() {
+        match write.send(msg_to_send.into()).await {
+            Ok(()) => {
+                // Read incoming messages.
+                read.for_each(|message| async {
                     let mut old_resp: Option<NewBlock> = None;
 
-                    // Start the loop
-                    loop {
-                        // Read incoming messages.
-                        if let Ok(Message::Text(msg)) = socket.read_message() {
+                    match message {
+                        // Handle message.
+                        Ok(Message::Text(message)) => {
+                            // Create return type.
                             type Response = RPCSuccessResponse<NewBlocksSocketResult>;
 
                             // Parse JSON.
-                            match serde_json::from_str::<Response>(&msg) {
+                            match serde_json::from_str::<Response>(&message) {
                                 Ok(resp) => {
                                     if let Some(data) = resp.result.data {
-                                        println!("block {}", self.inner.name);
                                         match old_resp {
                                             Some(old_block) => {
                                                 let new_block = data.value;
@@ -53,30 +53,48 @@ impl Chain {
                                                 let hash = &new_block.block.header.last_block_id.hash;
 
                                                 // Add the block from the old response.
-                                                self.update_latest_block(
-                                                    async move {
-                                                        // Get validator description.
-                                                        let validator_description =
-                                                            self.get_validator(&old_block.block.header.proposer_address).await.ok()?.description;
+                                                match async move {
+                                                    let proposer_address_b32 = bech32::encode(
+                                                        "bech32",
+                                                        &old_block.block.header.proposer_address.to_base32(),
+                                                        bech32::Variant::Bech32,
+                                                    )
+                                                    .or_else(|_| {
+                                                        Err(format!(
+                                                            "Cannot convert HEX proposer address to bech32, '{}'.",
+                                                            &old_block.block.header.proposer_address
+                                                        ))
+                                                    })?;
 
-                                                        // Get validator logo.
-                                                        let proposer_logo =
-                                                            get_validator_logo(self.inner.client.clone(), &validator_description.identity).await;
+                                                    let validator_addr = self.valoper_addr(&proposer_address_b32);
 
-                                                        Some(BlockItem {
-                                                            proposer_name: validator_description.moniker,
-                                                            proposer_logo,
-                                                            height: old_block.block.header.height.parse().ok()?,
-                                                            hash: hash.to_string(),
-                                                            tx_count: 0,
-                                                            timestamp: DateTime::parse_from_rfc3339(&old_block.block.header.time)
-                                                                .ok()?
-                                                                .timestamp_millis()
-                                                                as u32,
-                                                        })
-                                                    }
-                                                    .await,
-                                                );
+                                                    // Get validator description.
+                                                    let validator_description = self.get_validator(&validator_addr).await?.description;
+
+                                                    // Get validator logo.
+                                                    let proposer_logo =
+                                                        get_validator_logo(self.inner.client.clone(), &validator_description.identity).await;
+
+                                                    Ok::<BlockItem, String>(BlockItem {
+                                                        proposer_name: validator_description.moniker,
+                                                        proposer_logo,
+                                                        height: old_block.block.header.height.parse().or_else(|_| {
+                                                            Err(format!("Cannot parse block height, '{}'.", old_block.block.header.height))
+                                                        })?,
+                                                        hash: hash.to_string(),
+                                                        tx_count: 0,
+                                                        timestamp: DateTime::parse_from_rfc3339(&old_block.block.header.time)
+                                                            .or_else(|_| {
+                                                                Err(format!("Cannot parse block datetime, '{}'.", old_block.block.header.time))
+                                                            })?
+                                                            .timestamp_millis(),
+                                                    })
+                                                }
+                                                .await
+                                                {
+                                                    Ok(block_item) => self.update_latest_block(block_item),
+                                                    Err(error) => eprintln!("{}", error),
+                                                }
                                                 old_resp = Some(new_block);
                                             }
                                             None => old_resp = Some(data.value),
@@ -84,15 +102,18 @@ impl Chain {
                                     };
                                 }
 
-                                Err(ser_error) => eprintln!("{ser_error}"),
+                                Err(parse_error) => eprintln!("WS-PARSE-ERROR(src = {}): {}", self.inner.wss_url, parse_error),
                             }
                         }
+                        // Leave the messages not text.
+                        Ok(_) => (),
+                        // Print the error message.
+                        Err(read_error) => eprintln!("WS-READING-ERROR(src = {}): {}", self.inner.wss_url, read_error),
                     }
-                }
+                })
+                .await;
             }
-            Err(_) => {
-                eprintln!("Couldn't connect to {}", self.inner.wss_url);
-            }
+            Err(send_error) => eprintln!("WS-SENDING-ERROR(src = {}): {}", self.inner.wss_url, send_error),
         }
     }
 }
