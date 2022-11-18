@@ -1,17 +1,9 @@
-use std::fs::write;
-
-use crate::{
-    chain::Chain,
-    data::latest_txs::TransactionItem,
-    fetch::rest::requests::{RPCResponse, RPCSuccessResponse},
-};
+use crate::{chain::Chain, data::latest_txs::TransactionItem, fetch::rest::requests::RPCResponse};
+use futures::{SinkExt, StreamExt};
 use serde::{Deserialize, Serialize};
-use strum_macros::IntoStaticStr;
-use tungstenite::{connect, Message};
+use tokio_tungstenite::{connect_async, tungstenite::Message};
 
-use super::others::{Event, SocketResponse, SubscribeData};
-
-pub type TxSocketResp = RPCSuccessResponse<TxSocketResult>;
+use super::others::{Event, SubscribeData};
 
 impl Chain {
     /// Subscribes to new blocks.
@@ -21,25 +13,26 @@ impl Chain {
         // We store a reference to the previous response.
         // Because the hash of a block is given on the next response.
 
-        // Make a new connection.
-        let connection = connect(self.inner.wss_url);
+        let msg_to_send = r#"{ "jsonrpc": "2.0", "method": "subscribe", "params": ["tm.event='Tx'"], "id": 1 }"#;
 
+        let url = self.inner.wss_url;
+
+        let (ws_stream, _) = connect_async(url).await.expect(&format!("Failed to connect to {}", url));
+
+        let (mut write, read) = ws_stream.split();
+
+        // Write the message via socket.
         // Match the connection.
-        match connection {
-            Ok((mut socket, _)) => {
-                // Create the message to be sent.
-                let msg = r#"{ "jsonrpc": "2.0", "method": "subscribe", "params": ["tm.event='Tx'"], "id": 1 }"#;
-
-                // Write the message via socket.
-                if socket.write_message(msg.into()).is_ok() {
-                    // Start the loop
-                    loop {
-                        // Read incoming messages.
-                        if let Ok(Message::Text(msg)) = socket.read_message() {
+        match write.send(msg_to_send.into()).await {
+            Ok(()) => {
+                read.for_each(|message| async {
+                    match message {
+                        // Handle message.
+                        Ok(Message::Text(message)) => {
                             type Response = RPCResponse<TxSocketResult>;
 
                             // Parse JSON.
-                            match serde_json::from_str::<Response>(&msg) {
+                            match serde_json::from_str::<Response>(&message) {
                                 Ok(RPCResponse::Success(resp)) => {
                                     if let (Some(data), Some(events)) = (resp.result.data, resp.result.events) {
                                         // Add the block from the old response.
@@ -76,15 +69,19 @@ impl Chain {
                                     };
                                 }
                                 Ok(RPCResponse::Error(resp_err)) => eprintln!("{}", resp_err.error.data),
-                                Err(ser_error) => eprintln!("{ser_error}"),
+
+                                Err(parse_error) => eprintln!("WS-PARSE-ERROR(src = {}): {}", url, parse_error),
                             }
                         }
+                        // Leave the messages not text.
+                        Ok(_) => (),
+                        // Print the error message.
+                        Err(read_error) => eprintln!("WS-READING-ERROR(src = {}): {}", url, read_error),
                     }
-                }
+                })
+                .await
             }
-            Err(_) => {
-                eprintln!("Couldn't connect to {}", self.inner.wss_url);
-            }
+            Err(send_error) => eprintln!("WS-SENDING-ERROR(src = {}): {}", url, send_error),
         }
     }
 }
