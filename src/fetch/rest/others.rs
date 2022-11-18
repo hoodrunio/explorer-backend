@@ -40,10 +40,13 @@ impl Chain {
 
         let community_pool_amount = pool
             .amount
-            .parse::<f64>()
+            .split_once(".")
+            .and_then(|s| Some(s.0))
+            .unwrap_or("0")
+            .parse::<u128>()
             .or_else(|_| Err(format!("Cannot parse community pool coin amount, '{}'.", pool.amount)))?;
 
-        let community_pool_amount = self.calc_amount_f64_to_u64(community_pool_amount);
+        let community_pool_amount = self.calc_amount_u128_to_u64(community_pool_amount);
 
         OutRestResponse::new(community_pool_amount, 0)
     }
