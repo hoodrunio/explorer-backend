@@ -24,7 +24,7 @@ impl LatestBlocks {
     }
 
     /// Returns the average block time in milliseconds.
-    pub fn get_avg_block_time(&self) -> u32 {
+    pub fn get_avg_block_time(&self) -> i64 {
         let mut diffs = vec![];
 
         if self.inner.len() != 0 {
@@ -46,5 +46,5 @@ pub struct BlockItem {
     pub height: u64,
     pub hash: String,
     pub tx_count: u64,
-    pub timestamp: u32,
+    pub timestamp: i64,
 }
