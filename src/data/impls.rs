@@ -11,7 +11,7 @@ impl Chain {
     pub fn data_blocks(&self) -> Result<VecDeque<BlockItem>, &str> {
         match self.inner.data.blocks.lock() {
             Ok(blocks) => Ok(blocks.inner.clone()),
-            Err(error) => Err("Cannot send the latest blocks."),
+            Err(_) => Err("Cannot send the latest blocks."),
         }
     }
 
@@ -72,27 +72,24 @@ impl Chain {
     }
 
     /// Updates the latest blocks, latest height, and the average block time.
-    pub fn update_latest_block(&self, new_block: Option<BlockItem>) {
-        println!("{:?}", new_block);
-        if let Some(new_block) = new_block {
-            let mut new_avg_block_time = None;
+    pub fn update_latest_block(&self, new_block: BlockItem) {
+        let mut new_avg_block_time = None;
 
-            // Update the latest blocks.
-            if let Ok(mut blocks) = self.inner.data.blocks.lock() {
-                blocks.add_new(new_block.clone());
-                new_avg_block_time = Some(blocks.get_avg_block_time());
-            }
+        // Update the latest blocks.
+        if let Ok(mut blocks) = self.inner.data.blocks.lock() {
+            blocks.add_new(new_block.clone());
+            new_avg_block_time = Some(blocks.get_avg_block_time());
+        }
 
-            // Update the latest block height.
-            if let Ok(mut latest_height) = self.inner.data.latest_height.lock() {
-                *latest_height = new_block.height;
-            }
+        // Update the latest block height.
+        if let Ok(mut latest_height) = self.inner.data.latest_height.lock() {
+            *latest_height = new_block.height;
+        }
 
-            // Update the latest block time.
-            if let Some(new_avg_block_time) = new_avg_block_time {
-                if let Ok(mut avg_block_time) = self.inner.data.avg_block_time.lock() {
-                    *avg_block_time = new_avg_block_time;
-                }
+        // Update the latest block time.
+        if let Some(new_avg_block_time) = new_avg_block_time {
+            if let Ok(mut avg_block_time) = self.inner.data.avg_block_time.lock() {
+                *avg_block_time = new_avg_block_time;
             }
         }
     }
