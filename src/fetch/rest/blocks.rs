@@ -4,7 +4,7 @@ use crate::{chain::Chain, routes::rest::OutRestResponse};
 
 impl Chain {
     /// Returns the average block time on the chain.
-    pub fn get_avg_block_time(&self) -> Result<OutRestResponse<u32>, String> {
+    pub fn get_avg_block_time(&self) -> Result<OutRestResponse<i64>, String> {
         let avg_block_time = self
             .inner
             .data
