@@ -2,6 +2,7 @@ use server::start_web_server;
 
 mod chain;
 mod data;
+mod encoding;
 mod fetch;
 mod macros;
 mod routes;
