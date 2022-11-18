@@ -2,6 +2,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::{chain::Chain, routes::rest::OutRestResponse};
 
+use super::transactions::InternalTransactionSimple;
+
 impl Chain {
     /// Returns the average block time on the chain.
     pub fn get_avg_block_time(&self) -> Result<OutRestResponse<i64>, String> {
@@ -18,6 +20,7 @@ impl Chain {
 
     /// Returns the block at given height. Returns the latest block, if no height is given.
     pub async fn get_block_by_height(&self, height: Option<u64>) -> Result<BlockResp, String> {
+        todo!();
         let mut query = vec![];
 
         let height = height.and_then(|height| Some(height.to_string()));
@@ -26,7 +29,7 @@ impl Chain {
             query.push(("height", height))
         }
 
-        self.rpc_request("/block", &query).await
+        let resp = self.rpc_request::<BlockResp>("/block", &query).await?;
     }
 
     /// Returns the block with given hash.
@@ -131,6 +134,52 @@ impl Chain {
 }
 
 #[derive(Deserialize, Serialize, Debug)]
+pub struct InternalBlock {
+    height: u64,
+    hash: String,
+    proposer_name: String,
+    proposer_address: String,
+    time: i64,
+    tx_count: u32,
+    signatures: Vec<InternalBlockSignature>,
+}
+
+#[derive(Deserialize, Serialize, Debug)]
+pub struct InternalBlockSignature {
+    name: String,
+    logo: String,
+    address: String,
+    transactions: InternalTransactionSimple,
+}
+
+impl InternalBlock {
+    fn new(block_resp: BlockResp, chain: &Chain) -> Result<Self, String> {
+        todo!();
+
+        /*
+        let jobs: Vec<_> = block_resp.block.last_commit.signatures.iter().map(|sign| async move {
+            sign.validator_address
+        }).collect();
+
+        Ok(Self {
+            height: block_resp
+                .block
+                .header
+                .height
+                .parse::<u64>()
+                .or_else(|_| Err(format!("Cannot parse block height, '{}'.", block_resp.block.header.height)))?,
+            hash: block_resp.block_id.hash,
+            proposer_name: block_resp.block.header.proposer_address,
+            proposer_address: (),
+            time: (),
+            tx_count: (),
+            signatures: (),
+        })
+        */
+    }
+}
+
+#[derive(Deserialize, Serialize, Debug)]
 pub struct InternalBlockchainResp {
     /// Last block height. `12733014`
     pub last_height: u64,
@@ -178,7 +227,7 @@ pub struct BlockResp {
 
 #[derive(Deserialize, Serialize, Debug)]
 pub struct BlockId {
-    /// HEX encoded transaction hash.
+    /// HEX encoded hash.
     pub hash: String,
     pub parts: BlockIdParts,
 }
@@ -279,7 +328,7 @@ pub struct BlockHeaderVersion {
 pub struct BlockLastCommitSignatures {
     /// Unknown. Eg: `2`
     pub block_id_flag: usize,
-    /// HEX encoded address of a validator.
+    /// HEX encoded address of a validator. Eg: `"E42125451E65AC3931726936026F295677DB5D07"`
     pub validator_address: String,
     /// The time of the unix timestamp. Eg: `"2022-11-03T17:45:14.193617481Z"`
     pub timestamp: String,
