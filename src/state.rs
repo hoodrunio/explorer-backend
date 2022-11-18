@@ -32,7 +32,7 @@ impl State {
                 rest_url: "https://axelar-api.polkachu.com",
                 wss_url: "wss://axelar-rpc.chainode.tech/websocket",
                 sdk_version: 45,
-                decimals_pow: 10000,
+                decimals_pow: 100,
                 client: client.clone(),
             },
             evmos: init_chain!{
@@ -46,7 +46,7 @@ impl State {
                 rest_url: "https://evmos-api.polkachu.com",
                 wss_url: "wss://rpc-evmos.ecostake.com/websocket",
                 sdk_version: 45,
-                decimals_pow: 10000000000000000,
+                decimals_pow: 100000000000000,
                 client: client.clone(),
             },
             kyve: init_chain!{
@@ -60,7 +60,7 @@ impl State {
                 rest_url: "https://api.beta.kyve.network",
                 wss_url: "wss://rpc.beta.kyve.network/websocket",
                 sdk_version: 45,
-                decimals_pow: 10000,
+                decimals_pow: 100,
                 client: client.clone(),
             },
             osmosis: init_chain!{
@@ -74,7 +74,7 @@ impl State {
                 rest_url: "https://rest.cosmos.directory/osmosis",
                 wss_url: "wss://rpc.osmosis.interbloc.org/websocket",
                 sdk_version: 46,
-                decimals_pow: 10000,
+                decimals_pow: 100,
                 client: client.clone(),
             },
             secret: init_chain!{
@@ -88,7 +88,7 @@ impl State {
                 rest_url: "https://rest.cosmos.directory/secretnetwork",
                 wss_url: "wss://scrt-rpc.blockpane.com/websocket",
                 sdk_version: 45,
-                decimals_pow: 10000,
+                decimals_pow: 100,
                 client: client.clone(),
             },
             reqwest_client: client,
