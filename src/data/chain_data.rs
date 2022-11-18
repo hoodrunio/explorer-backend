@@ -16,7 +16,7 @@ pub struct ChainData {
     pub blocks: Mutex<LatestBlocks>,
     pub transactions: Mutex<LatestTransactions>,
     pub latest_height: Mutex<u64>,
-    pub avg_block_time: Mutex<u32>,
+    pub avg_block_time: Mutex<i64>,
     pub params: Mutex<Params>,
 }
 
