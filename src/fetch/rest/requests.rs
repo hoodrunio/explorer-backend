@@ -26,31 +26,16 @@ impl Chain {
         let url = format!("{}{}", self.inner.rest_url, path);
 
         match self.inner.client.get(url).query(query).send().await {
-            Ok(res) => {
-                if res.status().is_success() {
-                    match res.json::<RestResponse<T>>().await {
-                        Ok(res_json) => match res_json {
-                            RestResponse::Success(res_json) => Ok(res_json),
-                            RestResponse::Error { message, details: _ } => Err(message),
-                        },
-                        Err(error) => {
-                            println!("{:#?}", error);
-                            Err("Cannot parse JSON error response.".to_string())
-                        }
-                    }
-                } else {
-                    match res.json::<RestResponse<T>>().await {
-                        Ok(res_json) => match res_json {
-                            RestResponse::Success(res_json) => Ok(res_json),
-                            RestResponse::Error { message, details: _ } => Err(message),
-                        },
-                        Err(error) => {
-                            println!("{:#?}", error);
-                            Err("Cannot parse JSON error response.".to_string())
-                        }
-                    }
+            Ok(res) => match res.json::<RestResponse<T>>().await {
+                Ok(res_json) => match res_json {
+                    RestResponse::Success(res_json) => Ok(res_json),
+                    RestResponse::Error { message, details: _ } => Err(message),
+                },
+                Err(error) => {
+                    println!("{:#?}", error);
+                    Err("Cannot parse JSON error response.".to_string())
                 }
-            }
+            },
             Err(_) => Err("Unsuccessful request.".to_string()),
         }
     }
