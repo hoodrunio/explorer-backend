@@ -1,57 +1,70 @@
 use serde::{Deserialize, Serialize};
 
 use super::others::{DenomAmount, InternalDenomAmount, Pagination, PaginationConfig};
-use crate::chain::Chain;
+use crate::{
+    chain::Chain,
+    routes::{calc_pages, OutRestResponse},
+};
 
 impl Chain {
     /// Returns the total supply of all tokens.
-    pub async fn get_supply_of_all_tokens(&self, pagination_config: PaginationConfig) -> Result<SupplyOfAllTokensResp, String> {
+    pub async fn get_supply_of_all_tokens(&self, config: PaginationConfig) -> Result<OutRestResponse<Vec<InternalDenomAmount>>, String> {
         let mut query = vec![];
 
-        query.push(("pagination.reverse", format!("{}", pagination_config.is_reverse())));
-        query.push(("pagination.limit", format!("{}", pagination_config.get_limit())));
+        query.push(("pagination.reverse", format!("{}", config.is_reverse())));
+        query.push(("pagination.limit", format!("{}", config.get_limit())));
         query.push(("pagination.count_total", "true".to_string()));
-        query.push(("pagination.offset", format!("{}", pagination_config.get_offset())));
+        query.push(("pagination.offset", format!("{}", config.get_offset())));
 
-        self.rest_api_request("/cosmos/bank/v1beta1/supply", &query).await
+        let resp = self
+            .rest_api_request::<SupplyOfAllTokensResp>("/cosmos/bank/v1beta1/supply", &query)
+            .await?;
+
+        let mut supplies = vec![];
+
+        for supply in resp.supply {
+            supplies.push(supply.try_into()?)
+        }
+
+        let pages = calc_pages(resp.pagination, config)?;
+
+        OutRestResponse::new(supplies, pages)
     }
 
     /// Returns the supply of given token.
-    pub async fn get_supply_by_denom(&self, denom: &str) -> Result<InternalDenomAmount, String> {
+    pub async fn get_supply_by_denom(&self, denom: &str) -> Result<OutRestResponse<InternalDenomAmount>, String> {
         let path = format!("/cosmos/bank/v1beta1/supply/{denom}");
-        match self.rest_api_request::<SupplyByDenomResp>(&path, &[]).await {
-            Ok(resp) => match resp.amount.amount.parse::<u128>() {
-                Ok(amount) => Ok(InternalDenomAmount {
-                    amount,
-                    denom: resp.amount.denom,
-                }),
-                Err(_) => Err(format!("Cannot parse number, '{}'.", resp.amount.amount)),
-            },
-            Err(error) => Err(error),
-        }
+
+        let resp = self.rest_api_request::<SupplyByDenomResp>(&path, &[]).await?;
+
+        let supply = resp.amount.try_into()?;
+
+        OutRestResponse::new(supply, 0)
     }
 
     /// Returns the supply of the native coin.
-    pub async fn get_supply_of_native_coin(&self) -> Result<InternalDenomAmount, String> {
+    pub async fn get_supply_of_native_coin(&self) -> Result<OutRestResponse<InternalDenomAmount>, String> {
         self.get_supply_by_denom(self.inner.main_denom).await
     }
 
     /// Returns the minting inflation rate of native coin of the chain.
-    pub async fn get_inflation_rate(&self) -> f64 {
-        if self.inner.name == "evmos" {
+    pub async fn get_inflation_rate(&self) -> Result<OutRestResponse<f64>, String> {
+        let inflation = if self.inner.name == "evmos" {
             self.rest_api_request::<MintingInflationRateResp>("/evmos/inflation/v1/inflation_rate", &[])
                 .await
-                .and_then(|res| Ok(res.inflation_rate.parse::<f64>().unwrap_or(0.0)))
+                .and_then(|res| Ok(res.inflation_rate.parse::<f64>().unwrap_or(0.0) / 100.0))
         } else if self.inner.name == "echelon" {
             self.rest_api_request::<MintingInflationRateResp>("/echelon/inflation/v1/inflation_rate", &[])
                 .await
-                .and_then(|res| Ok(res.inflation_rate.parse::<f64>().unwrap_or(0.0)))
+                .and_then(|res| Ok(res.inflation_rate.parse::<f64>().unwrap_or(0.0) / 100.0))
         } else {
             self.rest_api_request::<MintingInflationResp>("/cosmos/mint/v1beta1/inflation", &[])
                 .await
-                .and_then(|res| Ok(res.inflation.parse::<f64>().unwrap_or(0.0) * 100.0))
+                .and_then(|res| Ok(res.inflation.parse::<f64>().unwrap_or(0.0)))
         }
-        .unwrap_or(0.0)
+        .unwrap_or(0.0);
+
+        OutRestResponse::new(inflation, 0)
     }
 }
 

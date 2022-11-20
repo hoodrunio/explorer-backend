@@ -1,5 +1,4 @@
-use crate::{fetch::rest::others::Response, state::State};
-
+use crate::{fetch::others::Response, state::State};
 use actix_web::{
     get,
     web::{Data, Json, Path},

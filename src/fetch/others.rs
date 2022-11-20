@@ -1,7 +1,7 @@
 use chrono::DateTime;
 use serde::{Deserialize, Serialize};
 
-use crate::{chain::Chain, routes::rest::OutRestResponse};
+use crate::{chain::Chain, routes::OutRestResponse};
 
 impl Chain {
     /// Returns staking pool information.
@@ -281,7 +281,7 @@ pub struct PaginationConfig {
     /// It is the number of result to not to be returned in the result page
     offset: u32,
     /// It is the total number of results to be returned in the result page
-    limit: u8,
+    limit: u16,
 }
 
 impl PaginationConfig {
@@ -308,7 +308,7 @@ impl PaginationConfig {
     }
 
     /// Returns the value `limit` property holds.
-    pub const fn get_limit(&self) -> u8 {
+    pub const fn get_limit(&self) -> u16 {
         self.limit
     }
 
@@ -323,20 +323,15 @@ impl PaginationConfig {
     }
 
     /// Sets a limit for results to be returned in the result page
-    pub const fn limit(self, limit: u8) -> Self {
+    pub const fn limit(self, limit: u16) -> Self {
         Self { limit, ..self }
-    }
-
-    /// Sets an offset for padding from the first result.
-    pub const fn offset(self, offset: u32) -> Self {
-        Self { offset, ..self }
     }
 
     /// Specifies the offset by given page. \
     /// **Base index is 1/ONE.**
     pub fn page(self, page: u8) -> Self {
         Self {
-            offset: if page < 2 { 0 } else { (self.limit * (page - 1)).into() },
+            offset: if page < 2 { 0 } else { (self.limit * (page as u16 - 1)).into() },
             ..self
         }
     }

@@ -1,7 +1,6 @@
 use crate::chain::Chain;
 use crate::data::ChainData;
 use crate::utils::get_prices;
-use std::sync::Arc;
 use tokio::join; 
 use crate::init_chain;
 
@@ -116,15 +115,6 @@ impl State {
             self.osmosis.update_data(),
             self.secret.update_data(),
         );
-    }
-
-    /// Updates all the chains' data.
-    pub fn subscribe_data(&self) {
-        self.axelar.subscribe_data();
-        self.evmos.subscribe_data();
-        self.kyve.subscribe_data();
-        self.osmosis.subscribe_data();
-        self.secret.subscribe_data();
     }
 
     /// Updates all the prices' of chains.

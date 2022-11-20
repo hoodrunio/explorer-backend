@@ -1,10 +1,8 @@
+use super::QueryParams;
 use crate::{
-    fetch::rest::others::{PaginationConfig, Response},
+    fetch::others::{PaginationConfig, Response},
     state::State,
 };
-
-use super::QueryParams;
-
 use actix_web::{
     get,
     web::{Data, Json, Path, Query},
@@ -17,7 +15,7 @@ use actix_web::{
 pub async fn proposals_passed(path: Path<String>, chains: Data<State>, query: Query<QueryParams>) -> impl Responder {
     let chain = path.into_inner();
 
-    let config = PaginationConfig::new().limit(6).page(query.page.unwrap_or(1));
+    let config = PaginationConfig::new().limit(6).page(query.page.unwrap_or(1)).reverse();
 
     Json(match chains.get(&chain) {
         Ok(chain) => chain.get_proposals_passed(config).await.into(),
@@ -29,7 +27,7 @@ pub async fn proposals_passed(path: Path<String>, chains: Data<State>, query: Qu
 pub async fn proposals_voting(path: Path<String>, chains: Data<State>, query: Query<QueryParams>) -> impl Responder {
     let chain = path.into_inner();
 
-    let config = PaginationConfig::new().limit(6).page(query.page.unwrap_or(1));
+    let config = PaginationConfig::new().limit(6).page(query.page.unwrap_or(1)).reverse();
 
     Json(match chains.get(&chain) {
         Ok(chain) => chain.get_proposals_in_voting_period(config).await.into(),
@@ -41,7 +39,7 @@ pub async fn proposals_voting(path: Path<String>, chains: Data<State>, query: Qu
 pub async fn proposals_failed(path: Path<String>, chains: Data<State>, query: Query<QueryParams>) -> impl Responder {
     let chain = path.into_inner();
 
-    let config = PaginationConfig::new().limit(6).page(query.page.unwrap_or(1));
+    let config = PaginationConfig::new().limit(6).page(query.page.unwrap_or(1)).reverse();
 
     Json(match chains.get(&chain) {
         Ok(chain) => chain.get_proposals_failed(config).await.into(),
@@ -53,7 +51,7 @@ pub async fn proposals_failed(path: Path<String>, chains: Data<State>, query: Qu
 pub async fn proposals_rejected(path: Path<String>, chains: Data<State>, query: Query<QueryParams>) -> impl Responder {
     let chain = path.into_inner();
 
-    let config = PaginationConfig::new().limit(6).page(query.page.unwrap_or(1));
+    let config = PaginationConfig::new().limit(6).page(query.page.unwrap_or(1)).reverse();
 
     Json(match chains.get(&chain) {
         Ok(chain) => chain.get_proposals_rejected(config).await.into(),
@@ -65,7 +63,7 @@ pub async fn proposals_rejected(path: Path<String>, chains: Data<State>, query: 
 pub async fn proposals_unspecified(path: Path<String>, chains: Data<State>, query: Query<QueryParams>) -> impl Responder {
     let chain = path.into_inner();
 
-    let config = PaginationConfig::new().limit(6).page(query.page.unwrap_or(1));
+    let config = PaginationConfig::new().limit(6).page(query.page.unwrap_or(1)).reverse();
 
     Json(match chains.get(&chain) {
         Ok(chain) => chain.get_proposals_unspecified(config).await.into(),

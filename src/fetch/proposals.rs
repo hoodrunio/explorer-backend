@@ -4,12 +4,12 @@ use serde::{Deserialize, Serialize};
 use super::others::{DenomAmount, Pagination, PaginationConfig};
 use crate::{
     chain::Chain,
-    routes::rest::{calc_pages, OutRestResponse},
+    routes::{calc_pages, OutRestResponse},
 };
 
 impl Chain {
     /// Returns all the proposals in voting period.
-    pub async fn get_proposals_by_status(&self, status: &str, config: PaginationConfig) -> Result<OutRestResponse<Vec<InternalProposal>>, String> {
+    pub async fn get_proposals_by_status(&self, status: &str, config: PaginationConfig) -> Result<OutRestResponse<Vec<ProposalItem>>, String> {
         let mut query = vec![];
 
         query.push(("proposal_status", status.to_string()));
@@ -23,41 +23,7 @@ impl Chain {
         let mut proposals = vec![];
 
         for proposal in resp.proposals {
-            proposals.push(InternalProposal {
-                proposal_id: proposal
-                    .proposal_id
-                    .parse()
-                    .or_else(|_| Err(format!("Proposal ID cannot be parsed, '{}'.", proposal.proposal_id)))?,
-                content: InternalProposalContent::try_from_with(proposal.content, |a| self.calc_amount_u128_to_f64(a))?,
-                status: match proposal.status.as_ref() {
-                    "PROPOSAL_STATUS_PASSED" => "Passed",
-                    "PROPOSAL_STATUS_REJECTED" => "Rejected",
-                    "PROPOSAL_STATUS_FAILED" => "Failed",
-                    "PROPOSAL_STATUS_VOTING_PERIOD" => "Voting",
-                    _ => "Unknown",
-                }
-                .into(),
-                final_tally_result: InternalProposalFinalTallyResult::try_from_with(proposal.final_tally_result, |a| {
-                    self.calc_amount_u128_to_f64(a)
-                })?,
-                submit_time: DateTime::parse_from_rfc3339(&proposal.submit_time)
-                    .or_else(|_| Err(format!("Cannot parse proposal submit time, '{}'", proposal.submit_time)))?
-                    .timestamp_millis(),
-                deposit_end_time: DateTime::parse_from_rfc3339(&proposal.deposit_end_time)
-                    .or_else(|_| Err(format!("Cannot parse proposal deposit end time, '{}'", proposal.deposit_end_time)))?
-                    .timestamp_millis(),
-                total_deposit: proposal
-                    .total_deposit
-                    .get(0)
-                    .and_then(|td| td.amount.parse::<f64>().and_then(|amount| Ok(self.calc_amount_f64_to_f64(amount))).ok())
-                    .unwrap_or(0.0),
-                voting_start_time: DateTime::parse_from_rfc3339(&proposal.voting_start_time)
-                    .or_else(|_| Err(format!("Cannot parse proposal voting start time, '{}'", proposal.voting_start_time)))?
-                    .timestamp_millis(),
-                voting_end_time: DateTime::parse_from_rfc3339(&proposal.voting_end_time)
-                    .or_else(|_| Err(format!("Cannot parse proposal voting end time, '{}'", proposal.voting_end_time)))?
-                    .timestamp_millis(),
-            });
+            proposals.push(proposal.try_into()?);
         }
 
         let pages = calc_pages(resp.pagination, config)?;
@@ -66,27 +32,27 @@ impl Chain {
     }
 
     /// Returns all the proposals unspecified.
-    pub async fn get_proposals_unspecified(&self, config: PaginationConfig) -> Result<OutRestResponse<Vec<InternalProposal>>, String> {
+    pub async fn get_proposals_unspecified(&self, config: PaginationConfig) -> Result<OutRestResponse<Vec<ProposalItem>>, String> {
         self.get_proposals_by_status("1", config).await
     }
 
     /// Returns all the proposals in voting period.
-    pub async fn get_proposals_in_voting_period(&self, config: PaginationConfig) -> Result<OutRestResponse<Vec<InternalProposal>>, String> {
+    pub async fn get_proposals_in_voting_period(&self, config: PaginationConfig) -> Result<OutRestResponse<Vec<ProposalItem>>, String> {
         self.get_proposals_by_status("2", config).await
     }
 
     /// Returns all the proposals passed.
-    pub async fn get_proposals_passed(&self, config: PaginationConfig) -> Result<OutRestResponse<Vec<InternalProposal>>, String> {
+    pub async fn get_proposals_passed(&self, config: PaginationConfig) -> Result<OutRestResponse<Vec<ProposalItem>>, String> {
         self.get_proposals_by_status("3", config).await
     }
 
     /// Returns all the proposals rejected.
-    pub async fn get_proposals_rejected(&self, config: PaginationConfig) -> Result<OutRestResponse<Vec<InternalProposal>>, String> {
+    pub async fn get_proposals_rejected(&self, config: PaginationConfig) -> Result<OutRestResponse<Vec<ProposalItem>>, String> {
         self.get_proposals_by_status("4", config).await
     }
 
     /// Returns all the proposals failed.
-    pub async fn get_proposals_failed(&self, config: PaginationConfig) -> Result<OutRestResponse<Vec<InternalProposal>>, String> {
+    pub async fn get_proposals_failed(&self, config: PaginationConfig) -> Result<OutRestResponse<Vec<ProposalItem>>, String> {
         self.get_proposals_by_status("5", config).await
     }
 
@@ -228,6 +194,31 @@ impl Chain {
     }
 }
 
+impl TryFrom<BasicProposal> for ProposalItem {
+    type Error = String;
+    fn try_from(proposal: BasicProposal) -> Result<Self, Self::Error> {
+        Ok(Self {
+            proposal_id: proposal
+                .proposal_id
+                .parse()
+                .or_else(|_| Err(format!("Proposal ID cannot be parsed, '{}'.", proposal.proposal_id)))?,
+            title: proposal.content.title,
+            description: proposal.content.description,
+            time: DateTime::parse_from_rfc3339(&proposal.voting_start_time)
+                .or_else(|_| Err(format!("Cannot parse proposal voting time datetime, '{}'.", proposal.voting_start_time)))?
+                .timestamp_millis(),
+            status: match proposal.status.as_ref() {
+                "PROPOSAL_STATUS_PASSED" => "Passed",
+                "PROPOSAL_STATUS_REJECTED" => "Rejected",
+                "PROPOSAL_STATUS_FAILED" => "Failed",
+                "PROPOSAL_STATUS_VOTING_PERIOD" => "Voting",
+                _ => "Unknown",
+            }
+            .into(),
+        })
+    }
+}
+
 #[derive(Deserialize, Serialize, Debug)]
 pub struct ProposalVoteByVoterResp {
     /// Proposal vote.
@@ -352,9 +343,29 @@ pub struct ProposalsDetailsResp {
 #[derive(Deserialize, Serialize, Debug)]
 pub struct ProposalsResp {
     /// Array of proposals.
-    pub proposals: Vec<Proposal>,
+    pub proposals: Vec<BasicProposal>,
     /// Pagination.
     pub pagination: Pagination,
+}
+
+#[derive(Deserialize, Serialize, Debug)]
+pub struct BasicProposal {
+    /// Proposal ID. Eg: `"79"`
+    pub proposal_id: String,
+    /// Proposal content.
+    pub content: BasicPropsalContent,
+    /// Proposal status. Eg: `"PROPOSAL_STATUS_VOTING_PERIOD"`
+    pub status: String,
+    /// Proposal voting start time. Eg: `"2022-11-15T22:09:29.130698116Z"`
+    pub voting_start_time: String,
+}
+
+#[derive(Deserialize, Serialize, Debug)]
+pub struct BasicPropsalContent {
+    /// Client update proposal title. Eg: `"Update expired client between Cosmoshub and Bostrom"`
+    title: String,
+    /// Client update proposal description. Eg: `"This proposal will update the expired client on channel-240 between cosmoshub-4 and the bostrom networks. In turn, this will let users transfer  from bostrom, and to transfer  from cosmoshub back to bostrom.\\n\\nBy voting **YES**, the Cosmoshub stakers, voice their support to unfreeze IBC channel-240 between Cosmoshub and Bostrom.\\n\\nBy voting **NO**, the Cosmoshub stakers voice their dissent to unfreeze IBC channel-240 between Cosmoshub and Bostrom network.\\n\\n**Details:**\\n\\nMost IBC connections between Bostrom and other Cosmos chains have been relayed, to a large extent, only by the Bro_n_Bro validator.\\n\\nOriginally, channel-240 was created with a very short trusting period of 2 days. Alas, the lack of monitoring from our side caused the expiration of client 07-tendermint-497, which in turn, led to the impossibility to transfer tokens using channel-240. Currently, there are around 710 ATOM stuck on the bostrom chain, belonging to about 20 different accounts.\\n\\nAs this might be the first case, when a channel renewal on cosmoshub-4, happens via a governance proposal, we have set up prior testing to ensure that everything will work smoothly. We also modified test-suite https://github.com/bro-n-bro/ibc-testbed (thanks to the Lum devs for the awesome repo), so everyone could simulate the client renewal using governance with this test suite.\\n\\nIn the case that this proposal goes through, client 07-tendermint-497 state will be substituted by the state of client 07-tendermint-643.\\nAlso if passed - channels 240-5 (cosmoshub-4 - bostrom) would be used, only, to recover the stuck funds. New channels would be created with a longer trusting period to ensure further stability.\\n\\nWe will be happy to answer any questions at our [Telegram community group](https://t.me/bro_n_bro_community) or on our [Discord](https://discord.com/channels/868962876721860638/870738846772514826)."`
+    description: String,
 }
 
 #[derive(Deserialize, Serialize, Debug)]
@@ -647,4 +658,18 @@ pub struct ParameterChangeProposalChange {
     pub key: String,
     /// Value. Inside quotes. Eg: `"\"4360000\""`
     pub value: String,
+}
+
+#[derive(Serialize, Debug)]
+pub struct ProposalItem {
+    /// Proposal ID.
+    pub proposal_id: u32,
+    /// Proposal Title.
+    pub title: String,
+    /// Proposal ID. Eg: `79`
+    pub description: String,
+    /// Voting start timestamp in milliseconds.
+    pub time: i64,
+    /// Proposal status.
+    pub status: String,
 }

@@ -1,22 +1,13 @@
-use crate::{fetch::rest::others::Response, state::State};
-
+use crate::{fetch::others::Response, state::State};
 use actix_web::{
     get,
     web::{Data, Json, Path},
     Responder,
 };
 
+use crate::chain::Chain;
+
 // ====== Block Methods ======
-
-#[get("{chain}/average-block-time")]
-pub async fn avg_block_time(path: Path<String>, chains: Data<State>) -> impl Responder {
-    let chain = path.into_inner();
-
-    Json(match chains.get(&chain) {
-        Ok(chain) => chain.get_avg_block_time().into(),
-        Err(err) => Response::Error(err),
-    })
-}
 
 #[get("{chain}/block-by-height/{height}")]
 pub async fn block_by_height(path: Path<(String, u64)>, chains: Data<State>) -> impl Responder {
@@ -38,8 +29,10 @@ pub async fn block_by_hash(path: Path<(String, String)>, chains: Data<State>) ->
     })
 }
 
-#[get("{chain}/blockchain/{min_and_max_height}")]
-pub async fn blockchain_by_heights(path: Path<(String, String)>, chains: Data<State>) -> impl Responder {
+/// Example: http://localhost:8080/axelar/block-headers/2500-2520
+/// Maximum block headers length is 20.
+#[get("{chain}/block-headers/{min_and_max_height}")]
+pub async fn headers_by_heights(path: Path<(String, String)>, chains: Data<State>) -> impl Responder {
     let (chain, min_and_max_height) = path.into_inner();
 
     Json(match chains.get(&chain) {
@@ -49,6 +42,19 @@ pub async fn blockchain_by_heights(path: Path<(String, String)>, chains: Data<St
                 _ => Response::Error(format!("{} is mistaken!", min_and_max_height)),
             },
             None => Response::Error(format!("{} is mistaken!", min_and_max_height)),
+        },
+        Err(err) => Response::Error(err),
+    })
+}
+
+#[get("{chain}/latest-block-headers")]
+pub async fn latest_headers(path: Path<String>, chains: Data<State>) -> impl Responder {
+    let (chain) = path.into_inner();
+
+    Json(match chains.get(&chain) {
+        Ok(chain) => match chain.get_block_headers_last_20().await {
+            Ok(headers) => Response::Success(headers),
+            Err(err) => Response::Error(err),
         },
         Err(err) => Response::Error(err),
     })

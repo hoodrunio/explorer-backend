@@ -1,6 +1,5 @@
+use super::{params::ChainParams, price_chart::PriceChart};
 use std::sync::Mutex;
-
-use super::{latest_blocks::LatestBlocks, latest_txs::LatestTransactions, params::Params, price_chart::PriceChart};
 
 /// The struct representing chain data.
 pub struct ChainData {
@@ -13,11 +12,7 @@ pub struct ChainData {
     pub chart: Mutex<PriceChart>,
     pub bonded: Mutex<u64>,
     pub unbonded: Mutex<u64>,
-    pub blocks: Mutex<LatestBlocks>,
-    pub transactions: Mutex<LatestTransactions>,
-    pub latest_height: Mutex<u64>,
-    pub avg_block_time: Mutex<i64>,
-    pub params: Mutex<Params>,
+    pub params: Mutex<ChainParams>,
 }
 
 impl ChainData {
@@ -33,11 +28,7 @@ impl ChainData {
             chart: Mutex::new(PriceChart::new()),
             bonded: Mutex::new(0),
             unbonded: Mutex::new(0),
-            blocks: Mutex::new(LatestBlocks::new()),
-            transactions: Mutex::new(LatestTransactions::new()),
-            latest_height: Mutex::new(0),
-            avg_block_time: Mutex::new(0),
-            params: Mutex::new(Params::new()),
+            params: Mutex::new(ChainParams::new()),
         }
     }
 }

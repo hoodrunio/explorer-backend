@@ -6,7 +6,7 @@ use tokio::join;
 use super::others::{DenomAmount, Pagination, PaginationConfig};
 use crate::{
     chain::Chain,
-    routes::rest::{calc_pages, OutRestResponse},
+    routes::{calc_pages, OutRestResponse},
     utils::get_validator_logo,
 };
 
@@ -44,6 +44,7 @@ impl Chain {
                     reward,
                     validator_logo,
                     validator_name,
+                    validator_address: delegation_response.delegation.validator_address,
                 })
             })
         }
@@ -98,6 +99,9 @@ impl Chain {
                 let validator_from_name = validator_from.description.moniker;
                 let validator_to_name = validator_to.description.moniker;
 
+                let validator_from_address = redelegation_response.redelegation.validator_src_address;
+                let validator_to_address = redelegation_response.redelegation.validator_dst_address;
+
                 let redelegation_resp_entry = redelegation_response
                     .redelegation
                     .entries
@@ -125,8 +129,10 @@ impl Chain {
                     completion_time,
                     validator_from_logo,
                     validator_from_name,
+                    validator_from_address,
                     validator_to_logo,
                     validator_to_name,
+                    validator_to_address,
                 })
             })
         }
@@ -168,6 +174,7 @@ impl Chain {
                 let validator = self.get_validator(&unbonding_response.validator_address).await?;
                 let validator_logo = get_validator_logo(self.inner.client.clone(), &validator.description.identity).await;
                 let validator_name = validator.description.moniker;
+                let validator_address = unbonding_response.validator_address;
 
                 let unbonding_entry = unbonding_response.entries.get(0).ok_or_else(|| format!("There is no completion time."))?;
 
@@ -192,6 +199,7 @@ impl Chain {
                     completion_time,
                     validator_logo,
                     validator_name,
+                    validator_address,
                 })
             })
         }
@@ -232,6 +240,7 @@ pub struct DelegationResponse {
 pub struct InternalDelegation {
     pub validator_logo: String,
     pub validator_name: String,
+    pub validator_address: String,
     pub amount: f64,
     pub reward: f64,
 }
@@ -240,8 +249,10 @@ pub struct InternalDelegation {
 pub struct InternalRedelegation {
     pub validator_from_logo: String,
     pub validator_from_name: String,
+    pub validator_from_address: String,
     pub validator_to_logo: String,
     pub validator_to_name: String,
+    pub validator_to_address: String,
     pub amount: f64,
     pub completion_time: i64,
 }
@@ -250,6 +261,7 @@ pub struct InternalRedelegation {
 pub struct InternalUnbonding {
     pub validator_logo: String,
     pub validator_name: String,
+    pub validator_address: String,
     pub balance: f64,
     pub completion_time: i64,
 }

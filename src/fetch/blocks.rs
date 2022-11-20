@@ -1,26 +1,17 @@
+use chrono::DateTime;
 use serde::{Deserialize, Serialize};
 
-use crate::{chain::Chain, routes::rest::OutRestResponse};
+use crate::{
+    chain::Chain,
+    routes::OutRestResponse,
+    utils::{convert_consensus_pub_key_to_hex_address, get_validator_logo},
+};
 
-use super::transactions::InternalTransactionSimple;
+use super::others::PaginationConfig;
 
 impl Chain {
-    /// Returns the average block time on the chain.
-    pub fn get_avg_block_time(&self) -> Result<OutRestResponse<i64>, String> {
-        let avg_block_time = self
-            .inner
-            .data
-            .avg_block_time
-            .lock()
-            .or_else(|_| Err(format!("Cannot find the average block time on '{}' chain.", self.inner.name)))?
-            .clone();
-
-        OutRestResponse::new(avg_block_time, 0)
-    }
-
     /// Returns the block at given height. Returns the latest block, if no height is given.
-    pub async fn get_block_by_height(&self, height: Option<u64>) -> Result<BlockResp, String> {
-        todo!();
+    pub async fn get_block_by_height(&self, height: Option<u64>) -> Result<OutRestResponse<InternalBlock>, String> {
         let mut query = vec![];
 
         let height = height.and_then(|height| Some(height.to_string()));
@@ -30,6 +21,10 @@ impl Chain {
         }
 
         let resp = self.rpc_request::<BlockResp>("/block", &query).await?;
+
+        let block = InternalBlock::new(resp, self).await?;
+
+        OutRestResponse::new(block, 0)
     }
 
     /// Returns the block with given hash.
@@ -37,7 +32,7 @@ impl Chain {
     /// ```rs
     /// let block = chain.get_block_by_hash("14b6bb26cf30a559ae3ad18b0e3640bc3fd819b1182830d359969e02bab0f633").await;
     /// ```
-    pub async fn get_block_by_hash(&self, hash: &str) -> Result<BlockResp, String> {
+    pub async fn get_block_by_hash(&self, hash: &str) -> Result<OutRestResponse<InternalBlock>, String> {
         let mut query = vec![];
 
         let hash = if hash.starts_with("0x") {
@@ -48,7 +43,11 @@ impl Chain {
 
         query.push(("hash", hash));
 
-        self.rpc_request("/block_by_hash", &query).await
+        let resp = self.rpc_request::<BlockResp>("/block_by_hash", &query).await?;
+
+        let block = InternalBlock::new(resp, self).await?;
+
+        OutRestResponse::new(block, 0)
     }
 
     /// Returns the block headers between `min_height` & `max_height`.
@@ -133,33 +132,63 @@ impl Chain {
     }
 }
 
+#[derive(Deserialize, Serialize, Debug, Clone)]
+pub struct BlockItem {
+    pub proposer_name: String,
+    pub proposer_logo: String,
+    pub height: u64,
+    pub hash: String,
+    pub tx_count: u64,
+    pub timestamp: i64,
+}
+
 #[derive(Deserialize, Serialize, Debug)]
 pub struct InternalBlock {
     height: u64,
     hash: String,
     proposer_name: String,
+    proposer_logo: String,
     proposer_address: String,
     time: i64,
     tx_count: u32,
-    signatures: Vec<InternalBlockSignature>,
-}
-
-#[derive(Deserialize, Serialize, Debug)]
-pub struct InternalBlockSignature {
-    name: String,
-    logo: String,
-    address: String,
-    transactions: InternalTransactionSimple,
+    // signatures: Vec<InternalBlockSignature>,
 }
 
 impl InternalBlock {
-    fn new(block_resp: BlockResp, chain: &Chain) -> Result<Self, String> {
-        todo!();
+    async fn new(block_resp: BlockResp, chain: &Chain) -> Result<Self, String> {
+        let proposer_address = {
+            let resp = chain.get_validators_unspecified(PaginationConfig::new().limit(10000)).await?;
 
-        /*
-        let jobs: Vec<_> = block_resp.block.last_commit.signatures.iter().map(|sign| async move {
-            sign.validator_address
-        }).collect();
+            let addr = resp
+                .validators
+                .iter()
+                .find(|validator| {
+                    let hex_addr = convert_consensus_pub_key_to_hex_address(&validator.consensus_pubkey.key);
+                    println!("{:?}", hex_addr);
+                    hex_addr == Some(block_resp.block.header.proposer_address.clone())
+                })
+                .and_then(|validator| Some(validator.operator_address.clone()));
+
+            match addr {
+                Some(valoper_addr) => valoper_addr,
+                None => {
+                    return Err(format!(
+                        "Cannot find associated validator address, '{}'.",
+                        block_resp.block.header.proposer_address
+                    ))
+                }
+            }
+        };
+
+        let (proposer_name, proposer_logo) = {
+            println!("a");
+            let resp = chain.get_validator(&proposer_address).await?;
+
+            println!("b");
+            let logo = get_validator_logo(chain.inner.client.clone(), &resp.description.identity).await;
+
+            (resp.description.moniker, logo)
+        };
 
         Ok(Self {
             height: block_resp
@@ -169,13 +198,14 @@ impl InternalBlock {
                 .parse::<u64>()
                 .or_else(|_| Err(format!("Cannot parse block height, '{}'.", block_resp.block.header.height)))?,
             hash: block_resp.block_id.hash,
-            proposer_name: block_resp.block.header.proposer_address,
-            proposer_address: (),
-            time: (),
-            tx_count: (),
-            signatures: (),
+            proposer_name,
+            proposer_address,
+            proposer_logo,
+            time: DateTime::parse_from_rfc3339(&block_resp.block.header.time)
+                .or_else(|_| Err(format!("Cannot parse block datetime, '{}'.", block_resp.block.header.time)))?
+                .timestamp_millis(),
+            tx_count: block_resp.block_id.parts.total,
         })
-        */
     }
 }
 
@@ -243,7 +273,7 @@ pub struct Block {
 #[derive(Deserialize, Serialize, Debug)]
 pub struct BlockIdParts {
     /// Unknown. Eg: `1`
-    pub total: usize,
+    pub total: u32,
     /// HEX encoded transaction hash.
     pub hash: String,
 }

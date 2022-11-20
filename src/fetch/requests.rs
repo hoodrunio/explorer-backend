@@ -14,7 +14,10 @@ impl Chain {
                     RPCResponse::Success(res) => Ok(res.result),
                     RPCResponse::Error(res) => Err(res.error.data),
                 },
-                Err(_) => Err("Cannot parse JSON.".to_string()),
+                Err(error) => {
+                    eprintln!("{}", error);
+                    Err("Cannot parse JSON.".to_string())
+                }
             },
             Err(_) => Err("Unsuccessful request.".to_string()),
         }
@@ -32,8 +35,8 @@ impl Chain {
                     RestResponse::Error { message, details: _ } => Err(message),
                 },
                 Err(error) => {
-                    println!("{:#?}", error);
-                    Err("Cannot parse JSON error response.".to_string())
+                    eprintln!("{:#?}", error);
+                    Err("Cannot parse JSON.".to_string())
                 }
             },
             Err(_) => Err("Unsuccessful request.".to_string()),
@@ -57,8 +60,6 @@ pub enum RPCResponse<T> {
 
 #[derive(Deserialize, Serialize, Debug)]
 pub struct RPCSuccessResponse<T> {
-    pub jsonrpc: String,
-    pub id: isize,
     pub result: T,
 }
 

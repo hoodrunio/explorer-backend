@@ -1,6 +1,5 @@
+use crate::fetch::others::{Pagination, PaginationConfig};
 use serde::{Deserialize, Serialize};
-
-use crate::fetch::rest::others::{Pagination, PaginationConfig};
 
 /// The query params that has `page` param.
 #[derive(Deserialize)]

@@ -1,3 +1,7 @@
+use base64::decode as from_base_64;
+use hex::encode as to_hex;
+use sha2::{Digest, Sha256};
+
 use std::collections::HashMap;
 
 use reqwest::Client;
@@ -59,4 +63,21 @@ pub struct Pictures {
 #[derive(Deserialize)]
 pub struct Primary {
     pub url: String,
+}
+
+/// Converts consensus public key to hex address for finding the associated operator address.
+pub fn convert_consensus_pub_key_to_hex_address(consensus_pubkey: &str) -> Option<String> {
+    let mut hasher = Sha256::new();
+
+    hasher.update(from_base_64(consensus_pubkey.as_bytes()).ok()?);
+
+    let hash = hasher.finalize();
+
+    let hex = to_hex(hash);
+
+    if hex.len() < 40 {
+        None
+    } else {
+        Some(hex[..40].to_uppercase())
+    }
 }

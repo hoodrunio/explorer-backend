@@ -1,8 +1,7 @@
 use crate::{
-    fetch::rest::others::{PaginationConfig, Response},
+    fetch::others::{PaginationConfig, Response},
     state::State,
 };
-
 use actix_web::{
     get,
     web::{Data, Json, Path},

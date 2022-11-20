@@ -1,15 +1,14 @@
+use super::QueryParams;
+use crate::routes::OutRestResponse;
 use crate::{
-    fetch::rest::others::{PaginationConfig, Response},
+    fetch::others::{PaginationConfig, Response},
     state::State,
 };
-
 use actix_web::{
     get,
     web::{Data, Json, Path, Query},
     Responder,
 };
-
-use super::QueryParams;
 
 // ======== Tokenomic Methods ========
 
@@ -40,7 +39,13 @@ pub async fn inflation(path: Path<String>, chains: Data<State>) -> impl Responde
     let chain = path.into_inner();
 
     Json(match chains.get(&chain) {
-        Ok(chain) => Response::Success(chain.get_inflation_rate().await),
+        Ok(chain) => match chain.inner.data.inflation.lock() {
+            Ok(inflation_rate) => Response::Success(OutRestResponse {
+                pages: 0,
+                value: *inflation_rate,
+            }),
+            Err(_) => Response::Error(format!("Cannot return infaltion rate.")),
+        },
         Err(err) => Response::Error(err),
     })
 }

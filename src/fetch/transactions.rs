@@ -6,7 +6,7 @@ use tokio::join;
 use super::others::{DenomAmount, InternalDenomAmount, Pagination, PaginationConfig, PublicKey};
 use crate::{
     chain::Chain,
-    routes::rest::{calc_pages, OutRestResponse},
+    routes::{calc_pages, OutRestResponse},
 };
 
 impl Chain {
@@ -22,11 +22,7 @@ impl Chain {
     }
 
     /// Returns transactions with given sender.
-    pub async fn get_txs_by_sender(
-        &self,
-        sender_address: &str,
-        config: PaginationConfig,
-    ) -> Result<OutRestResponse<Vec<InternalTransactionSimple>>, String> {
+    pub async fn get_txs_by_sender(&self, sender_address: &str, config: PaginationConfig) -> Result<OutRestResponse<Vec<TransactionItem>>, String> {
         let mut query = vec![];
 
         query.push(("events", format!("message.sender='{}'", sender_address)));
@@ -50,7 +46,7 @@ impl Chain {
                     .ok_or_else(|| format!("The count of transactions and transaction responses aren't the same."))?,
             );
 
-            txs.push(InternalTransactionSimple::new(tx, tx_response, self)?)
+            txs.push(TransactionItem::new(tx, tx_response, self)?)
         }
 
         let pages = calc_pages(resp.pagination, config)?;
@@ -63,7 +59,7 @@ impl Chain {
         &self,
         recipient_address: &str,
         config: PaginationConfig,
-    ) -> Result<OutRestResponse<Vec<InternalTransactionSimple>>, String> {
+    ) -> Result<OutRestResponse<Vec<TransactionItem>>, String> {
         let mut query = vec![];
 
         query.push(("events", format!("message.recipient='{}'", recipient_address)));
@@ -87,7 +83,7 @@ impl Chain {
                     .ok_or_else(|| format!("The count of transactions and transaction responses aren't the same."))?,
             );
 
-            txs.push(InternalTransactionSimple::new(tx, tx_response, self)?)
+            txs.push(TransactionItem::new(tx, tx_response, self)?)
         }
 
         let pages = calc_pages(resp.pagination, config)?;
@@ -100,7 +96,7 @@ impl Chain {
         &self,
         block_height: Option<u64>,
         config: PaginationConfig,
-    ) -> Result<OutRestResponse<Vec<InternalTransactionSimple>>, String> {
+    ) -> Result<OutRestResponse<Vec<TransactionItem>>, String> {
         let mut query = vec![];
 
         if let Some(block_height) = block_height {
@@ -126,7 +122,7 @@ impl Chain {
                     .ok_or_else(|| format!("The count of transactions and transaction responses aren't the same."))?,
             );
 
-            txs.push(InternalTransactionSimple::new(tx, tx_response, self)?)
+            txs.push(TransactionItem::new(tx, tx_response, self)?)
         }
 
         let pages = calc_pages(resp.pagination, config)?;
@@ -347,6 +343,17 @@ impl InternalTransaction {
     }
 }
 
+#[derive(Deserialize, Serialize, Debug, Clone)]
+pub struct TransactionItem {
+    pub height: u64,
+    pub r#type: String,
+    pub hash: String,
+    pub amount: f64,
+    pub fee: f64,
+    pub result: String,
+    pub time: i64,
+}
+
 #[derive(Deserialize, Serialize, Debug)]
 #[serde(untagged)]
 pub enum InternalTransactionContent {
@@ -402,18 +409,7 @@ pub enum InternalTransactionContentKnowns {
     EthereumTx { hash: String },
 }
 
-#[derive(Deserialize, Serialize, Debug)]
-pub struct InternalTransactionSimple {
-    height: u64,
-    r#type: String,
-    hash: String,
-    amount: f64,
-    fee: f64,
-    result: String,
-    time: i64,
-}
-
-impl InternalTransactionSimple {
+impl TransactionItem {
     fn new(tx: &TxTransaction, tx_response: &TxResponse, chain: &Chain) -> Result<Self, String> {
         Ok(Self {
             height: tx_response
@@ -677,33 +673,6 @@ pub struct TxResponse {
     pub tx: TxsResponseTx,
     // Timestamp. Eg: `"2022-07-19T05:26:26Z"`
     pub timestamp: String,
-}
-
-pub struct InternalTxResponse {
-    /// Block height. Eg: `12713829`
-    pub height: u64,
-    /// HEX encoded transaction hash. Eg: `D29DEB0948ADC9B14A1758ED164A46407AF33EA2950404DB4AFFF68164B01C58`
-    pub txhash: String,
-    /// Transaction codespace. Eg: `""`
-    pub codespace: String,
-    /// Code. Eg: `0`
-    pub code: u32,
-    /// HEX encoded data. Eg: `"0A1E0A1C2F636F736D6F732E62616E6B2E763162657461312E4D736753656E64"`
-    pub data: String,
-    /// JSON encoded raw log. Eg: `"[{\"events\":[{\"type\":\"coin_received\",\"attributes\":[{\"key\":\"receiver\",\"value\":\"cosmos1vl8xm7x04cedgh639hc9ucvf6zc754fyfewhef\"},{\"key\":\"amount\",\"value\":\"450000uatom\"}]},{\"type\":\"coin_spent\",\"attributes\":[{\"key\":\"spender\",\"value\":\"cosmos1h4qpl2fxlcatp495pn8wjqcfkq3h66r9vk4hxf\"},{\"key\":\"amount\",\"value\":\"450000uatom\"}]},{\"type\":\"message\",\"attributes\":[{\"key\":\"action\",\"value\":\"/cosmos.bank.v1beta1.MsgSend\"},{\"key\":\"sender\",\"value\":\"cosmos1h4qpl2fxlcatp495pn8wjqcfkq3h66r9vk4hxf\"},{\"key\":\"module\",\"value\":\"bank\"}]},{\"type\":\"transfer\",\"attributes\":[{\"key\":\"recipient\",\"value\":\"cosmos1vl8xm7x04cedgh639hc9ucvf6zc754fyfewhef\"},{\"key\":\"sender\",\"value\":\"cosmos1h4qpl2fxlcatp495pn8wjqcfkq3h66r9vk4hxf\"},{\"key\":\"amount\",\"value\":\"450000uatom\"}]}]}]"`
-    pub raw_log: String,
-    /// Info. Eg: `""`
-    pub info: String,
-    // Gas wanted. Eg: `80000`
-    pub gas_wanted: u64,
-    /// Gas used. Eg: `74032`
-    pub gas_used: u64,
-    // Tx.
-    pub tx: TxsResponseTx,
-    // Timestamp in milliseconds.
-    pub timestamp: i64,
-    // Events.
-    pub events: Vec<TxsResponseEvent<UnparsedTxEventAttribute>>,
 }
 
 #[derive(Deserialize, Serialize, Debug)]

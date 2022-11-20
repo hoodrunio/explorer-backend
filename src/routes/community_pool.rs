@@ -1,4 +1,5 @@
-use crate::{fetch::rest::others::Response, state::State};
+use crate::routes::OutRestResponse;
+use crate::{fetch::others::Response, state::State};
 
 use actix_web::{
     get,
@@ -13,7 +14,10 @@ pub async fn community_pool(path: Path<String>, chains: Data<State>) -> impl Res
     let chain = path.into_inner();
 
     Json(match chains.get(&chain) {
-        Ok(chain) => chain.get_community_pool().await.into(),
+        Ok(chain) => match chain.inner.data.pool.lock() {
+            Ok(pool) => Response::Success(OutRestResponse { pages: 0, value: *pool }),
+            Err(_) => Response::Error(format!("Cannot return community pool.")),
+        },
         Err(err) => Response::Error(err),
     })
 }

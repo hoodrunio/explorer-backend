@@ -1,16 +1,18 @@
 use serde::{Deserialize, Serialize};
 
-use super::others::{DenomAmount, InternalDenomAmount, Pagination, PaginationConfig};
-use crate::{chain::Chain, routes::rest::OutRestResponse};
+use super::others::DenomAmount;
+use crate::{chain::Chain, routes::OutRestResponse};
 
 impl Chain {
     /// Returns the withdraw address by given delegator address.
-    pub async fn get_delegator_withdraw_address(&self, delegator_addr: &str) -> Result<OutRestResponse<WithdrawAddressResp>, String> {
+    pub async fn get_delegator_withdraw_address(&self, delegator_addr: &str) -> Result<OutRestResponse<String>, String> {
         let path = format!("/cosmos/distribution/v1beta1/delegators/{delegator_addr}/withdraw_address");
 
         let resp = self.rest_api_request::<WithdrawAddressResp>(&path, &[]).await?;
 
-        OutRestResponse::new(resp, 0)
+        let withdraw_address = resp.withdraw_address;
+
+        OutRestResponse::new(withdraw_address, 0)
     }
 
     /// Returns the rewards of given delegator address.
@@ -19,7 +21,7 @@ impl Chain {
 
         let resp = self.rest_api_request::<DelegatorRewardsResp>(&path, &[]).await?;
 
-        let delegator_rewards = resp.try_into()?;
+        let delegator_rewards = InternalDelegatorRewards::new(resp, self);
 
         OutRestResponse::new(delegator_rewards, 0)
     }
@@ -38,24 +40,31 @@ pub struct InternalDelegatorRewards {
     /// Array of rewards.
     pub rewards: Vec<InternalDelegatorReward>,
     /// Array of amounts and denoms.
-    pub total: Vec<InternalDenomAmount>,
+    pub total: f64,
 }
 
-impl TryFrom<DelegatorRewardsResp> for InternalDelegatorRewards {
-    type Error = String;
-    fn try_from(value: DelegatorRewardsResp) -> Result<Self, Self::Error> {
+impl InternalDelegatorRewards {
+    fn new(dlg_rwd_resp: DelegatorRewardsResp, chain: &Chain) -> Self {
         let mut rewards = vec![];
-        let mut total = vec![];
 
-        for reward in value.rewards {
-            rewards.push(reward.try_into()?);
+        for reward in dlg_rwd_resp.rewards {
+            rewards.push(InternalDelegatorReward::new(reward, &chain));
         }
 
-        for denom_amount in value.total {
-            total.push(denom_amount.try_into()?);
-        }
+        let total = match dlg_rwd_resp.total.get(0) {
+            Some(denom_amount) => chain.calc_amount_u128_to_f64(
+                denom_amount
+                    .amount
+                    .split_once(".")
+                    .and_then(|(pri, _)| Some(pri))
+                    .unwrap_or(&denom_amount.amount)
+                    .parse::<u128>()
+                    .unwrap_or(0),
+            ),
+            None => 0.00,
+        };
 
-        Ok(Self { total, rewards })
+        Self { total, rewards }
     }
 }
 
@@ -69,25 +78,29 @@ pub struct DelegatorReward {
 
 #[derive(Deserialize, Serialize, Debug)]
 pub struct InternalDelegatorReward {
-    /// Validator address. Eg: `"cosmosvaloper1c4k24jzduc365kywrsvf5ujz4ya6mwympnc4en"`
     pub validator_address: String,
-    /// Array of amounts and denoms.
-    pub reward: Vec<InternalDenomAmount>,
+    pub reward: f64,
 }
 
-impl TryFrom<DelegatorReward> for InternalDelegatorReward {
-    type Error = String;
-    fn try_from(value: DelegatorReward) -> Result<Self, Self::Error> {
-        let mut reward = vec![];
+impl InternalDelegatorReward {
+    fn new(delegator_rwd: DelegatorReward, chain: &Chain) -> Self {
+        let reward = match delegator_rwd.reward.get(0) {
+            Some(denom_amount) => chain.calc_amount_u128_to_f64(
+                denom_amount
+                    .amount
+                    .split_once(".")
+                    .and_then(|(pri, _)| Some(pri))
+                    .unwrap_or(&denom_amount.amount)
+                    .parse::<u128>()
+                    .unwrap_or(0),
+            ),
+            None => 0.00,
+        };
 
-        for denom_amount in value.reward {
-            reward.push(denom_amount.try_into()?);
-        }
-
-        Ok(Self {
-            validator_address: value.validator_address,
+        Self {
+            validator_address: delegator_rwd.validator_address,
             reward,
-        })
+        }
     }
 }
 

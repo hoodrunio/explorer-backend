@@ -1,6 +1,5 @@
-use std::collections::VecDeque;
-
 use serde::{Deserialize, Serialize};
+use std::collections::VecDeque;
 
 /// The chart for the price of the native coin.
 #[derive(Deserialize, Serialize, Debug)]

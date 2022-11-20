@@ -1,2 +1,11 @@
-pub mod rest;
-pub mod wss;
+pub mod blocks;
+pub mod delegations;
+pub mod delegators;
+pub mod others;
+pub mod params;
+pub mod proposals;
+pub mod requests;
+pub mod tokenomics;
+pub mod transactions;
+pub mod validators;
+pub mod utils;

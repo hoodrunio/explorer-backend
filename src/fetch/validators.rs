@@ -1,10 +1,10 @@
 use chrono::DateTime;
 use serde::{Deserialize, Serialize};
 
-use super::others::{DenomAmount, Pagination, PaginationConfig, PublicKey};
+use super::others::{DenomAmount, Pagination, PaginationConfig};
 use crate::{
     chain::Chain,
-    routes::rest::{calc_pages, OutRestResponse},
+    routes::{calc_pages, OutRestResponse},
     utils::get_validator_logo,
 };
 
@@ -105,8 +105,8 @@ impl Chain {
     /// Returns the redelegations to given validator address.
     pub async fn get_validator_redelegations(
         &self,
-        validator_addr: &str,
-        config: PaginationConfig,
+        _validator_addr: &str,
+        _config: PaginationConfig,
     ) -> Result<OutRestResponse<Vec<InternalUnbonding>>, String> {
         todo!() // TODO!
     }
@@ -227,7 +227,6 @@ impl Chain {
     pub async fn get_validators_unspecified(&self, pagination_config: PaginationConfig) -> Result<ValidatorListResp, String> {
         let mut query = vec![];
 
-        query.push(("status", "BOND_STATUS_UNSPECIFIED".to_string()));
         query.push(("pagination.reverse", format!("{}", pagination_config.is_reverse())));
         query.push(("pagination.limit", format!("{}", pagination_config.get_limit())));
         query.push(("pagination.count_total", "true".to_string()));
@@ -245,10 +244,35 @@ impl Chain {
 }
 
 #[derive(Deserialize, Serialize, Debug)]
+pub struct ValidatorSetResp {
+    pub result: ValidatorSetRespResult,
+}
+
+#[derive(Deserialize, Serialize, Debug)]
+pub struct ValidatorSetRespResult {
+    /// Array of validators.
+    pub validators: Vec<ValidatorSetValidator>,
+}
+
+#[derive(Deserialize, Serialize, Debug)]
+pub struct ValidatorSetValidator {
+    /// Validator address. Eg: `"cosmosvalcons14sk4vptumprktehmuvvf0yynarjy4gv08t64t4""`
+    pub address: String,
+    /// Public key.
+    pub pub_key: ValidatorSetPubKey,
+}
+
+#[derive(Deserialize, Serialize, Debug)]
+pub struct ValidatorSetPubKey {
+    /// Validator pubkey. Eg: `"LtiHVLCcE+oFII0vpIl9mfkGDmk9BpPg1eUkvKnO4xw=""`
+    pub value: String,
+}
+
+#[derive(Deserialize, Serialize, Debug)]
 pub struct InternalUnbonding {
-    address: String,
-    balance: f64,
-    completion_time: i64,
+    pub address: String,
+    pub balance: f64,
+    pub completion_time: i64,
 }
 
 #[derive(Deserialize, Serialize, Debug)]
@@ -360,11 +384,17 @@ pub struct ValidatorListResp {
 }
 
 #[derive(Deserialize, Serialize, Debug)]
+pub struct ConsensusPubkey {
+    // Consensus public key. Eg: `"zy/GxGwk1Pm3HiG67iani1u+MUieM98ZvSIrXC8mISE="`
+    pub key: String,
+}
+
+#[derive(Deserialize, Serialize, Debug)]
 pub struct ValidatorListValidator {
     /// Operator address. Eg: `"evmosvaloper1qq95x6dhrdnrfunlth5uh24tkrfphzl9crd3xr"`
     pub operator_address: String,
     /// Consensus public key.
-    pub consensus_pubkey: PublicKey,
+    pub consensus_pubkey: ConsensusPubkey,
     /// Jailed state. Eg: `false`
     pub jailed: bool,
     /// Status. Eg: `"BOND_STATUS_BONDED"`

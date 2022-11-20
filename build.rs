@@ -42,7 +42,7 @@ async fn main() {
         .map(|part| {
             let mut chain_map = HashMap::new();
             for line in part.lines() {
-                if !line.starts_with("#") {
+                if !line.starts_with('#') {
                     let (key, value) = line.split_once(": ").unwrap();
                     chain_map.insert(key.trim(), value.trim());
                 }
@@ -62,7 +62,7 @@ async fn main() {
 async fn create_chain<'a>(chain_map: &HashMap<&'a str, &'a str>, client: Client) -> Chain<'a> {
     let name = chain_map.get("name").unwrap();
     let logo = chain_map.get("logo").unwrap();
-    let gecko = chain_map.get("gecko").and_then(|a| Some(*a));
+    let gecko = chain_map.get("gecko").map(|a| *a);
     let prefix = chain_map.get("prefix").unwrap_or(name);
     let rpc_url = chain_map.get("rpc").unwrap();
     let rest_url = chain_map.get("rest").unwrap();
@@ -101,7 +101,7 @@ async fn get_sdk_ver(rest_url: &str, client: Client) -> u8 {
 
     value["application_version"]["cosmos_sdk_version"].as_str().unwrap()[3..5]
         .parse()
-        .or_else(|_| Err(format!("manually set the version for '{rest_url}'")))
+        .map_err(|_| format!("manually set the version for '{rest_url}'"))
         .unwrap()
 }
 
@@ -125,7 +125,7 @@ fn update_chains_yml(chains: &[Chain]) {
         if chain.gecko.is_some() {
             content += &format!("gecko: {}\n", chain.gecko.unwrap());
         } else {
-            content += &format!("# gecko: no token\n");
+            content += "# gecko: no token\n";
         };
         content += &format!("denom: {}\n", chain.main_denom);
         if chain.prefix != chain.name {
@@ -158,7 +158,6 @@ fn update_state_rs(chains: &[Chain]) {
     let mut new_fn = String::new();
     let mut get_fn = String::new();
     let mut update_data_fn = String::new();
-    let mut subscribe_data_fn = String::new();
     let mut update_prices_fn = String::new();
     let mut get_prices_props = String::new();
 
@@ -184,8 +183,8 @@ fn update_state_rs(chains: &[Chain]) {
             name = chain.name,
             gecko = chain
                 .gecko
-                .and_then(|gecko| Some(format!("Some(\"{gecko}\")")))
-                .unwrap_or("None".to_string()),
+                .map(|gecko| format!("Some(\"{gecko}\")"))
+                .unwrap_or_else(|| "None".to_string()),
             fix = chain.prefix,
             main_denom = chain.main_denom,
             rpc = chain.rpc_url,
@@ -198,7 +197,6 @@ fn update_state_rs(chains: &[Chain]) {
         get_fn += &format!("\n            \"{chain}\" => Ok(self.{chain}.clone()),", chain = chain.name);
 
         update_data_fn += &format!("\n            self.{chain}.update_data(),", chain = chain.name);
-        subscribe_data_fn += &format!("\n        self.{chain}.subscribe_data();", chain = chain.name);
 
         match chain.gecko {
             Some(gecko) => {
@@ -214,7 +212,6 @@ fn update_state_rs(chains: &[Chain]) {
 use crate::chain::Chain;
 use crate::data::ChainData;
 use crate::utils::get_prices;
-use std::sync::Arc;
 use tokio::join; 
 use crate::init_chain;
 
@@ -244,10 +241,6 @@ impl State {{
     pub async fn update_data(&self) {{
         join!({update_data_fn}
         );
-    }}
-
-    /// Updates all the chains' data.
-    pub fn subscribe_data(&self) {{{subscribe_data_fn}
     }}
 
     /// Updates all the prices' of chains.

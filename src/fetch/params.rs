@@ -1,23 +1,80 @@
 use serde::{Deserialize, Serialize};
+use tokio::join;
 
 use super::others::DenomAmount;
-use crate::{chain::Chain, routes::rest::OutRestResponse};
+use crate::{
+    chain::Chain,
+    data::params::{ChainParams, ChainParamsDistribution, ChainParamsGov, ChainParamsSlashing, ChainParamsStaking},
+    routes::OutRestResponse,
+};
 
 impl Chain {
+    /// Returns the all parameters of the chain.
+    pub async fn get_params_all(&self) -> Result<OutRestResponse<ChainParams>, String> {
+        let (tally, voting, deposit, distribution, staking, slashing) = join!(
+            self.get_tally_params(),
+            self.get_voting_params(),
+            self.get_deposit_params(),
+            self.get_distribution_params(),
+            self.get_staking_params(),
+            self.get_slashing_params()
+        );
+
+        let tally = tally?.value;
+        let voting = voting?.value;
+        let deposit = deposit?.value;
+        let distribution = distribution?.value;
+        let staking = staking?.value;
+        let slashing = slashing?.value;
+
+        let chain_params = ChainParams {
+            distribution: ChainParamsDistribution {
+                community_tax: distribution.community_tax,
+                base_proposer_reward: distribution.base_proposer_reward,
+                bonus_proposer_reward: distribution.bonus_proposer_reward,
+                withdraw_addr_enabled: distribution.withdraw_addr_enabled,
+            },
+            gov: ChainParamsGov {
+                max_deposit_period: deposit.max_deposit_period,
+                min_deposit: deposit.min_deposit,
+                quorum: tally.quorum,
+                threshold: tally.threshold,
+                voting_period: voting.voting_period,
+            },
+            slashing: ChainParamsSlashing {
+                downtime_jail_duration: slashing.downtime_jail_duration,
+
+                min_signed_per_window: slashing.min_signed_per_window,
+
+                signed_blocks_window: slashing.signed_blocks_window,
+                slash_fraction_double_sign: slashing.slash_fraction_double_sign,
+                slash_fraction_downtime: slashing.slash_fraction_downtime,
+            },
+            staking: ChainParamsStaking {
+                bond_denom: staking.bond_denom,
+                historical_entries: staking.historical_entries,
+                max_entries: staking.max_entries,
+                max_validators: staking.max_validators,
+                unbonding_time: staking.unbonding_time,
+            },
+        };
+
+        OutRestResponse::new(chain_params, 0)
+    }
+
     /// Returns the slashing parameters of the chain.
-    pub async fn get_slashing_params(&self) -> Option<OutRestResponse<InternalSlashingParams>> {
+    async fn get_slashing_params(&self) -> Result<OutRestResponse<InternalSlashingParams>, String> {
         let resp = self
             .rest_api_request::<ParamsResp<SlashingParams>>("/cosmos/slashing/v1beta1/params", &[])
-            .await
-            .ok()?;
+            .await?;
 
-        let slashing_params = resp.params.try_into().ok()?;
+        let slashing_params = resp.params.try_into()?;
 
-        OutRestResponse::new(slashing_params, 0).ok()
+        OutRestResponse::new(slashing_params, 0)
     }
 
     /// Returns the staking parameters.
-    pub async fn get_staking_params(&self) -> Result<OutRestResponse<InternalStakingParams>, String> {
+    async fn get_staking_params(&self) -> Result<OutRestResponse<InternalStakingParams>, String> {
         let resp = self
             .rest_api_request::<ParamsResp<StakingParams>>("/cosmos/staking/v1beta1/params", &[])
             .await?;
@@ -28,7 +85,7 @@ impl Chain {
     }
 
     /// Returns the voting parameters.
-    pub async fn get_voting_params(&self) -> Result<OutRestResponse<InternalVotingParams>, String> {
+    async fn get_voting_params(&self) -> Result<OutRestResponse<InternalVotingParams>, String> {
         let resp = self
             .rest_api_request::<VotingParamsResp>("/cosmos/gov/v1beta1/params/voting", &[])
             .await?;
@@ -38,8 +95,19 @@ impl Chain {
         OutRestResponse::new(voting_params, 0)
     }
 
+    /// Returns the distribution parameters.
+    async fn get_distribution_params(&self) -> Result<OutRestResponse<InternalDistributionParams>, String> {
+        let resp = self
+            .rest_api_request::<ParamsResp<DistributionParams>>("/cosmos/distribution/v1beta1/params", &[])
+            .await?;
+
+        let distribution_params = resp.params.try_into()?;
+
+        OutRestResponse::new(distribution_params, 0)
+    }
+
     /// Returns the deposit parameters.
-    pub async fn get_deposit_params(&self) -> Result<OutRestResponse<InternalDepositParams>, String> {
+    async fn get_deposit_params(&self) -> Result<OutRestResponse<InternalDepositParams>, String> {
         let resp = self
             .rest_api_request::<DepositParamsResp>("/cosmos/gov/v1beta1/params/deposit", &[])
             .await?;
@@ -71,7 +139,7 @@ impl Chain {
     }
 
     /// Returns the tallying parameters.
-    pub async fn get_tally_params(&self) -> Result<OutRestResponse<InternalTallyParams>, String> {
+    async fn get_tally_params(&self) -> Result<OutRestResponse<InternalTallyParams>, String> {
         let resp = self
             .rest_api_request::<TallyingParamsResp>("/cosmos/gov/v1beta1/params/tallying", &[])
             .await?;
@@ -184,6 +252,51 @@ impl TryFrom<VotingParams> for InternalVotingParams {
             return Err(format!("Voting period couldn't be parsed!"));
         };
         Ok(Self { voting_period })
+    }
+}
+
+#[derive(Deserialize, Serialize, Debug)]
+pub struct DistributionParams {
+    /// Community tax. Eg: `"0.000000000000000000"`
+    community_tax: String,
+    /// Base proposer reward. Eg: `"0.000000000000000000"`
+    base_proposer_reward: String,
+    /// Bonus proposer reward. Eg: `"0.000000000000000000"`
+    bonus_proposer_reward: String,
+    /// Withdraw addrress enabled. Eg: `true`
+    withdraw_addr_enabled: bool,
+}
+
+#[derive(Deserialize, Serialize, Debug)]
+pub struct InternalDistributionParams {
+    /// Community tax. Eg: `0.000000000000000000`
+    community_tax: f64,
+    /// Base proposer reward. Eg: `0.000000000000000000`
+    base_proposer_reward: f64,
+    /// Bonus proposer reward. Eg: `0.000000000000000000`
+    bonus_proposer_reward: f64,
+    /// Withdraw addrress enabled. Eg: `true`
+    withdraw_addr_enabled: bool,
+}
+
+impl TryFrom<DistributionParams> for InternalDistributionParams {
+    type Error = String;
+    fn try_from(params: DistributionParams) -> Result<Self, Self::Error> {
+        Ok(Self {
+            community_tax: params
+                .community_tax
+                .parse()
+                .or_else(|_| Err(format!("Cannot parse community tax, '{}'", params.community_tax)))?,
+            base_proposer_reward: params
+                .base_proposer_reward
+                .parse()
+                .or_else(|_| Err(format!("Cannot parse community tax, '{}'", params.base_proposer_reward)))?,
+            bonus_proposer_reward: params
+                .bonus_proposer_reward
+                .parse()
+                .or_else(|_| Err(format!("Cannot parse community tax, '{}'", params.bonus_proposer_reward)))?,
+            withdraw_addr_enabled: params.withdraw_addr_enabled,
+        })
     }
 }
 
