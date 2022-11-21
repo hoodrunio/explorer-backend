@@ -33,7 +33,7 @@ impl Chain {
             };
 
             // Update unbonded token supply data.
-            if let Ok(mut unbonded) = chain.inner.data.bonded.lock() {
+            if let Ok(mut unbonded) = chain.inner.data.unbonded.lock() {
                 *unbonded = staking_pool.value.unbonded;
             };
         };
