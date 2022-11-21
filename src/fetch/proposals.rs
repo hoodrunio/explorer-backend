@@ -114,15 +114,10 @@ impl Chain {
 
         let resp = self.rest_api_request::<ProposalDepositsResp>(&path, &query).await?;
 
-        println!("{:?}", resp);
-
         let mut proposal_deposits = vec![];
 
         for proposal_deposit in resp.deposits {
-            match proposal_deposit.try_into() {
-                Ok(proposal_deposit) => proposal_deposits.push(proposal_deposit),
-                Err(error) => eprintln!("{}", error),
-            }
+            proposal_deposits.push(InternalProposalDeposit::new(proposal_deposit, self)?);
         }
 
         let pages = calc_pages(resp.pagination, config)?;
@@ -140,7 +135,9 @@ impl Chain {
 
         let resp = self.rest_api_request::<ProposalDepositByDepositorResp>(&path, &[]).await?;
 
-        OutRestResponse::new(resp.deposit.try_into()?, 0)
+        let deposit = InternalProposalDeposit::new(resp.deposit, self)?;
+
+        OutRestResponse::new(deposit, 0)
     }
 
     /// Returns the tally of given proposal.
@@ -302,34 +299,28 @@ pub struct ProposalDepositsResp {
 
 #[derive(Deserialize, Serialize, Debug)]
 pub struct ProposalDeposit {
-    /// Proposal ID. Eg: `"35"`
-    pub proposal_id: String,
     /// Proposal depositor. Eg: `""`
     pub depositor: String,
     /// Amounts and denom deposited.
-    pub amount: DenomAmount,
+    pub amount: Vec<DenomAmount>,
 }
 
 #[derive(Deserialize, Serialize, Debug)]
 pub struct InternalProposalDeposit {
-    /// Proposal ID. Eg: `35`
-    pub proposal_id: u32,
     /// Proposal depositor. Eg: `""`
     pub depositor: String,
     /// Amount deposited.
     pub amount: f64,
 }
 
-impl TryFrom<ProposalDeposit> for InternalProposalDeposit {
-    type Error = String;
-    fn try_from(value: ProposalDeposit) -> Result<Self, Self::Error> {
+impl InternalProposalDeposit {
+    fn new(value: ProposalDeposit, chain: &Chain) -> Result<Self, String> {
         Ok(Self {
-            proposal_id: value
-                .proposal_id
-                .parse()
-                .or_else(|_| Err(format!("Cannot parse proposal ID, '{}'.", value.proposal_id)))?,
             depositor: value.depositor,
-            amount: 0.0,
+            amount: match value.amount.get(0) {
+                Some(da) => chain.calc_amount_u128_to_f64(da.amount.parse::<u128>().map_err(|_| format!("Cannot parse proposal deposit amount."))?),
+                None => return Err(format!("")),
+            },
         })
     }
 }
