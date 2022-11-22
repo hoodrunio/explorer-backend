@@ -6,81 +6,102 @@
 </p>
 
 
-Explorer backend is an app:
+**Explorer backend is an app:**
 - Deals with blockchain nodes.
 - Supports our database implementation.
 - Provides a nice REST & websocket API.
 
-Our backend is the fastest explorer backend possible, and it makes our website the best Cosmos explorer.
 
-**It isn't completed yet.**
-
-
-## Development
-Install Rust language toolkit.
-```bash
-curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
-```
-
-Run the backend server
-```bash
-cargo run
-```
-
-
-## Undone Things
+# To-do
 - **APR** calculation.
-- Parsing some data for transactions and blocks at
-[`src/fetch/wss/new_blocks.rs`](https://github.com/testnetrunn/explorer-backend/blob/main/src/fetch/wss/new_blocks.rs), and
-[`src/fetch/wss/tx.rs`](https://github.com/testnetrunn/explorer-backend/blob/main/src/fetch/wss/tx.rs). ✅ HALFLY DONE
-- **Validators**. To be added via creating a new file inside 
-[`src/fetch/wss/`](https://github.com/testnetrunn/explorer-backend/blob/main/src/fetch/wss/).
-- **Proposals**. To be added via creating a new file inside 
-[`src/fetch/wss/`](https://github.com/testnetrunn/explorer-backend/blob/main/src/fetch/wss).
-- **Params**. ✅ DONE
-- Create a nice interface to interact with Web Socket endpoint.
+- **Indexing** special chain specific data.
+- A great **database** implementation to store important stuff.
+- A nice **WebSocket** interface to provide multiple events to subscribe dynamic data.
+
+
+
+# Usage
+> If you don't have Rust installed, follow the instructions at [rust-lang.org](https://www.rust-lang.org/tools/install).
+
+- Clone the repository by typing this in terminal: `git clone https://github.com/testnetrunn/explorer-backend.git`
+- Set working directory to the project by typing this in terminal: `cd explorer-backend`
+- Run the project by typing this in terminal: `cargo run --release`
+- Go to [`src/routes/`](https://github.com/testnetrunn/explorer-backend/tree/main/src/routes) folder, and pick any of the files inside.
+- Each function represents a different path.
+- Test by visiting paths with a browser.
+
+# Development
 
 
 
 
-## Usage
-Test the REST API
-- Go to `src/routes/rest` folder.
-- Check the available paths.
-- Test them by visiting with a browser.
+## Support a new chain.
 
-Test Web Sockets
-- Create a new Web Socket connection to `ws://localhost:8000/{chain}/socket`, where `{chain}` is your preferred chain.
-- There are two modes currently. One is `blocks`, and the other is `txs`.
+Open [`Chains.yaml`](https://github.com/testnetrunn/explorer-backend/blob/main/Chains.yml) file, and provide the required info below in the end of the file:
+- Name
+- Logo
+- RPC URL
+- REST API URL
+- Web Socket URL
+> All other info is optional, and some of them are generated automatically.
 
-### Example
-Open your browsers console by pressing `fn + f12`.
-And paste the code below.
-```js
-// Create a Web Socket connection.
-const ws = new WebSocket('ws://localhost:8000/axelar/socket');
+For example: 
+```yaml
+•••
 
-// Add an `open` event listener.
-ws.addEventListener('open', () => {
-  console.log('Web Socket connection is established!');
-});
-
-// Add an `message` event listener.
-ws.addEventListener('message', (e) => {
-  console.log('DATA FROM SERVER:');
-  console.log(e.data)
-});
-
-
-// Add an `close` event listener.
-ws.addEventListener('close', (e) => {
-  console.log('Connection is closed!')
-});
-
-// Available options are "blocks", "tx", "params".
-setTimeout(() => ws.send("blocks"), 1000)
-// Then it starts listening "blocks"
+name: axelar
+logo: https://assets.coingecko.com/coins/images/24489/large/tsYr25vB_400x400.jpg
+rpc: https://rpc.cosmos.directory/axelar
+rest: https://axelar-api.polkachu.com
+wss: wss://axelar-rpc.chainode.tech/websocket
 ```
-> The data from the backend arrives as JSON encoded `string`.
 
-> So you have to parse it before accessing its properties.
+
+
+
+## Support a new endpoint.
+
+Go to [`src/routes`](https://github.com/testnetrunn/explorer-backend/tree/main/src/routes), and find or create a new file for the category associated with the new endpoint to be supported.
+
+> Don't forget to import important stuff.
+
+Create a new function representing the endpoint like below:
+```rs
+#[get("{chain}/example")]
+pub async fn example(path: Path<String>, chains: Data<State>) -> impl Responder {
+    let chain = path.into_inner();
+
+    Json(match chains.get(&chain) {
+        Ok(chain) => chain.get_example().await.into(),
+        Err(err) => Response::Error(err),
+    })
+}
+```
+ `{chain}` means a path variable, and its type is defined at `Path<String>`.
+
+ If there is also another variable, we define its type as `Path<(String, OtherVarType)>`.
+ 
+ > You have to create a fetch method for `Chain` struct before creating the endpoint.
+ 
+ ## Create a new method.
+ 
+Go to [`src/fetch`](https://github.com/testnetrunn/explorer-backend/tree/main/src/fetch), and find or create a new file for the category associated with the new method to be created.
+ Define a new method inside `impl` block like below:
+ ```rs
+ impl Chain {
+     •••
+     
+     pub async fn get_signing_info(&self, cons_addr: &str) -> Result<OutRestResponse<InternalSlashingSigningInfoItem>, String> {
+        let path = format!("/cosmos/slashing/v1beta1/signing_infos/{cons_addr}");
+
+        let resp = self.rest_api_request::<SigningInfoResp>(&path, &[]).await?;
+
+        let signing_info = resp.val_signing_info.try_into()?;
+
+        OutRestResponse::new(signing_info, 0)
+    }
+ 
+ }
+ ```
+ 
+ > If the method is not chain agnostic, you use a logic like `if self.inner.name == "evmos"` there.
