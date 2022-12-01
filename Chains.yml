@@ -17,6 +17,7 @@ denom: aevmos
 logo: https://assets.coingecko.com/coins/images/24023/large/evmos.png
 decimals: 18
 # version: 0.45
+jsonrpc: https://eth.bd.evmos.org:8545/
 rpc: https://rpc.cosmos.directory/evmos
 rest: https://evmos-api.polkachu.com
 wss: wss://rpc-evmos.ecostake.com/websocket
