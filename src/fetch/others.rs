@@ -82,7 +82,7 @@ pub struct Pagination {
     pub total: String,
 }
 
-#[derive(Deserialize, Serialize, Debug)]
+#[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct DenomAmount {
     /// The name of the token. Eg: `"uatom"`
     pub denom: String,
