@@ -31,6 +31,8 @@ pub struct ChainConfig {
     pub main_denom: &'static str,
     /// The RPC URL of the chain.
     pub rpc_url: &'static str,
+    /// The JSON RPC URL of the chain.
+    pub jsonrpc_url: Option<&'static str>,
     /// The REST API URL of the chain.
     pub rest_url: &'static str,
     /// The Web Socket URL of the chain.
