@@ -20,6 +20,7 @@ pub struct Chain<'a> {
     pub decimals_pow: u64,
     pub sdk_version: u8,
     pub manual_versioning: bool,
+    pub json_rpc: Option<&'a str>,
 }
 
 #[tokio::main]
@@ -80,6 +81,8 @@ async fn create_chain<'a>(chain_map: &HashMap<&'a str, &'a str>, client: Client)
         None => get_main_denom(rest_url, client.clone()).await,
     };
 
+    let json_rpc = chain_map.get("jsonrpc").map(|a| *a);
+
     Chain {
         name,
         logo,
@@ -93,6 +96,7 @@ async fn create_chain<'a>(chain_map: &HashMap<&'a str, &'a str>, client: Client)
         decimals_pow,
         sdk_version,
         manual_versioning,
+        json_rpc,
     }
 }
 
@@ -144,6 +148,9 @@ fn update_chains_yml(chains: &[Chain]) {
         } else {
             content += &format!("# version: 0.{}\n", chain.sdk_version);
         };
+        if let Some(jsonrpc) = chain.json_rpc {
+            content += &format!("jsonrpc: {}\n", jsonrpc);
+        };
         content += &format!("rpc: {}\n", chain.rpc_url);
         content += &format!("rest: {}\n", chain.rest_url);
         content += &format!("wss: {}\n", chain.wss_url);
@@ -174,6 +181,7 @@ fn update_state_rs(chains: &[Chain]) {
                 cons_prefix: "{fix}valcons",
                 main_denom: "{main_denom}",
                 rpc_url: "{rpc}",
+                jsonrpc_url: {jsonrpc},
                 rest_url: "{rest}",
                 wss_url: "{wss}",
                 sdk_version: {ver},
@@ -188,6 +196,10 @@ fn update_state_rs(chains: &[Chain]) {
             fix = chain.prefix,
             main_denom = chain.main_denom,
             rpc = chain.rpc_url,
+            jsonrpc = chain
+                .json_rpc
+                .map(|json_rpc| format!("Some(\"{json_rpc}\")"))
+                .unwrap_or_else(|| "None".to_string()),
             rest = chain.rest_url,
             wss = chain.wss_url,
             ver = chain.sdk_version,
