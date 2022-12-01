@@ -28,7 +28,7 @@ macro_rules! init_chain {
             sdk_version: $sdk_version,
             decimals_pow: $decimals_pow,
             client: $client,
-            data: ChainData::new(),
+            data: ChainData::new($name),
         })
     };
 }
