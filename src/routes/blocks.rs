@@ -5,8 +5,6 @@ use actix_web::{
     Responder,
 };
 
-use crate::chain::Chain;
-
 // ====== Block Methods ======
 
 #[get("{chain}/block-by-height/{height}")]
@@ -49,7 +47,7 @@ pub async fn headers_by_heights(path: Path<(String, String)>, chains: Data<State
 
 #[get("{chain}/latest-block-headers")]
 pub async fn latest_headers(path: Path<String>, chains: Data<State>) -> impl Responder {
-    let (chain) = path.into_inner();
+    let chain = path.into_inner();
 
     Json(match chains.get(&chain) {
         Ok(chain) => match chain.get_block_headers_last_20().await {
