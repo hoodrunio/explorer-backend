@@ -1,4 +1,4 @@
-use super::{params::ChainParams, price_chart::PriceChart};
+use super::{db::Db, params::ChainParams, price_chart::PriceChart};
 use std::sync::Mutex;
 
 /// The struct representing chain data.
@@ -13,11 +13,12 @@ pub struct ChainData {
     pub bonded: Mutex<u64>,
     pub unbonded: Mutex<u64>,
     pub params: Mutex<ChainParams>,
+    pub db: Db,
 }
 
 impl ChainData {
     /// Creates a new `ChainData`.
-    pub fn new() -> ChainData {
+    pub fn new(chain: &str) -> ChainData {
         ChainData {
             price: Mutex::new(0.0),
             inflation: Mutex::new(0.0),
@@ -29,6 +30,7 @@ impl ChainData {
             bonded: Mutex::new(0),
             unbonded: Mutex::new(0),
             params: Mutex::new(ChainParams::new()),
+            db: Db::new(chain),
         }
     }
 }
