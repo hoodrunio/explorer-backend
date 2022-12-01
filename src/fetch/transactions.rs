@@ -12,13 +12,53 @@ use crate::{
 impl Chain {
     /// Returns transaction by given hash.
     pub async fn get_tx_by_hash(&self, hash: &str) -> Result<OutRestResponse<InternalTransaction>, String> {
-        let path = format!("/cosmos/tx/v1beta1/txs/{hash}");
+        match self.inner.name {
+            "evmos" => {
+                if hash.starts_with("0x") {
+                    let resp = self.get_evm_tx_by_hash(hash).await?;
+                    let resp = self
+                        .get_txs_by_height_detailed(Some(resp.block_number), PaginationConfig::new().limit(100))
+                        .await?;
+                    println!("fdsfs");
+                    let tx = resp
+                        .value
+                        .into_iter()
+                        .find(|a| {
+                            a.content
+                                .iter()
+                                .find(|a| {
+                                    if let InternalTransactionContent::Known(InternalTransactionContentKnowns::EthereumTx { hash: tx_hash }) = a {
+                                        tx_hash == hash
+                                    } else {
+                                        false
+                                    }
+                                })
+                                .is_some()
+                        })
+                        .ok_or_else(|| format!("This transaction does not exist."))?;
 
-        let resp = self.rest_api_request::<TxResp>(&path, &[]).await?;
+                    OutRestResponse::new(tx, 0)
+                } else {
+                    let path = format!("/cosmos/tx/v1beta1/txs/{hash}");
 
-        let tx = InternalTransaction::new(resp.tx, resp.tx_response, self).await?;
+                    let resp = self.rest_api_request::<TxResp>(&path, &[]).await?;
 
-        OutRestResponse::new(tx, 0)
+                    let tx = InternalTransaction::new(resp.tx, resp.tx_response, self).await?;
+
+                    OutRestResponse::new(tx, 0)
+                }
+            }
+
+            _ => {
+                let path = format!("/cosmos/tx/v1beta1/txs/{hash}");
+
+                let resp = self.rest_api_request::<TxResp>(&path, &[]).await?;
+
+                let tx = InternalTransaction::new(resp.tx, resp.tx_response, self).await?;
+
+                OutRestResponse::new(tx, 0)
+            }
+        }
     }
 
     /// Returns transactions with given sender.
@@ -91,6 +131,47 @@ impl Chain {
         OutRestResponse::new(txs, pages)
     }
 
+    /// Returns detailed transactions at given height.
+    pub async fn get_txs_by_height_detailed(
+        &self,
+        block_height: Option<u64>,
+        config: PaginationConfig,
+    ) -> Result<OutRestResponse<Vec<InternalTransaction>>, String> {
+        let mut query = vec![];
+
+        if let Some(block_height) = block_height {
+            query.push(("events", format!("tx.height={}", block_height)));
+        };
+        query.push(("pagination.reverse", format!("{}", config.is_reverse())));
+        query.push(("pagination.limit", format!("{}", config.get_limit())));
+        query.push(("pagination.count_total", "true".to_string()));
+        query.push(("pagination.offset", format!("{}", config.get_offset())));
+        query.push(("order_by", "ORDER_BY_DESC".to_string()));
+
+        let resp = self.rest_api_request::<TxsResp>("/cosmos/tx/v1beta1/txs", &query).await?;
+
+        let mut txs = vec![];
+
+        for i in 0..resp.txs.len() {
+            let (tx, tx_response) = (
+                resp.txs
+                    .get(i)
+                    .map(|a| a.clone())
+                    .ok_or_else(|| format!("The count of transactions and transaction responses aren't the same."))?,
+                resp.tx_responses
+                    .get(i)
+                    .map(|a| a.clone())
+                    .ok_or_else(|| format!("The count of transactions and transaction responses aren't the same."))?,
+            );
+
+            txs.push(InternalTransaction::new(tx, tx_response, self).await?)
+        }
+
+        let pages = calc_pages(resp.pagination, config)?;
+
+        OutRestResponse::new(txs, pages)
+    }
+
     /// Returns transactions at given height.
     pub async fn get_txs_by_height(
         &self,
@@ -129,6 +210,57 @@ impl Chain {
 
         OutRestResponse::new(txs, pages)
     }
+
+    /// Returns the EVM TX response by given hash. Only works for Evmos chain.
+    ///
+    /// The hash must start with `"0x..."`.
+    async fn get_evm_tx_by_hash(&self, hash: &str) -> Result<InternalEvmTxResp, String> {
+        self.jsonrpc_request::<EvmTxResp>(format!(
+            r#"{{"method":"eth_getTransactionByHash","params":["{hash}"],"id":1,"jsonrpc":"2.0"}}"#
+        ))
+        .await?
+        .try_into()
+    }
+}
+
+#[derive(Deserialize, Serialize, Debug)]
+pub struct InternalEvmTxResp {
+    /// Block number.
+    pub block_number: u64,
+}
+
+impl TryInto<InternalEvmTxResp> for EvmTxResp {
+    type Error = String;
+    fn try_into(self) -> Result<InternalEvmTxResp, Self::Error> {
+        use hex::FromHex;
+
+        Ok(InternalEvmTxResp {
+            block_number: {
+                let mut block_no: u64 = 0;
+                let hex_block_no = if self.block_number.len() > 2 { &self.block_number[2..] } else { "00" };
+                let mut bytes = <Vec<u8>>::from_hex(hex_block_no).map_err(|_| format!("Cannot parse HEX block number, {}.", self.block_number))?;
+
+                let mut i: u32 = 0;
+
+                while !bytes.is_empty() {
+                    if let Some(byte) = bytes.pop() {
+                        block_no += <u64>::from(byte) * 256_u64.pow(i);
+                    }
+
+                    i += 1;
+                }
+
+                block_no
+            },
+        })
+    }
+}
+
+#[derive(Deserialize, Serialize, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct EvmTxResp {
+    /// HEX encoded block number. Eg: `"0x5f08d0"`
+    pub block_number: String,
 }
 
 #[derive(Deserialize, Serialize, Debug)]
@@ -410,7 +542,7 @@ pub enum InternalTransactionContentKnowns {
 }
 
 impl TransactionItem {
-    fn new(tx: &TxTransaction, tx_response: &TxResponse, chain: &Chain) -> Result<Self, String> {
+    fn new(tx: &Tx, tx_response: &TxResponse, chain: &Chain) -> Result<Self, String> {
         Ok(Self {
             height: tx_response
                 .height
@@ -487,22 +619,12 @@ impl TransactionItem {
 
 #[derive(Deserialize, Serialize, Debug)]
 pub struct TxsResp {
-    pub txs: Vec<TxTransaction>,
+    pub txs: Vec<Tx>,
     pub tx_responses: Vec<TxResponse>,
     pub pagination: Pagination,
 }
 
-#[derive(Deserialize, Serialize, Debug)]
-pub struct TxTransaction {
-    /// Transaction body.
-    pub body: TxsTransactionBody,
-    /// Transaction auth information.
-    pub auth_info: TxsTransactionAuthInfo,
-    /// Array of Base 64 encoded transaction signatures.
-    pub signatures: Vec<String>,
-}
-
-#[derive(Deserialize, Serialize, Debug)]
+#[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct TxsTransactionBody {
     /// Transaction messages.
     pub messages: Vec<TxsTransactionMessage>,
@@ -514,13 +636,13 @@ pub struct TxsTransactionBody {
     // pub non_critical_extension_options: Vec<UNKNOWN>,
 }
 
-#[derive(Deserialize, Serialize, Debug)]
+#[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct TxsTransactionAuthInfo {
     /// Transaction fee.
     pub fee: TxsTransactionAuthInfoFee,
 }
 
-#[derive(Deserialize, Serialize, Debug)]
+#[derive(Deserialize, Serialize, Debug, Clone)]
 #[serde(untagged)]
 pub enum TxsTransactionMessage {
     Known(TxsTransactionMessageKnowns),
@@ -530,7 +652,7 @@ pub enum TxsTransactionMessage {
     },
 }
 
-#[derive(Deserialize, Serialize, Debug)]
+#[derive(Deserialize, Serialize, Debug, Clone)]
 #[serde(tag = "@type")]
 pub enum TxsTransactionMessageKnowns {
     #[serde(rename = "/cosmos.bank.v1beta1.MsgSend")]
@@ -619,7 +741,7 @@ pub struct TimeoutHeight {
     pub revision_height: String,
 }
 
-#[derive(Deserialize, Serialize, Debug)]
+#[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct TxsTransactionAuthInfoFee {
     /// Amount.
     pub amount: Vec<DenomAmount>,
@@ -649,7 +771,7 @@ pub struct TxsTransactionModeInfoSingle {
     pub mode: String,
 }
 
-#[derive(Deserialize, Serialize, Debug)]
+#[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct TxResponse {
     /// Block height. Eg: `"12713829"`
     pub height: String,
@@ -675,7 +797,7 @@ pub struct TxResponse {
     pub timestamp: String,
 }
 
-#[derive(Deserialize, Serialize, Debug)]
+#[derive(Deserialize, Serialize, Debug, Clone)]
 #[serde(tag = "@type")]
 pub enum TxsResponseTx {
     #[serde(rename = "/cosmos.tx.v1beta1.Tx")]
@@ -688,7 +810,7 @@ pub enum TxsResponseTx {
         signatures: Vec<String>,
     },
 }
-#[derive(Deserialize, Serialize, Debug)]
+#[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct Tx {
     // Tx body.
     pub body: TxsTransactionBody,
