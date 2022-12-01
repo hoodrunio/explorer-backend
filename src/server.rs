@@ -1,6 +1,7 @@
 use std::time::Duration;
 
 use actix_web::{web, App, HttpServer};
+use actix_cors::Cors;
 use web::Data;
 
 use crate::routes;
@@ -30,7 +31,15 @@ pub async fn start_web_server() -> std::io::Result<()> {
     });
 
     HttpServer::new(move || {
+        let cors = Cors::default()
+            .allow_any_origin()
+            .allowed_methods(vec!["GET", "POST"])
+            //.allowed_headers(vec![header::AUTHORIZATION, header::ACCEPT])
+            //.allowed_header(header::CONTENT_TYPE)
+            .max_age(3600);
+
         App::new()
+            .wrap(cors)
             // State data.
             .app_data(state.clone())
             // Services.
