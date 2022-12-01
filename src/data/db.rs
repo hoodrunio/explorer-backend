@@ -2,9 +2,12 @@ use std::collections::BTreeMap;
 use std::fs;
 use std::sync::Mutex;
 
+use cosmrs::AccountId;
+use futures::future::join_all;
 use serde::{Deserialize, Serialize};
+use tokio::join;
 
-use crate::chain::Chain;
+use crate::{chain::Chain, utils::get_validator_logo};
 
 /// Validator name and the URL of its logo.
 #[derive(Clone, Serialize, Deserialize)]
@@ -79,5 +82,60 @@ impl Chain {
             name: validator_metadata_raw.name,
             logo_url: validator_metadata_raw.logo_url,
         })
+    }
+
+    /// Returns validator metadatas by given block height.
+    pub async fn get_validator_metadatas_by_height(&self, height: u64, proposer_hex_addr: &str) -> Result<Vec<ValidatorMetadata>, String> {
+
+        todo!();
+        
+        let resp = self.get_validator_set(height).await?;
+        let jobs: Vec<_> = resp
+            .result
+            .validators
+            .into_iter()
+            .map(|validator| async {
+                match self.get_validator_metadata_by_valoper_addr(validator.address.clone()) {
+                    Some(metadata) => Ok::<_, String>(metadata),
+                    None => {
+                        let resp = self.get_validator(&validator.address).await?;
+                        let logo_url = get_validator_logo(self.inner.client.clone(), &resp.description.identity).await;
+
+                        let metadata_raw = ValidatorMetadataRaw {
+                            logo_url,
+                            name: resp.description.moniker,
+                        };
+
+                        // Save the validator to the database.
+                        match self.inner.data.db.valoper_to_metadata_map.lock() {
+                            Ok(mut db) => {
+                                db.insert(validator.address.clone(), metadata_raw.clone());
+                            }
+                            Err(_) => {
+                                eprintln!("Cannot save data to database.")
+                            }
+                        };
+
+                        let metadata = ValidatorMetadata {
+                            address: validator.address,
+                            logo_url: metadata_raw.logo_url,
+                            name: metadata_raw.name,
+                        };
+
+                        Ok(metadata)
+                    }
+                }
+            })
+            .collect();
+
+        let jobs_done = join_all(jobs).await;
+
+        let mut validator_metadatas: Vec<ValidatorMetadata> = vec![];
+
+        for job_done in jobs_done {
+            validator_metadatas.push(job_done?)
+        }
+
+        Ok(validator_metadatas)
     }
 }
