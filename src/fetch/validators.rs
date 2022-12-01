@@ -241,6 +241,12 @@ impl Chain {
 
         self.rest_api_request(&path, &[]).await
     }
+
+    /// Returns the validator set at given height.
+    pub async fn get_validator_set(&self, height: u64) -> Result<ValidatorSetResp, String> {
+        let path = format!("/validatorsets/{height}");
+        self.rest_api_request::<ValidatorSetResp>(&path, &[]).await
+    }
 }
 
 #[derive(Deserialize, Serialize, Debug)]
