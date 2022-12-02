@@ -29,6 +29,15 @@ pub async fn start_web_server() -> std::io::Result<()> {
         }
     });
 
+    // Spawn a thread to update in-memory validator database. Every 3 minutes.
+    let state_clone = state.clone();
+    tokio::spawn(async move {
+        loop {
+            state_clone.update_database().await;
+            tokio::time::sleep(Duration::from_secs(180)).await;
+        }
+    });
+
     HttpServer::new(move || {
         App::new()
             // State data.
