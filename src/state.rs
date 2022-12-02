@@ -1,8 +1,10 @@
 use crate::chain::Chain;
 use crate::data::ChainData;
-use crate::utils::get_prices;
-use tokio::join; 
 use crate::init_chain;
+use crate::utils::get_prices;
+use tokio::join;
+
+pub const PATH: &str = "/home/zan/.backend";
 
 /// The state of the server.
 pub struct State {
@@ -20,7 +22,7 @@ impl State {
         let client = reqwest::Client::new();
 
         State {
-            axelar: init_chain!{
+            axelar: init_chain! {
                 name: "axelar",
                 gecko: Some("axelar"),
                 base_prefix: "axelar",
@@ -35,7 +37,7 @@ impl State {
                 decimals_pow: 100,
                 client: client.clone(),
             },
-            evmos: init_chain!{
+            evmos: init_chain! {
                 name: "evmos",
                 gecko: Some("evmos"),
                 base_prefix: "evmos",
@@ -50,7 +52,7 @@ impl State {
                 decimals_pow: 100000000000000,
                 client: client.clone(),
             },
-            kyve: init_chain!{
+            kyve: init_chain! {
                 name: "kyve",
                 gecko: None,
                 base_prefix: "kyve",
@@ -65,7 +67,7 @@ impl State {
                 decimals_pow: 100,
                 client: client.clone(),
             },
-            osmosis: init_chain!{
+            osmosis: init_chain! {
                 name: "osmosis",
                 gecko: Some("osmosis"),
                 base_prefix: "osmo",
@@ -80,7 +82,7 @@ impl State {
                 decimals_pow: 100,
                 client: client.clone(),
             },
-            secret: init_chain!{
+            secret: init_chain! {
                 name: "secret",
                 gecko: Some("secret"),
                 base_prefix: "secret",
@@ -98,7 +100,7 @@ impl State {
             reqwest_client: client,
         }
     }
-    
+
     /// Returns the matched chain.
     pub fn get(&self, name: &str) -> Result<Chain, String> {
         match name {
@@ -131,6 +133,17 @@ impl State {
             self.evmos.update_price(prices.get("evmos")),
             self.osmosis.update_price(prices.get("osmosis")),
             self.secret.update_price(prices.get("secret")),
+        );
+    }
+
+    /// Updates all the validator databases of chain.
+    pub async fn update_database(&self) {
+        join!(
+            self.axelar.update_validator_database(),
+            self.evmos.update_validator_database(),
+            self.kyve.update_validator_database(),
+            self.osmosis.update_validator_database(),
+            self.secret.update_validator_database(),
         );
     }
 }
