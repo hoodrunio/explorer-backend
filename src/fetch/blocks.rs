@@ -3,11 +3,10 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     chain::Chain,
+    data::db::ValidatorMetadata,
     routes::OutRestResponse,
-    utils::{convert_consensus_pub_key_to_hex_address, get_validator_logo},
 };
 
-use super::others::PaginationConfig;
 
 impl Chain {
     /// Returns the block at given height. Returns the latest block, if no height is given.
@@ -135,60 +134,43 @@ impl Chain {
 #[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct BlockItem {
     pub proposer_name: String,
-    pub proposer_logo: String,
+    pub proposer_logo_url: String,
     pub height: u64,
     pub hash: String,
     pub tx_count: u64,
     pub timestamp: i64,
 }
 
-#[derive(Deserialize, Serialize, Debug)]
+#[derive(Serialize, Debug)]
 pub struct InternalBlock {
     height: u64,
     hash: String,
     proposer_name: String,
-    proposer_logo: String,
+    proposer_logo_url: String,
     proposer_address: String,
     time: i64,
     tx_count: u32,
-    // signatures: Vec<InternalBlockSignature>,
+    signatures: Vec<ValidatorMetadata>,
 }
 
 impl InternalBlock {
     async fn new(block_resp: BlockResp, chain: &Chain) -> Result<Self, String> {
-        let proposer_address = {
-            let resp = chain.get_validators_unspecified(PaginationConfig::new().limit(10000)).await?;
+        let mut proposer = None;
 
-            let addr = resp
-                .validators
-                .iter()
-                .find(|validator| {
-                    let hex_addr = convert_consensus_pub_key_to_hex_address(&validator.consensus_pubkey.key);
-                    println!("{:?}", hex_addr);
-                    hex_addr == Some(block_resp.block.header.proposer_address.clone())
-                })
-                .and_then(|validator| Some(validator.operator_address.clone()));
+        let mut signatures = vec![];
 
-            match addr {
-                Some(valoper_addr) => valoper_addr,
-                None => {
-                    return Err(format!(
-                        "Cannot find associated validator address, '{}'.",
-                        block_resp.block.header.proposer_address
-                    ))
+        for signature in block_resp.block.last_commit.signatures {
+            if let Some(validator_metadata) = chain.get_validator_metadata_by_hex_addr(signature.validator_address.clone()) {
+                if block_resp.block.header.proposer_address == signature.validator_address {
+                    proposer = Some(validator_metadata.clone());
+                    signatures.push(validator_metadata)
+                } else {
+                    signatures.push(validator_metadata)
                 }
             }
-        };
+        }
 
-        let (proposer_name, proposer_logo) = {
-            println!("a");
-            let resp = chain.get_validator(&proposer_address).await?;
-
-            println!("b");
-            let logo = get_validator_logo(chain.inner.client.clone(), &resp.description.identity).await;
-
-            (resp.description.moniker, logo)
-        };
+        let proposer = proposer.ok_or_else(|| format!("Proposer is not found."))?;
 
         Ok(Self {
             height: block_resp
@@ -198,15 +180,26 @@ impl InternalBlock {
                 .parse::<u64>()
                 .or_else(|_| Err(format!("Cannot parse block height, '{}'.", block_resp.block.header.height)))?,
             hash: block_resp.block_id.hash,
-            proposer_name,
-            proposer_address,
-            proposer_logo,
+            proposer_name: proposer.name,
+            proposer_address: proposer.address,
+            proposer_logo_url: proposer.logo_url,
             time: DateTime::parse_from_rfc3339(&block_resp.block.header.time)
                 .or_else(|_| Err(format!("Cannot parse block datetime, '{}'.", block_resp.block.header.time)))?
                 .timestamp_millis(),
             tx_count: block_resp.block_id.parts.total,
+            signatures,
         })
     }
+}
+
+#[derive(Deserialize, Serialize, Debug)]
+pub struct InternalBlockSignature {
+    /// Validator name. `heisenbug`
+    pub name: String,
+    /// Validator logo URL. `example.com`
+    pub logo_url: String,
+    /// Validator valoper prefixed address. `cosmosvaloper156gqf9837u7d4c4678yt3rl4ls9c5vuursrrzf`
+    pub address: String,
 }
 
 #[derive(Deserialize, Serialize, Debug)]
