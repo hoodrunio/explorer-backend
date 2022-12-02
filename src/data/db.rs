@@ -2,12 +2,15 @@ use std::collections::BTreeMap;
 use std::fs;
 use std::sync::Mutex;
 
-use cosmrs::AccountId;
 use futures::future::join_all;
 use serde::{Deserialize, Serialize};
-use tokio::join;
 
-use crate::{chain::Chain, utils::get_validator_logo};
+use crate::{
+    chain::Chain,
+    fetch::others::PaginationConfig,
+    state::PATH,
+    utils::{convert_consensus_pub_key_to_hex_address, get_validator_logo},
+};
 
 /// Validator name and the URL of its logo.
 #[derive(Clone, Serialize, Deserialize)]
@@ -17,11 +20,20 @@ pub struct ValidatorMetadataRaw {
 }
 
 /// Validator name and the URL of its logo.
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct ValidatorMetadata {
     pub address: String,
     pub name: String,
     pub logo_url: String,
+}
+
+/// Validator name and the URL of its logo.
+#[derive(Clone, Debug)]
+pub struct ValidatorMetadataFull {
+    pub address: String,
+    pub name: String,
+    pub logo_url: String,
+    pub hex: String,
 }
 
 /// The in-memory database implementation for validator names and monikers.
@@ -33,29 +45,29 @@ pub struct Db {
 impl Db {
     pub fn new(chain: &str) -> Self {
         Self {
-            hex_to_valoper_map: match fs::read_to_string(format!("~/.backend/{chain}/db-hex-to-valoper.json")) {
+            hex_to_valoper_map: match fs::read_to_string(format!("{PATH}/{chain}/db_hex_to_valoper.json")) {
                 Ok(db) => match serde_json::from_str::<BTreeMap<String, String>>(&db) {
                     Ok(db) => Mutex::new(db),
                     Err(_) => {
-                        eprintln!("`~/.backend/{chain}/db-hex-to-valoper.json` is mistaken. Please don't modify it manually.");
+                        eprintln!("`{PATH}/{chain}/db_hex_to_valoper.json` is mistaken. Please don't modify it manually.");
                         Mutex::new(BTreeMap::new())
                     }
                 },
                 Err(_) => {
-                    eprintln!("`~/.backend/{chain}/db-hex-to-valoper.json` is not found. Starting from scratch.");
+                    eprintln!("`{PATH}/{chain}/db_hex_to_valoper.json` is not found. Starting from scratch.");
                     Mutex::new(BTreeMap::new())
                 }
             },
-            valoper_to_metadata_map: match fs::read_to_string(format!("~/.backend/{chain}/db-valoper-to-metadata.json")) {
+            valoper_to_metadata_map: match fs::read_to_string(format!("{PATH}/{chain}/db_valoper_to_metadata.json")) {
                 Ok(db) => match serde_json::from_str::<BTreeMap<String, ValidatorMetadataRaw>>(&db) {
                     Ok(db) => Mutex::new(db),
                     Err(_) => {
-                        eprintln!("`~/.backend/{chain}/db-valoper-to-metadata.json` is mistaken. Please don't modify it manually.");
+                        eprintln!("`{PATH}/{chain}/db_valoper_to_metadata.json` is mistaken. Please don't modify it manually.");
                         Mutex::new(BTreeMap::new())
                     }
                 },
                 Err(_) => {
-                    eprintln!("`~/.backend/{chain}/db-valoper-to-metadata.json` is not found. Starting from scratch.");
+                    eprintln!("{PATH}/{chain}/db_valoper_to_metadata.json` is not found. Starting from scratch.");
                     Mutex::new(BTreeMap::new())
                 }
             },
@@ -85,12 +97,12 @@ impl Chain {
     }
 
     /// Returns validator metadatas by given block height.
-    pub async fn get_validator_metadatas_by_height(&self, height: u64, proposer_hex_addr: &str) -> Result<Vec<ValidatorMetadata>, String> {
-
+    pub async fn _get_validator_metadatas_by_height(&self, _height: u64, _proposer_hex_addr: &str) -> Result<Vec<ValidatorMetadata>, String> {
         todo!();
-        
-        let resp = self.get_validator_set(height).await?;
-        let jobs: Vec<_> = resp
+
+        /*
+        let _resp = self.get_validator_set(height).await?;
+        let jobs: Vec<_> = _resp
             .result
             .validators
             .into_iter()
@@ -137,5 +149,83 @@ impl Chain {
         }
 
         Ok(validator_metadatas)
+        */
+    }
+
+    // Saves validators to the validator database.
+    pub fn save_validators_to_database(&self, validators: Vec<ValidatorMetadataFull>) {
+        let mut hex_to_valoper_map = match self.inner.data.db.hex_to_valoper_map.lock() {
+            Ok(map) => map,
+            Err(_) => return,
+        };
+
+        let mut valoper_to_metadata_map = match self.inner.data.db.valoper_to_metadata_map.lock() {
+            Ok(map) => map,
+            Err(_) => return,
+        };
+
+        // Save validators to the database.
+        for validator in validators {
+            hex_to_valoper_map.insert(validator.hex.clone(), validator.address.clone());
+
+            valoper_to_metadata_map.insert(
+                validator.address,
+                ValidatorMetadataRaw {
+                    name: validator.name,
+                    logo_url: validator.logo_url,
+                },
+            );
+        }
+
+        // Save hex-to-valoper database to a JSON file.
+        match serde_json::to_string::<BTreeMap<_, _>>(&hex_to_valoper_map) {
+            Ok(contents) => {
+                let path = format!("{PATH}/{chain}/db_hex_to_valoper.json", chain = self.inner.name);
+                if let Err(error) = std::fs::write(path, contents) {
+                    eprintln!("Database saving error\n{error}")
+                };
+            }
+            Err(error) => eprintln!("Database saving error\n{error}"),
+        }
+        drop(hex_to_valoper_map);
+
+        // Save valoper-to-metadata database to a JSON file.
+        match serde_json::to_string::<BTreeMap<_, _>>(&valoper_to_metadata_map) {
+            Ok(contents) => {
+                let path = format!("{PATH}/{chain}/db_valoper_to_metadata.json", chain = self.inner.name);
+                if let Err(error) = std::fs::write(path, contents) {
+                    eprintln!("Database saving error\n{error}")
+                };
+            }
+            Err(error) => eprintln!("Database saving error\n{error}"),
+        }
+
+        drop(valoper_to_metadata_map);
+    }
+
+    /// Adds new validators to the database.
+    pub async fn update_validator_database(&self) {
+        let resp = self.get_validators_unspecified(PaginationConfig::new().limit(10000)).await;
+
+        let validators_future: Vec<_> = match resp {
+            Ok(resp) => resp
+                .validators
+                .into_iter()
+                .map(|validator| async move {
+                    ValidatorMetadataFull {
+                        name: validator.description.moniker,
+                        address: validator.operator_address.clone(),
+                        hex: convert_consensus_pub_key_to_hex_address(&validator.consensus_pubkey.key)
+                            .unwrap_or(format!("Error, {}", validator.operator_address)),
+                        logo_url: get_validator_logo(self.inner.client.clone(), &validator.description.identity).await,
+                    }
+                })
+                .collect(),
+            Err(error) => return eprintln!("Cannot update validator database. {}", error),
+        };
+
+        let validators = join_all(validators_future).await;
+
+        self.save_validators_to_database(validators);
     }
 }
