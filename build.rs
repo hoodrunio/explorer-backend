@@ -166,14 +166,19 @@ fn update_state_rs(chains: &[Chain]) {
     let mut get_fn = String::new();
     let mut update_data_fn = String::new();
     let mut update_prices_fn = String::new();
+    let mut update_database_fn = String::new();
     let mut get_prices_props = String::new();
+    let path = format!(
+        "{home}/.backend",
+        home = std::env::var("HOME").expect("$HOME environment variable must be specified."),
+    );
 
     for chain in chains {
         state_props += &format!("\n    {}: Chain,", chain.name);
 
         new_fn += &format!(
             r#"
-            {name}: init_chain!{{
+            {name}: init_chain! {{
                 name: "{name}",
                 gecko: {gecko},
                 base_prefix: "{fix}",
@@ -210,6 +215,8 @@ fn update_state_rs(chains: &[Chain]) {
 
         update_data_fn += &format!("\n            self.{chain}.update_data(),", chain = chain.name);
 
+        update_database_fn += &format!("\n            self.{chain}.update_validator_database(),", chain = chain.name);
+
         match chain.gecko {
             Some(gecko) => {
                 update_prices_fn += &format!("\n            self.{chain}.update_price(prices.get(\"{gecko}\")),", chain = chain.name);
@@ -223,9 +230,11 @@ fn update_state_rs(chains: &[Chain]) {
         "\
 use crate::chain::Chain;
 use crate::data::ChainData;
-use crate::utils::get_prices;
-use tokio::join; 
 use crate::init_chain;
+use crate::utils::get_prices;
+use tokio::join;
+
+pub const PATH: &str = \"{path}\";
 
 /// The state of the server.
 pub struct State {{{state_props}
@@ -241,7 +250,7 @@ impl State {{
             reqwest_client: client,
         }}
     }}
-    
+
     /// Returns the matched chain.
     pub fn get(&self, name: &str) -> Result<Chain, String> {{
         match name {{{get_fn}
@@ -260,6 +269,12 @@ impl State {{
         let prices = get_prices(self.reqwest_client.clone(), &[{get_prices_props}]).await;
 
         join!({update_prices_fn}
+        );
+    }}
+
+    /// Updates all the validator databases of chain.
+    pub async fn update_database(&self) {{
+        join!({update_database_fn}
         );
     }}
 }}
