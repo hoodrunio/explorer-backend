@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use crate::data::ChainData;
+use crate::{data::ChainData, state::PATH};
 
 /// The struct that represents any Cosmos based chain.
 #[derive(Clone)]
@@ -11,6 +11,12 @@ pub struct Chain {
 impl Chain {
     /// Creates a new chain.
     pub fn new(chainfig: ChainConfig) -> Chain {
+        #[allow(unused_must_use)]
+        {
+            // Create a directory for the chain.
+            std::fs::create_dir_all(format!("{PATH}/{}", chainfig.name));
+        }
+
         Chain { inner: Arc::new(chainfig) }
     }
 }
