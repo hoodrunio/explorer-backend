@@ -47,7 +47,10 @@ impl Db {
         Self {
             hex_to_valoper_map: match fs::read_to_string(format!("{PATH}/{chain}/db_hex_to_valoper.json")) {
                 Ok(db) => match serde_json::from_str::<BTreeMap<String, String>>(&db) {
-                    Ok(db) => Mutex::new(db),
+                    Ok(db) => {
+                        println!("Initialized {chain} database.");
+                        Mutex::new(db)
+                    }
                     Err(_) => {
                         eprintln!("`{PATH}/{chain}/db_hex_to_valoper.json` is mistaken. Please don't modify it manually.");
                         Mutex::new(BTreeMap::new())
@@ -60,7 +63,10 @@ impl Db {
             },
             valoper_to_metadata_map: match fs::read_to_string(format!("{PATH}/{chain}/db_valoper_to_metadata.json")) {
                 Ok(db) => match serde_json::from_str::<BTreeMap<String, ValidatorMetadataRaw>>(&db) {
-                    Ok(db) => Mutex::new(db),
+                    Ok(db) => {
+                        println!("Initialized {chain} database.");
+                        Mutex::new(db)
+                    }
                     Err(_) => {
                         eprintln!("`{PATH}/{chain}/db_valoper_to_metadata.json` is mistaken. Please don't modify it manually.");
                         Mutex::new(BTreeMap::new())
