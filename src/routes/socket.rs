@@ -1,5 +1,4 @@
 use std::{
-    collections::VecDeque,
     fmt::Display,
     pin::Pin,
     task::Poll,
@@ -33,9 +32,6 @@ impl ResponseError for CustomError {
     }
 }
 
-/// How often heartbeat pings are sent
-const _HEARTBEAT_INTERVAL: Duration = Duration::from_secs(5);
-
 /// How long before lack of client response causes a timeout
 const CLIENT_TIMEOUT: Duration = Duration::from_secs(10);
 
@@ -56,7 +52,7 @@ pub struct MyWebSocket {
 
     chain: Chain,
 
-    last_block_sent: u64,
+    last_block_num_sent: u64,
 }
 
 impl MyWebSocket {
@@ -64,12 +60,8 @@ impl MyWebSocket {
         Self {
             last_pong_time: Instant::now(),
             chain,
-            last_block_sent: 0,
+            last_block_num_sent: 0,
         }
-    }
-
-    pub fn update_last_pong_time(&mut self) {
-        self.last_pong_time = Instant::now();
     }
 
     /// helper method that sends ping to client every 5 seconds (HEARTBEAT_INTERVAL).
@@ -98,10 +90,12 @@ impl Actor for MyWebSocket {
 impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for MyWebSocket {
     fn handle(&mut self, msg: Result<ws::Message, ws::ProtocolError>, ctx: &mut Self::Context) {
         // process websocket messages
-        println!("WS: {msg:?}");
         match msg {
+            Ok(ws::Message::Text(text)) => {
+                println!("{}", text)
+            }
             Ok(ws::Message::Pong(_)) => {
-                self.update_last_pong_time();
+                self.last_pong_time = Instant::now();
             }
             _ => ctx.stop(),
         }
@@ -184,30 +178,16 @@ impl ActorStream<MyWebSocket> for IntervalFunc {
             if Instant::now().duration_since(act.last_pong_time) > CLIENT_TIMEOUT {
                 ctx.stop();
             } else {
-                if let Ok(last_ten_blocks_queue) = act.chain.inner.data.last_ten_blocks.queue.lock() {
-                    let last_ten_blocks = last_ten_blocks_queue.clone();
-                    drop(last_ten_blocks_queue);
-
-                    let blocks_count = last_ten_blocks.len();
-
-                    let mut que = VecDeque::new();
-
-                    for i in 1..blocks_count {
-                        let index = blocks_count - i;
-                        if let Some(block) = last_ten_blocks.get(index) {
-                            que.push_back(block);
-                            if block.height == act.last_block_sent + 1 {
-                                break;
-                            }
-                        }
-                    }
-
-                    for block in que {
-                        if let Ok(json) = serde_json::to_string(block) {
-                            ctx.text(json)
+                if let Some(blocks) = act.chain.inner.data.last_ten_blocks.get_blocks_till(act.last_block_num_sent) {
+                    for block in blocks {
+                        if let Ok(blocks_json_string) = serde_json::to_string(&block) {
+                            ctx.text(blocks_json_string);
+                            act.last_block_num_sent = block.height;
                         }
                     }
                 }
+
+                ctx.ping(b"");
             }
         }
     }
