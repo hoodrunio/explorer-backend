@@ -146,4 +146,15 @@ impl State {
             self.secret.update_validator_database(),
         );
     }
+
+    /// Subscribes to all the events for all the chains.
+    pub async fn subscribe_to_events(&self) {
+        join!(
+            self.axelar.subscribe_to_events(),
+            self.evmos.subscribe_to_events(),
+            self.kyve.subscribe_to_events(),
+            self.osmosis.subscribe_to_events(),
+            self.secret.subscribe_to_events(),
+        );
+    }
 }
