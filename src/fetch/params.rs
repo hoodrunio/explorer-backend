@@ -59,7 +59,7 @@ impl Chain {
             },
         };
 
-        OutRestResponse::new(chain_params, 0)
+        Ok(OutRestResponse::new(chain_params, 0))
     }
 
     /// Returns the slashing parameters of the chain.
@@ -70,7 +70,7 @@ impl Chain {
 
         let slashing_params = resp.params.try_into()?;
 
-        OutRestResponse::new(slashing_params, 0)
+        Ok(OutRestResponse::new(slashing_params, 0))
     }
 
     /// Returns the staking parameters.
@@ -81,7 +81,7 @@ impl Chain {
 
         let staking_params = resp.params.try_into()?;
 
-        OutRestResponse::new(staking_params, 0)
+        Ok(OutRestResponse::new(staking_params, 0))
     }
 
     /// Returns the voting parameters.
@@ -92,7 +92,7 @@ impl Chain {
 
         let voting_params = resp.voting_params.try_into()?;
 
-        OutRestResponse::new(voting_params, 0)
+        Ok(OutRestResponse::new(voting_params, 0))
     }
 
     /// Returns the distribution parameters.
@@ -103,7 +103,7 @@ impl Chain {
 
         let distribution_params = resp.params.try_into()?;
 
-        OutRestResponse::new(distribution_params, 0)
+        Ok(OutRestResponse::new(distribution_params, 0))
     }
 
     /// Returns the deposit parameters.
@@ -113,7 +113,7 @@ impl Chain {
             .await?;
 
         let deposit_params = InternalDepositParams {
-            max_deposit_period: if resp.deposit_params.max_deposit_period.ends_with("s") {
+            max_deposit_period: if resp.deposit_params.max_deposit_period.ends_with('s') {
                 match resp.deposit_params.max_deposit_period[..resp.deposit_params.max_deposit_period.len() - 2].parse() {
                     Ok(v) => v,
                     Err(_) => {
@@ -124,18 +124,21 @@ impl Chain {
                     }
                 }
             } else {
-                return Err(format!("Maximum deposit params couldn't be parsed!"));
+                return Err(format!(
+                    "Maximum deposit params couldn't be parsed, {}.",
+                    resp.deposit_params.max_deposit_period
+                ));
             },
             min_deposit: match resp.deposit_params.min_deposit.get(0) {
                 Some(den) => match den.amount.parse::<u128>() {
                     Ok(amount) => self.calc_amount_u128_to_f64(amount),
                     Err(_) => return Err(format!("Cannor parse amount, '{}'.", den.amount)),
                 },
-                None => return Err(format!("There is no min deposit amount.")),
+                None => return Err("There is no min deposit amount.".to_string()),
             },
         };
 
-        OutRestResponse::new(deposit_params, 0)
+        Ok(OutRestResponse::new(deposit_params, 0))
     }
 
     /// Returns the tallying parameters.
@@ -146,7 +149,7 @@ impl Chain {
 
         let tally_params = resp.tally_params.try_into()?;
 
-        OutRestResponse::new(tally_params, 0)
+        Ok(OutRestResponse::new(tally_params, 0))
     }
 }
 
@@ -243,13 +246,13 @@ pub struct InternalVotingParams {
 impl TryFrom<VotingParams> for InternalVotingParams {
     type Error = String;
     fn try_from(value: VotingParams) -> Result<Self, Self::Error> {
-        let voting_period: u32 = if value.voting_period.ends_with("s") {
+        let voting_period: u32 = if value.voting_period.ends_with('s') {
             match value.voting_period[..value.voting_period.len() - 2].parse() {
                 Ok(v) => v,
                 Err(_) => return Err(format!("Cannot parse voting period, '{}'.", value.voting_period)),
             }
         } else {
-            return Err(format!("Voting period couldn't be parsed!"));
+            return Err(format!("Voting period couldn't be parsed, {}.", value.voting_period));
         };
         Ok(Self { voting_period })
     }
@@ -286,15 +289,15 @@ impl TryFrom<DistributionParams> for InternalDistributionParams {
             community_tax: params
                 .community_tax
                 .parse()
-                .or_else(|_| Err(format!("Cannot parse community tax, '{}'", params.community_tax)))?,
+                .map_err(|_| format!("Cannot parse community tax, '{}'", params.community_tax))?,
             base_proposer_reward: params
                 .base_proposer_reward
                 .parse()
-                .or_else(|_| Err(format!("Cannot parse community tax, '{}'", params.base_proposer_reward)))?,
+                .map_err(|_| format!("Cannot parse community tax, '{}'", params.base_proposer_reward))?,
             bonus_proposer_reward: params
                 .bonus_proposer_reward
                 .parse()
-                .or_else(|_| Err(format!("Cannot parse community tax, '{}'", params.bonus_proposer_reward)))?,
+                .map_err(|_| format!("Cannot parse community tax, '{}'", params.bonus_proposer_reward))?,
             withdraw_addr_enabled: params.withdraw_addr_enabled,
         })
     }
@@ -331,13 +334,13 @@ pub struct InternalStakingParams {
 impl TryFrom<StakingParams> for InternalStakingParams {
     type Error = String;
     fn try_from(value: StakingParams) -> Result<Self, Self::Error> {
-        let unbonding_time: u32 = if value.unbonding_time.ends_with("s") {
+        let unbonding_time: u32 = if value.unbonding_time.ends_with('s') {
             match value.unbonding_time[..value.unbonding_time.len() - 2].parse() {
                 Ok(v) => v,
                 Err(_) => return Err(format!("Cannot parse unbonding time, '{}'.", value.unbonding_time)),
             }
         } else {
-            return Err(format!("Unbonding time couldn't be parsed!"));
+            return Err(format!("Unbonding time couldn't be parsed, {}.", value.unbonding_time));
         };
 
         Ok(Self {
@@ -381,13 +384,13 @@ pub struct InternalSlashingParams {
 impl TryFrom<SlashingParams> for InternalSlashingParams {
     type Error = String;
     fn try_from(value: SlashingParams) -> Result<Self, Self::Error> {
-        let downtime_jail_duration: u32 = if value.downtime_jail_duration.ends_with("s") {
+        let downtime_jail_duration: u32 = if value.downtime_jail_duration.ends_with('s') {
             match value.downtime_jail_duration[..value.downtime_jail_duration.len() - 2].parse() {
                 Ok(v) => v,
                 Err(_) => return Err(format!("Cannot parse downtime jail time, '{}'.", value.downtime_jail_duration)),
             }
         } else {
-            return Err(format!("Downtime jail couldn't be parsed!"));
+            return Err(format!("Downtime jail couldn't be parsed, {}.", value.downtime_jail_duration));
         };
 
         let signed_blocks_window = match value.signed_blocks_window.parse() {
