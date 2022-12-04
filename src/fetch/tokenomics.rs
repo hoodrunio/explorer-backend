@@ -28,7 +28,7 @@ impl Chain {
 
         let pages = calc_pages(resp.pagination, config)?;
 
-        OutRestResponse::new(supplies, pages)
+        Ok(OutRestResponse::new(supplies, pages))
     }
 
     /// Returns the supply of given token.
@@ -39,7 +39,7 @@ impl Chain {
 
         let supply = resp.amount.try_into()?;
 
-        OutRestResponse::new(supply, 0)
+        Ok(OutRestResponse::new(supply, 0))
     }
 
     /// Returns the supply of the native coin.
@@ -52,19 +52,19 @@ impl Chain {
         let inflation = if self.inner.name == "evmos" {
             self.rest_api_request::<MintingInflationRateResp>("/evmos/inflation/v1/inflation_rate", &[])
                 .await
-                .and_then(|res| Ok(res.inflation_rate.parse::<f64>().unwrap_or(0.0) / 100.0))
+                .map(|res| res.inflation_rate.parse::<f64>().unwrap_or(0.0) / 100.0)
         } else if self.inner.name == "echelon" {
             self.rest_api_request::<MintingInflationRateResp>("/echelon/inflation/v1/inflation_rate", &[])
                 .await
-                .and_then(|res| Ok(res.inflation_rate.parse::<f64>().unwrap_or(0.0) / 100.0))
+                .map(|res| res.inflation_rate.parse::<f64>().unwrap_or(0.0) / 100.0)
         } else {
             self.rest_api_request::<MintingInflationResp>("/cosmos/mint/v1beta1/inflation", &[])
                 .await
-                .and_then(|res| Ok(res.inflation.parse::<f64>().unwrap_or(0.0)))
+                .map(|res| res.inflation.parse::<f64>().unwrap_or(0.0))
         }
         .unwrap_or(0.0);
 
-        OutRestResponse::new(inflation, 0)
+        Ok(OutRestResponse::new(inflation, 0))
     }
 }
 
