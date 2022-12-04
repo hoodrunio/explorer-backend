@@ -167,6 +167,7 @@ fn update_state_rs(chains: &[Chain]) {
     let mut update_data_fn = String::new();
     let mut update_prices_fn = String::new();
     let mut update_database_fn = String::new();
+    let mut subscribe_to_events_fn = String::new();
     let mut get_prices_props = String::new();
     let path = format!(
         "{home}/.backend",
@@ -216,6 +217,8 @@ fn update_state_rs(chains: &[Chain]) {
         update_data_fn += &format!("\n            self.{chain}.update_data(),", chain = chain.name);
 
         update_database_fn += &format!("\n            self.{chain}.update_validator_database(),", chain = chain.name);
+
+        subscribe_to_events_fn += &format!("\n            self.{chain}.subscribe_to_events(),", chain = chain.name);
 
         match chain.gecko {
             Some(gecko) => {
@@ -275,6 +278,12 @@ impl State {{
     /// Updates all the validator databases of chain.
     pub async fn update_database(&self) {{
         join!({update_database_fn}
+        );
+    }}
+
+    /// Subscribes to all the events for all the chains.
+    pub async fn subscribe_to_events(&self) {{
+        join!({subscribe_to_events_fn}
         );
     }}
 }}
