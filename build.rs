@@ -26,7 +26,7 @@ pub struct Chain<'a> {
 #[tokio::main]
 async fn main() {
     // Create `Client`.
-    let client = Client::builder().timeout(Duration::from_secs(4)).build().unwrap();
+    let client = Client::builder().timeout(Duration::from_secs(10)).build().unwrap();
 
     // Read `Chains.yml` file.
     let chains_yml_content = read_to_string("Chains.yml").unwrap();
