@@ -1,10 +1,9 @@
 use std::sync::Arc;
 
 use chrono::DateTime;
-use futures::{Future, SinkExt, StreamExt};
-use serde::{de::DeserializeOwned, Deserialize};
+use futures::{SinkExt, StreamExt};
+use serde::Deserialize;
 use std::sync::Mutex;
-use tokio::join;
 use tokio_tungstenite::{connect_async, tungstenite::Message};
 
 use crate::chain::Chain;
@@ -92,6 +91,8 @@ impl Chain {
                             }
                         }
                         SocketResult::NonEmpty(SocketResultNonEmpty::Tx { events }) => {
+                            println!("wss: new tx on {}", self.inner.name);
+
                             let tx_item = TransactionItem {
                                 amount: events.transfer_amount.get(0).map(|amount| self._get_amount(amount)).unwrap_or(0.00),
                                 fee: self._get_amount(&events.tx_fee[0]),
