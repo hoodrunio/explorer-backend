@@ -327,7 +327,6 @@ impl InternalTransaction {
                         } => InternalTransactionContent::Known(InternalTransactionContentKnowns::Revoke {
                             granter_address,
                             grantee_address,
-                            grantee_name: "todo".to_string(),
                         }),
 
                         TxsTransactionMessageKnowns::Send {
@@ -499,7 +498,6 @@ pub enum InternalTransactionContentKnowns {
     Revoke {
         granter_address: String,
         grantee_address: String,
-        grantee_name: String,
     },
     Vote {
         proposal_id: u32,
