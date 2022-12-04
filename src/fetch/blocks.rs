@@ -1,19 +1,14 @@
 use chrono::DateTime;
 use serde::{Deserialize, Serialize};
 
-use crate::{
-    chain::Chain,
-    data::db::ValidatorMetadata,
-    routes::OutRestResponse,
-};
-
+use crate::{chain::Chain, data::db::ValidatorMetadata, routes::OutRestResponse};
 
 impl Chain {
     /// Returns the block at given height. Returns the latest block, if no height is given.
     pub async fn get_block_by_height(&self, height: Option<u64>) -> Result<OutRestResponse<InternalBlock>, String> {
         let mut query = vec![];
 
-        let height = height.and_then(|height| Some(height.to_string()));
+        let height = height.map(|height| height.to_string());
 
         if let Some(height) = height {
             query.push(("height", height))
@@ -23,7 +18,7 @@ impl Chain {
 
         let block = InternalBlock::new(resp, self).await?;
 
-        OutRestResponse::new(block, 0)
+        Ok(OutRestResponse::new(block, 0))
     }
 
     /// Returns the block with given hash.
@@ -46,7 +41,7 @@ impl Chain {
 
         let block = InternalBlock::new(resp, self).await?;
 
-        OutRestResponse::new(block, 0)
+        Ok(OutRestResponse::new(block, 0))
     }
 
     /// Returns the block headers between `min_height` & `max_height`.
@@ -160,7 +155,7 @@ impl InternalBlock {
         let mut signatures = vec![];
 
         for signature in block_resp.block.last_commit.signatures {
-            if let Some(validator_metadata) = chain.get_validator_metadata_by_hex_addr(signature.validator_address.clone()) {
+            if let Some(validator_metadata) = chain.get_validator_metadata_by_hex_addr(signature.validator_address.clone()).await {
                 if block_resp.block.header.proposer_address == signature.validator_address {
                     proposer = Some(validator_metadata.clone());
                     signatures.push(validator_metadata)
@@ -170,7 +165,7 @@ impl InternalBlock {
             }
         }
 
-        let proposer = proposer.ok_or_else(|| format!("Proposer is not found."))?;
+        let proposer = proposer.ok_or_else(|| "Proposer is not found found in the database.".to_string())?;
 
         Ok(Self {
             height: block_resp
@@ -178,13 +173,13 @@ impl InternalBlock {
                 .header
                 .height
                 .parse::<u64>()
-                .or_else(|_| Err(format!("Cannot parse block height, '{}'.", block_resp.block.header.height)))?,
+                .map_err(|_| format!("Cannot parse block height, '{}'.", block_resp.block.header.height))?,
             hash: block_resp.block_id.hash,
             proposer_name: proposer.name,
             proposer_address: proposer.address,
             proposer_logo_url: proposer.logo_url,
             time: DateTime::parse_from_rfc3339(&block_resp.block.header.time)
-                .or_else(|_| Err(format!("Cannot parse block datetime, '{}'.", block_resp.block.header.time)))?
+                .map_err(|_| format!("Cannot parse block datetime, '{}'.", block_resp.block.header.time))?
                 .timestamp_millis(),
             tx_count: block_resp.block_id.parts.total,
             signatures,
