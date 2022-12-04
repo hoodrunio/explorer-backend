@@ -17,18 +17,15 @@ impl PriceChart {
     pub fn add_new(&mut self, price: f64) {
         let t = chrono::offset::Utc::now().timestamp_millis() as u32;
 
-        match self.inner.get(self.inner.len() - 1) {
-            Some(last_item) => {
-                if t > last_item.t + 3_600_000 {
-                    self.inner.push_back(ChartItem { p: price, t });
+        if let Some(last_item) = self.inner.back() {
+            if t > last_item.t + 3_600_000 {
+                self.inner.push_back(ChartItem { p: price, t });
 
-                    if self.inner.len() > 24 {
-                        self.inner.pop_front();
-                    };
-                }
+                if self.inner.len() > 24 {
+                    self.inner.pop_front();
+                };
             }
-            _ => (),
-        };
+        }
     }
 }
 
