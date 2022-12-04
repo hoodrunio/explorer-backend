@@ -28,7 +28,7 @@ impl Chain {
 
         let pages = calc_pages(resp.pagination, config)?;
 
-        OutRestResponse::new(proposals, pages)
+        Ok(OutRestResponse::new(proposals, pages))
     }
 
     /// Returns all the proposals unspecified.
@@ -67,34 +67,41 @@ impl Chain {
                 .proposal
                 .proposal_id
                 .parse()
-                .or_else(|_| Err(format!("Proposal ID cannot be parsed, '{}'.", resp.proposal.proposal_id)))?,
+                .map_err(|_| format!("Proposal ID cannot be parsed, '{}'.", resp.proposal.proposal_id))?,
             content: InternalProposalContent::try_from_with(resp.proposal.content, |a| self.calc_amount_u128_to_f64(a))?,
-            status: resp.proposal.status,
+            status: match resp.proposal.status.as_ref() {
+                "PROPOSAL_STATUS_PASSED" => "Passed",
+                "PROPOSAL_STATUS_REJECTED" => "Rejected",
+                "PROPOSAL_STATUS_FAILED" => "Failed",
+                "PROPOSAL_STATUS_VOTING_PERIOD" => "Voting",
+                _ => "Unknown",
+            }
+            .to_string(),
             final_tally_result: InternalProposalFinalTallyResult::try_from_with(resp.proposal.final_tally_result, |a| {
                 self.calc_amount_u128_to_f64(a)
             })?,
             submit_time: DateTime::parse_from_rfc3339(&resp.proposal.submit_time)
-                .or_else(|_| Err(format!("Cannot parse proposal submit time, '{}'", resp.proposal.submit_time)))?
+                .map_err(|_| format!("Cannot parse proposal submit time, '{}'", resp.proposal.submit_time))?
                 .timestamp_millis(),
             deposit_end_time: DateTime::parse_from_rfc3339(&resp.proposal.deposit_end_time)
-                .or_else(|_| Err(format!("Cannot parse proposal deposit end time, '{}'", resp.proposal.deposit_end_time)))?
+                .map_err(|_| format!("Cannot parse proposal deposit end time, '{}'", resp.proposal.deposit_end_time))?
                 .timestamp_millis(),
             total_deposit: resp
                 .proposal
                 .total_deposit
                 .get(0)
-                .and_then(|td| td.amount.parse::<f64>().and_then(|amount| Ok(self.calc_amount_f64_to_f64(amount))).ok())
+                .and_then(|td| td.amount.parse::<f64>().map(|amount| self.calc_amount_f64_to_f64(amount)).ok())
                 .unwrap_or(0.0),
             voting_start_time: DateTime::parse_from_rfc3339(&resp.proposal.voting_start_time)
-                .or_else(|_| Err(format!("Cannot parse proposal voting start time, '{}'", resp.proposal.voting_start_time)))?
+                .map_err(|_| format!("Cannot parse proposal voting start time, '{}'", resp.proposal.voting_start_time))?
                 .timestamp_millis(),
             voting_end_time: DateTime::parse_from_rfc3339(&resp.proposal.voting_end_time)
-                .or_else(|_| Err(format!("Cannot parse proposal voting end time, '{}'", resp.proposal.voting_end_time)))?
+                .map_err(|_| format!("Cannot parse proposal voting end time, '{}'", resp.proposal.voting_end_time))?
                 .timestamp_millis(),
         };
 
         // We specify page as 0. Because that means there is no need for pagination.
-        OutRestResponse::new(proposal, 0)
+        Ok(OutRestResponse::new(proposal, 0))
     }
 
     /// Returns the deposits of given proposal.
@@ -122,7 +129,7 @@ impl Chain {
 
         let pages = calc_pages(resp.pagination, config)?;
 
-        OutRestResponse::new(proposal_deposits, pages)
+        Ok(OutRestResponse::new(proposal_deposits, pages))
     }
 
     /// Returns the deposit of given proposal by given depositor.
@@ -137,7 +144,7 @@ impl Chain {
 
         let deposit = InternalProposalDeposit::new(resp.deposit, self)?;
 
-        OutRestResponse::new(deposit, 0)
+        Ok(OutRestResponse::new(deposit, 0))
     }
 
     /// Returns the tally of given proposal.
@@ -146,10 +153,10 @@ impl Chain {
 
         let resp = self.rest_api_request::<ProposalTallyResp>(&path, &[]).await?;
 
-        OutRestResponse::new(
+        Ok(OutRestResponse::new(
             InternalProposalFinalTallyResult::try_from_with(resp.tally, |a| self.calc_amount_u128_to_f64(a))?,
             0,
-        )
+        ))
     }
 
     /// Returns the votes of given proposal.
@@ -176,7 +183,7 @@ impl Chain {
 
         let pages = calc_pages(resp.pagination, config)?;
 
-        OutRestResponse::new(proposal_votes, pages)
+        Ok(OutRestResponse::new(proposal_votes, pages))
     }
 
     /// Returns the vote of given proposal by given voter.
@@ -187,7 +194,7 @@ impl Chain {
 
         let proposal_vote = resp.vote.try_into()?;
 
-        OutRestResponse::new(proposal_vote, 0)
+        Ok(OutRestResponse::new(proposal_vote, 0))
     }
 }
 
@@ -198,11 +205,11 @@ impl TryFrom<BasicProposal> for ProposalItem {
             proposal_id: proposal
                 .proposal_id
                 .parse()
-                .or_else(|_| Err(format!("Proposal ID cannot be parsed, '{}'.", proposal.proposal_id)))?,
+                .map_err(|_| format!("Proposal ID cannot be parsed, '{}'.", proposal.proposal_id))?,
             title: proposal.content.title,
             description: proposal.content.description,
             time: DateTime::parse_from_rfc3339(&proposal.voting_start_time)
-                .or_else(|_| Err(format!("Cannot parse proposal voting time datetime, '{}'.", proposal.voting_start_time)))?
+                .map_err(|_| format!("Cannot parse proposal voting time datetime, '{}'.", proposal.voting_start_time))?
                 .timestamp_millis(),
             status: match proposal.status.as_ref() {
                 "PROPOSAL_STATUS_PASSED" => "Passed",
@@ -261,7 +268,7 @@ impl TryFrom<ProposalVote> for InternalProposalVote {
             proposal_id: value
                 .proposal_id
                 .parse()
-                .or_else(|_| Err(format!("Cannot parse proposal id, '{}'.", value.proposal_id)))?,
+                .map_err(|_| format!("Cannot parse proposal id, '{}'.", value.proposal_id))?,
             voter: value.voter,
             option: value.option,
             options: value.options,
@@ -318,8 +325,12 @@ impl InternalProposalDeposit {
         Ok(Self {
             depositor: value.depositor,
             amount: match value.amount.get(0) {
-                Some(da) => chain.calc_amount_u128_to_f64(da.amount.parse::<u128>().map_err(|_| format!("Cannot parse proposal deposit amount."))?),
-                None => return Err(format!("")),
+                Some(da) => chain.calc_amount_u128_to_f64(
+                    da.amount
+                        .parse::<u128>()
+                        .map_err(|_| "Cannot parse proposal deposit amount.".to_string())?,
+                ),
+                None => return Err("There is no proposal deposit.".to_string()),
             },
         })
     }
@@ -387,7 +398,7 @@ pub struct InternalProposal {
     pub proposal_id: u32,
     /// Proposal content.
     pub content: InternalProposalContent,
-    /// Proposal status. Eg: `"PROPOSAL_STATUS_VOTING_PERIOD"`
+    /// Proposal status. Eg: `"Passed"`
     pub status: String,
     /// Proposal final tally result.
     pub final_tally_result: InternalProposalFinalTallyResult,
@@ -476,8 +487,8 @@ impl InternalProposalContent {
                     recipient,
                     amount: amount
                         .get(0)
-                        .and_then(|da| Some(da.amount.to_string()))
-                        .and_then(|amount| amount.parse::<u128>().and_then(|amount| Ok(self_calc_u128_to_f64(amount))).ok())
+                        .map(|da| da.amount.to_string())
+                        .and_then(|amount| amount.parse::<u128>().ok().map(|amount| self_calc_u128_to_f64(amount)))
                         .unwrap_or(0.0),
                 },
                 ProposalContent::ParameterChange { title, description, changes } => Self::ParameterChange {
@@ -494,7 +505,7 @@ impl InternalProposalContent {
                 },
             },
             ProposalContentWithUnknown::UnknownProposal { r#type, title, description } => Self::Unknown {
-                r#type: r#type.split(".").last().unwrap_or("Unknown").to_string(),
+                r#type: r#type.split('.').last().unwrap_or("Unknown").to_string(),
                 title,
                 description,
             },
@@ -509,9 +520,19 @@ pub enum ProposalContentWithUnknown {
     UnknownProposal {
         #[serde(rename = "@type")]
         r#type: String,
+        #[serde(default = "default_proposal_title")]
         title: String,
+        #[serde(default = "default_proposal_description")]
         description: String,
     },
+}
+
+fn default_proposal_title() -> String {
+    String::from("Unknown proposal.")
+}
+
+fn default_proposal_description() -> String {
+    String::from("This proposal has no description.")
 }
 
 #[derive(Deserialize, Serialize, Debug)]
@@ -581,25 +602,20 @@ impl InternalProposalFinalTallyResult {
                 value
                     .yes
                     .parse()
-                    .or_else(|_| Err(format!("Cannot parse 'yes' votes count, '{}'.", value.yes)))?,
+                    .map_err(|_| format!("Cannot parse 'yes' votes count, '{}'.", value.yes))?,
             ),
             abstain: self_u128_to_f64(
                 value
                     .abstain
                     .parse()
-                    .or_else(|_| Err(format!("Cannot parse 'abstain' votes count, '{}'.", value.abstain)))?,
+                    .map_err(|_| format!("Cannot parse 'abstain' votes count, '{}'.", value.abstain))?,
             ),
-            no: self_u128_to_f64(
-                value
-                    .no
-                    .parse()
-                    .or_else(|_| Err(format!("Cannot parse 'no' votes count, '{}'.", value.no)))?,
-            ),
+            no: self_u128_to_f64(value.no.parse().map_err(|_| format!("Cannot parse 'no' votes count, '{}'.", value.no))?),
             no_with_veto: self_u128_to_f64(
                 value
                     .no_with_veto
                     .parse()
-                    .or_else(|_| Err(format!("Cannot parse 'no' votes with veto count, '{}'.", value.no_with_veto)))?,
+                    .map_err(|_| format!("Cannot parse 'no' votes with veto count, '{}'.", value.no_with_veto))?,
             ),
         })
     }
@@ -631,12 +647,12 @@ impl TryFrom<SoftwareUpgradeProposalPlan> for InternalSoftwareUpgradeProposalPla
         Ok(Self {
             name: value.name,
             time: DateTime::parse_from_rfc3339(&value.time)
-                .or_else(|_| Err(format!("Cannot parse software upgrade proposal plan datetime, '{}'.", value.time)))?
+                .map_err(|_| format!("Cannot parse software upgrade proposal plan datetime, '{}'.", value.time))?
                 .timestamp_millis(),
             height: value
                 .height
                 .parse()
-                .or_else(|_| Err(format!("Cannot parse software upgrade proposal plan height, '{}'.", value.height)))?,
+                .map_err(|_| format!("Cannot parse software upgrade proposal plan height, '{}'.", value.height))?,
         })
     }
 }
