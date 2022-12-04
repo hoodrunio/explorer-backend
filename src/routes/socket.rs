@@ -14,45 +14,62 @@ use actix_web_actors::ws;
 use futures_core::ready;
 use futures_core::Future;
 use pin_project_lite::pin_project;
+use serde::Serialize;
 
-use crate::{chain::Chain, state::State};
+use crate::{
+    chain::Chain,
+    fetch::{blocks::BlockItem, transactions::TransactionItem},
+    state::State,
+};
 
-#[derive(Debug)]
-pub struct CustomError(String);
+//
+//
+//
+//  Send "subscribe_tx_"
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
 
-impl Display for CustomError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.0)
-    }
+#[derive(Serialize)]
+#[serde(tag = "event", rename_all = "snake_case")]
+pub enum SocketResponse {
+    Block(BlockItem),
+    Tx(TransactionItem),
 }
 
-impl ResponseError for CustomError {
-    fn status_code(&self) -> reqwest::StatusCode {
-        reqwest::StatusCode::NOT_FOUND
-    }
-}
-
-/// How long before lack of client response causes a timeout
+/// How long before lack of client response causes a timeout.
 const CLIENT_TIMEOUT: Duration = Duration::from_secs(10);
 
-pub async fn socket(req: HttpRequest, stream: web::Payload, chains: Data<State>, path: Path<String>) -> Result<HttpResponse, Error> {
-    let name = path.into_inner();
-    match chains.get(&name) {
-        Ok(chain) => ws::start(MyWebSocket::new(chain), &req, stream),
-        Err(error) => Err(CustomError(error).into()),
-    }
-}
+/// How long before another ping message is sent.
+const TIMEOUT_CHECK_DURATION: Duration = Duration::from_secs(5);
 
-/// websocket connection is long running connection, it easier
-/// to handle with an actor
+/// How long before another batch of new Txs sent.
+const NEW_TX_DURATION: Duration = Duration::from_secs(4);
+
+/// Web Socket Actor for all the Web Socket connections.
 pub struct MyWebSocket {
     /// Client must send ping at least once per 10 seconds (CLIENT_TIMEOUT),
     /// otherwise we drop connection.
     last_pong_time: Instant,
 
+    /// The chain inside. It is just a pointer, cuz `Chain` uses `Arc` inside.
     chain: Chain,
 
     last_block_num_sent: u64,
+    last_tx_hash_sent: String,
+
+    is_subscribed_to_blocks: bool,
+    is_subscribed_to_txs: bool,
 }
 
 impl MyWebSocket {
@@ -60,20 +77,13 @@ impl MyWebSocket {
         Self {
             last_pong_time: Instant::now(),
             chain,
-            last_block_num_sent: 0,
-        }
-    }
 
-    /// helper method that sends ping to client every 5 seconds (HEARTBEAT_INTERVAL).
-    ///
-    /// also this method checks heartbeats from client
-    fn hb(&self, ctx: &mut <Self as Actor>::Context) {
-        ctx.spawn(
-            IntervalFunc::new(Duration::from_secs_f64(
-                *self.chain.inner.data.last_ten_blocks.avg_block_time_secs.lock().unwrap(),
-            ))
-            .finish(),
-        );
+            last_block_num_sent: 0,
+            last_tx_hash_sent: String::from(""),
+
+            is_subscribed_to_blocks: false,
+            is_subscribed_to_txs: false,
+        }
     }
 }
 
@@ -82,7 +92,9 @@ impl Actor for MyWebSocket {
 
     /// Method is called on actor start. We start the heartbeat process here.
     fn started(&mut self, ctx: &mut Self::Context) {
-        self.hb(ctx);
+        ctx.spawn(CheckTimeOutFunc::new().finish());
+        ctx.spawn(NewBlocksFunc::new(&self.chain).finish());
+        ctx.spawn(NewTxsFunc::new().finish());
     }
 }
 
@@ -91,72 +103,107 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for MyWebSocket {
     fn handle(&mut self, msg: Result<ws::Message, ws::ProtocolError>, ctx: &mut Self::Context) {
         // process websocket messages
         match msg {
-            Ok(ws::Message::Text(text)) => {
-                println!("{}", text)
-            }
-            Ok(ws::Message::Pong(_)) => {
-                self.last_pong_time = Instant::now();
-            }
-            _ => ctx.stop(),
+            Ok(msg) => match msg {
+                ws::Message::Text(text) => match text.to_string().as_ref() {
+                    "block+" => self.is_subscribed_to_blocks = true,
+                    "block-" => self.is_subscribed_to_blocks = false,
+                    "tx+" => self.is_subscribed_to_txs = true,
+                    "tx-" => self.is_subscribed_to_txs = false,
+                    _ => (),
+                },
+
+                ws::Message::Pong(_) => {
+                    self.last_pong_time = Instant::now();
+                }
+
+                _ => (),
+            },
+
+            Err(_) => ctx.stop(),
         }
     }
 }
 
 pin_project! {
-    /// An `ActorStream` that periodically runs a function in the actor's context.
-    ///
-    /// Unless you specifically need access to the future, use [`Context::run_interval`] instead.
-    ///
-    /// [`Context::run_interval`]: ../prelude/trait.AsyncContext.html#method.run_interval
-    ///
-    /// ```
-    /// # use std::io;
-    /// use std::time::Duration;
-    /// use actix::prelude::*;
-    /// use actix::utils::IntervalFunc;
-    ///
-    /// struct MyActor;
-    ///
-    /// impl MyActor {
-    ///     fn tick(&mut self, context: &mut Context<Self>) {
-    ///         println!("tick");
-    ///     }
-    /// }
-    ///
-    /// impl Actor for MyActor {
-    ///    type Context = Context<Self>;
-    ///
-    ///    fn started(&mut self, context: &mut Context<Self>) {
-    ///        // spawn an interval stream into our context
-    ///        IntervalFunc::new(Duration::from_millis(100), Self::tick)
-    ///            .finish()
-    ///            .spawn(context);
-    /// #      context.run_later(Duration::from_millis(200), |_, _| System::current().stop());
-    ///    }
-    /// }
-    /// # fn main() {
-    /// #    let mut sys = System::new();
-    /// #    let addr = sys.block_on(async { MyActor.start() });
-    /// #    sys.run();
-    /// # }
-    /// ```
     #[must_use = "future do nothing unless polled"]
-    pub struct IntervalFunc {
+    pub struct CheckTimeOutFunc {
         #[pin]
         timer: tokio::time::Sleep,
     }
 }
 
-impl IntervalFunc {
-    /// Creates a new `IntervalFunc` with the given interval duration.
-    pub fn new(dur: Duration) -> IntervalFunc {
+pin_project! {
+    #[must_use = "future do nothing unless polled"]
+    pub struct NewBlocksFunc {
+        #[pin]
+        timer: tokio::time::Sleep,
+    }
+}
+
+pin_project! {
+    #[must_use = "future do nothing unless polled"]
+    pub struct NewTxsFunc {
+        #[pin]
+        timer: tokio::time::Sleep,
+    }
+}
+
+impl CheckTimeOutFunc {
+    /// Creates a new `CheckTimeOutFunc` with the given interval duration.
+    pub fn new() -> Self {
         Self {
-            timer: tokio::time::sleep(dur),
+            timer: tokio::time::sleep(TIMEOUT_CHECK_DURATION),
         }
     }
 }
 
-impl ActorStream<MyWebSocket> for IntervalFunc {
+impl NewBlocksFunc {
+    /// Creates a new `NewBlocksFunc` with the given interval duration.
+    pub fn new(chain: &Chain) -> Self {
+        Self {
+            timer: tokio::time::sleep(Duration::from_secs_f64(
+                *chain.inner.data.last_ten_blocks.avg_block_time_secs.lock().unwrap(),
+            )),
+        }
+    }
+}
+
+impl NewTxsFunc {
+    /// Creates a new `NewTxsFunc` with the given interval duration.
+    pub fn new() -> Self {
+        Self {
+            timer: tokio::time::sleep(NEW_TX_DURATION),
+        }
+    }
+}
+
+impl ActorStream<MyWebSocket> for CheckTimeOutFunc {
+    type Item = ();
+
+    fn poll_next(
+        self: Pin<&mut Self>,
+        act: &mut MyWebSocket,
+        ctx: &mut <MyWebSocket as Actor>::Context,
+        task: &mut std::task::Context<'_>,
+    ) -> Poll<Option<Self::Item>> {
+        let mut this = self.project();
+
+        loop {
+            ready!(this.timer.as_mut().poll(task));
+            let now = this.timer.deadline();
+            this.timer.as_mut().reset(now + TIMEOUT_CHECK_DURATION);
+
+            // Stop the connection if the client timeout is passed.
+            if Instant::now().duration_since(act.last_pong_time) > CLIENT_TIMEOUT {
+                ctx.stop();
+            } else {
+                ctx.ping(b"");
+            }
+        }
+    }
+}
+
+impl ActorStream<MyWebSocket> for NewBlocksFunc {
     type Item = ();
 
     fn poll_next(
@@ -174,21 +221,77 @@ impl ActorStream<MyWebSocket> for IntervalFunc {
                 .as_mut()
                 .reset(now + Duration::from_secs_f64(*act.chain.inner.data.last_ten_blocks.avg_block_time_secs.lock().unwrap()));
 
-            // Stop the connection if the client timeout is passed.
-            if Instant::now().duration_since(act.last_pong_time) > CLIENT_TIMEOUT {
-                ctx.stop();
-            } else {
+            if act.is_subscribed_to_blocks {
                 if let Some(blocks) = act.chain.inner.data.last_ten_blocks.get_blocks_till(act.last_block_num_sent) {
                     for block in blocks {
-                        if let Ok(blocks_json_string) = serde_json::to_string(&block) {
-                            ctx.text(blocks_json_string);
-                            act.last_block_num_sent = block.height;
+                        let block_height = block.height;
+
+                        if let Ok(block_json_string) = serde_json::to_string(&SocketResponse::Block(block)) {
+                            ctx.text(block_json_string);
+                            act.last_block_num_sent = block_height;
                         }
                     }
                 }
-
-                ctx.ping(b"");
             }
         }
+    }
+}
+
+impl ActorStream<MyWebSocket> for NewTxsFunc {
+    type Item = ();
+
+    fn poll_next(
+        self: Pin<&mut Self>,
+        act: &mut MyWebSocket,
+        ctx: &mut <MyWebSocket as Actor>::Context,
+        task: &mut std::task::Context<'_>,
+    ) -> Poll<Option<Self::Item>> {
+        let mut this = self.project();
+
+        loop {
+            ready!(this.timer.as_mut().poll(task));
+            let now = this.timer.deadline();
+            this.timer.as_mut().reset(now + NEW_TX_DURATION);
+
+            if act.is_subscribed_to_txs {
+                if let Some(txs) = act.chain.inner.data.last_ten_txs.get_txs_till(&act.last_tx_hash_sent) {
+                    for tx in txs {
+                        let tx_hash = tx.hash.clone();
+
+                        if let Ok(tx_json_string) = serde_json::to_string(&SocketResponse::Tx(tx)) {
+                            ctx.text(tx_json_string);
+                            act.last_tx_hash_sent = tx_hash;
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/// It is the route for all the Web Socket connections.
+pub async fn socket(req: HttpRequest, stream: web::Payload, chains: Data<State>, path: Path<String>) -> Result<HttpResponse, Error> {
+    let name = path.into_inner();
+    match chains.get(&name) {
+        Ok(chain) => ws::start(MyWebSocket::new(chain), &req, stream),
+        Err(error) => Err(CustomError(error).into()),
+    }
+}
+
+/// It is the error type for Web Socket connections.
+///
+/// It sends a `404 Not Found` response displaying the error message given.
+#[derive(Debug)]
+pub struct CustomError(String);
+
+impl Display for CustomError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
+impl ResponseError for CustomError {
+    fn status_code(&self) -> reqwest::StatusCode {
+        reqwest::StatusCode::NOT_FOUND
     }
 }
