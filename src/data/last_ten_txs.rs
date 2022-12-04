@@ -15,16 +15,12 @@ impl LastTenTxs {
     }
 
     pub fn add(&self, tx: TransactionItem) {
-        match self.queue.lock() {
-            Ok(mut queue) => {
-                if queue.len() == 10 {
-                    queue.pop_front();
-                }
-
-                queue.push_back(tx)
+        if let Ok(mut queue) = self.queue.lock() {
+            if queue.len() == 10 {
+                queue.pop_front();
             }
 
-            _ => (),
+            queue.push_back(tx)
         }
     }
 }
