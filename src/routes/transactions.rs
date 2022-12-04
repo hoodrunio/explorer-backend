@@ -1,3 +1,4 @@
+use crate::routes::OutRestResponse;
 use crate::{
     fetch::others::{PaginationConfig, Response},
     state::State,
@@ -59,6 +60,19 @@ pub async fn txs_of_recipient(path: Path<(String, String)>, chains: Data<State>)
             .get_txs_by_recipient(&recipient_addr, PaginationConfig::new().limit(100))
             .await
             .into(),
+        Err(err) => Response::Error(err),
+    })
+}
+
+#[get("{chain}/last-ten-txs")]
+pub async fn last_ten_txs(path: Path<String>, chains: Data<State>) -> impl Responder {
+    let chain = path.into_inner();
+
+    Json(match chains.get(&chain) {
+        Ok(chain) => match chain.inner.data.last_ten_txs.queue.lock() {
+            Ok(last_ten_txs) => Response::Success(OutRestResponse::new(Json(last_ten_txs.clone()), 0)),
+            _ => Response::Error("An internal error occured.".to_string()),
+        },
         Err(err) => Response::Error(err),
     })
 }
