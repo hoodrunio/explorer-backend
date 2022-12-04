@@ -44,7 +44,7 @@ pub async fn inflation(path: Path<String>, chains: Data<State>) -> impl Responde
                 pages: 0,
                 value: *inflation_rate,
             }),
-            Err(_) => Response::Error(format!("Cannot return infaltion rate.")),
+            Err(_) => Response::Error("Cannot return inflation rate.".to_string()),
         },
         Err(err) => Response::Error(err),
     })
