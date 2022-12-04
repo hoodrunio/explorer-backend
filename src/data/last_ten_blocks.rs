@@ -58,6 +58,26 @@ impl LastTenBlocks {
             }
         }
     }
+
+    pub fn get_blocks_till(&self, height: u64) -> Option<VecDeque<BlockItem>> {
+        let queue_mutex = self.queue.lock().ok()?;
+        let mut queue = queue_mutex.clone();
+        drop(queue_mutex);
+
+        let mut blocks = VecDeque::new();
+
+        loop {
+            let block = queue.pop_back()?;
+
+            if block.height == height || queue.is_empty() {
+                break;
+            } else {
+                blocks.push_front(block)
+            }
+        }
+
+        Some(blocks)
+    }
 }
 
 impl Chain {
