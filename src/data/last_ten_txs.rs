@@ -23,6 +23,26 @@ impl LastTenTxs {
             queue.push_back(tx)
         }
     }
+
+    pub fn get_txs_till(&self, hash: &str) -> Option<VecDeque<TransactionItem>> {
+        let queue_mutex = self.queue.lock().ok()?;
+        let mut queue = queue_mutex.clone();
+        drop(queue_mutex);
+
+        let mut transactions = VecDeque::new();
+
+        loop {
+            let tx = queue.pop_back()?;
+
+            if tx.hash == hash || queue.is_empty() {
+                break;
+            } else {
+                transactions.push_front(tx)
+            }
+        }
+
+        Some(transactions)
+    }
 }
 
 impl Chain {
