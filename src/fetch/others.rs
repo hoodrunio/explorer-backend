@@ -9,11 +9,21 @@ impl Chain {
         let resp = self.rest_api_request::<StakingPoolResp>("/cosmos/staking/v1beta1/pool", &[]).await?;
 
         let staking_pool = InternalStakingPool {
-            unbonded: self.calc_amount_u128_to_u64(resp.pool.not_bonded_tokens.parse::<u128>().or_else(|_| Err(format!("")))?),
-            bonded: self.calc_amount_u128_to_u64(resp.pool.bonded_tokens.parse::<u128>().or_else(|_| Err(format!("")))?),
+            unbonded: self.calc_amount_u128_to_u64(
+                resp.pool
+                    .not_bonded_tokens
+                    .parse::<u128>()
+                    .map_err(|_| format!("Cannot parse unbonded tokens, {}.", resp.pool.not_bonded_tokens))?,
+            ),
+            bonded: self.calc_amount_u128_to_u64(
+                resp.pool
+                    .bonded_tokens
+                    .parse::<u128>()
+                    .map_err(|_| format!("Cannot parse bonded tokens, {}.", resp.pool.bonded_tokens))?,
+            ),
         };
 
-        OutRestResponse::new(staking_pool, 0)
+        Ok(OutRestResponse::new(staking_pool, 0))
     }
 
     /// Returns the signing info by given cons address.
@@ -24,7 +34,7 @@ impl Chain {
 
         let signing_info = resp.val_signing_info.try_into()?;
 
-        OutRestResponse::new(signing_info, 0)
+        Ok(OutRestResponse::new(signing_info, 0))
     }
 
     /// Returns the native coin amount in the community pool.
@@ -40,29 +50,29 @@ impl Chain {
 
         let community_pool_amount = pool
             .amount
-            .split_once(".")
-            .and_then(|s| Some(s.0))
+            .split_once('.')
+            .map(|s| s.0)
             .unwrap_or("0")
             .parse::<u128>()
-            .or_else(|_| Err(format!("Cannot parse community pool coin amount, '{}'.", pool.amount)))?;
+            .map_err(|_| format!("Cannot parse community pool coin amount, '{}'.", pool.amount))?;
 
         let community_pool_amount = self.calc_amount_u128_to_u64(community_pool_amount);
 
-        OutRestResponse::new(community_pool_amount, 0)
+        Ok(OutRestResponse::new(community_pool_amount, 0))
     }
 }
 
 // Returns the mint parameters of the chain.
 /* async fn get_mint_params(&self) -> Option<MintParams> {
     if self.name() == "evmos" {
-        self.rest_api_request::<ParamsResp<InflationParams>>("/evmos/inflation/v1/params", &[]).await.and_then(|a|)
+        self.rest_api_request::<ParamsResp<InflationParams>>("/evmos/inflation/v1/params", &[]).await.map(|a|)
     } else if self.name() == "echelon" {
         self.rest_api_request::<ParamsResp<InflationParams>>("/echelon/inflation/v1/params", &[]).await
     } else {
         self.rest_api_request::<ParamsResp<MintParams>>("/cosmos/mint/v1beta1/params", &[])
             .await
             .ok()
-            .and_then(|res| Some(res.params))
+            .map(|res| res.params)
     }
     .unwrap_or(None)
 }
@@ -236,19 +246,19 @@ impl TryFrom<SlashingSigningInfoItem> for InternalSlashingSigningInfoItem {
             start_height: value
                 .start_height
                 .parse()
-                .or_else(|_| Err(format!("Cannot parse slashing start height, `{}`.", value.start_height)))?,
+                .map_err(|_| format!("Cannot parse slashing start height, `{}`.", value.start_height))?,
             index_offset: value
                 .start_height
                 .parse()
-                .or_else(|_| Err(format!("Cannot parse slashing index offset, `{}`.", value.index_offset)))?,
+                .map_err(|_| format!("Cannot parse slashing index offset, `{}`.", value.index_offset))?,
             jailed_until: DateTime::parse_from_rfc3339(&value.jailed_until)
-                .or_else(|_| Err(format!("Cannot parse jailed untile datetime, '{}'", value.jailed_until)))?
+                .map_err(|_| format!("Cannot parse jailed untile datetime, '{}'", value.jailed_until))?
                 .timestamp_millis(),
             tombstoned: value.tombstoned,
             missed_blocks_counter: value
                 .missed_blocks_counter
                 .parse()
-                .or_else(|_| Err(format!("Cannot parse missed blocks counter, `{}`.", value.missed_blocks_counter)))?,
+                .map_err(|_| format!("Cannot parse missed blocks counter, `{}`.", value.missed_blocks_counter))?,
         })
     }
 }
