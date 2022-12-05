@@ -1,6 +1,5 @@
 use std::time::Duration;
 
-use actix_cors::Cors;
 use actix_web::{web, App, HttpServer};
 use actix_cors::Cors;
 use web::Data;
@@ -47,6 +46,7 @@ pub async fn start_web_server() -> std::io::Result<()> {
     });
 
     HttpServer::new(move || {
+        // Build a CORS middleware.
         let cors = Cors::default()
             .allow_any_origin()
             .allowed_methods(vec!["GET", "POST"])
@@ -54,6 +54,7 @@ pub async fn start_web_server() -> std::io::Result<()> {
             //.allowed_header(header::CONTENT_TYPE)
             .max_age(3600);
 
+        // Build the app.
         App::new()
             .wrap(cors)
             // State data.
