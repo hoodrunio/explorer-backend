@@ -1,4 +1,3 @@
-use chrono::DateTime;
 use serde::{Deserialize, Serialize};
 
 use crate::{chain::Chain, routes::OutRestResponse};
@@ -24,17 +23,6 @@ impl Chain {
         };
 
         Ok(OutRestResponse::new(staking_pool, 0))
-    }
-
-    /// Returns the signing info by given cons address.
-    pub async fn get_signing_info(&self, cons_addr: &str) -> Result<OutRestResponse<InternalSlashingSigningInfoItem>, String> {
-        let path = format!("/cosmos/slashing/v1beta1/signing_infos/{cons_addr}");
-
-        let resp = self.rest_api_request::<SigningInfoResp>(&path, &[]).await?;
-
-        let signing_info = resp.val_signing_info.try_into()?;
-
-        Ok(OutRestResponse::new(signing_info, 0))
     }
 
     /// Returns the native coin amount in the community pool.
@@ -121,12 +109,6 @@ impl TryFrom<DenomAmount> for InternalDenomAmount {
 }
 
 #[derive(Deserialize, Serialize, Debug)]
-pub struct SigningInfoResp {
-    /// Validator signing info.
-    pub val_signing_info: SlashingSigningInfoItem,
-}
-
-#[derive(Deserialize, Serialize, Debug)]
 pub struct InflationParams {
     /// Mint denom. Eg: `"aevmos"`
     pub mint_denom: String,
@@ -201,71 +183,15 @@ pub struct InternalStakingPool {
 }
 
 #[derive(Deserialize, Serialize, Debug)]
-pub struct SlashingSigningInfo {
-    pub info: Vec<SlashingSigningInfoItem>,
-    pub pagination: Pagination,
-}
-
-#[derive(Deserialize, Serialize, Debug)]
-pub struct SlashingSigningInfoItem {
-    /// Validator address. Eg: `"evmosvalcons1qx4hehfny66jfzymzn6d5t38m0ely3cvw6zn06"`
-    pub address: String,
-    /// The block height slashing is started at. Eg: `"0"`
-    pub start_height: String,
-    /// Unknown. Eg: `"5888077"`
-    pub index_offset: String,
-    /// The time jailed until. Eg: `"2022-05-14T04:31:49.705643236Z"`
-    pub jailed_until: String,
-    /// Tombstoned state. Eg: `false`
-    pub tombstoned: bool,
-    /// The count of missed blocks. Eg: `"16433"`
-    pub missed_blocks_counter: String,
-}
-
-#[derive(Deserialize, Serialize, Debug)]
-pub struct InternalSlashingSigningInfoItem {
-    /// Validator address. Eg: `"evmosvalcons1qx4hehfny66jfzymzn6d5t38m0ely3cvw6zn06"`
-    pub address: String,
-    /// The block height slashing is started at. Eg: `0`
-    pub start_height: u64,
-    /// Unknown. Eg: `5888077`
-    pub index_offset: u64,
-    /// The timestamp in milliseconds jailed until.
-    pub jailed_until: i64,
-    /// Tombstoned state. Eg: `false`
-    pub tombstoned: bool,
-    /// The count of missed blocks. Eg: `16433`
-    pub missed_blocks_counter: u64,
-}
-
-impl TryFrom<SlashingSigningInfoItem> for InternalSlashingSigningInfoItem {
-    type Error = String;
-    fn try_from(value: SlashingSigningInfoItem) -> Result<Self, Self::Error> {
-        Ok(Self {
-            address: value.address,
-            start_height: value
-                .start_height
-                .parse()
-                .map_err(|_| format!("Cannot parse slashing start height, `{}`.", value.start_height))?,
-            index_offset: value
-                .start_height
-                .parse()
-                .map_err(|_| format!("Cannot parse slashing index offset, `{}`.", value.index_offset))?,
-            jailed_until: DateTime::parse_from_rfc3339(&value.jailed_until)
-                .map_err(|_| format!("Cannot parse jailed untile datetime, '{}'", value.jailed_until))?
-                .timestamp_millis(),
-            tombstoned: value.tombstoned,
-            missed_blocks_counter: value
-                .missed_blocks_counter
-                .parse()
-                .map_err(|_| format!("Cannot parse missed blocks counter, `{}`.", value.missed_blocks_counter))?,
-        })
-    }
+#[serde(untagged)]
+pub enum PublicKey {
+    Known(PublicKeyKnown),
+    Unknown(),
 }
 
 #[derive(Deserialize, Serialize, Debug)]
 #[serde(tag = "@type")]
-pub enum PublicKey {
+pub enum PublicKeyKnown {
     #[serde(rename = "/cosmos.crypto.secp256k1.PubKey")]
     Secp256K1 {
         /// Base 64 encoded Secp256K1 public key. Eg: `"Ap9xAyS21AGuRY4W7+Mi3JzbmULJjGATAzVeIxc98t07"`
@@ -280,6 +206,13 @@ pub enum PublicKey {
     Ethsecp256k1 {
         /// Base 64 encoded Ethsecp256k1 public key. Eg: `"AqrviRnJYWdC2OMM1haDI2X6oEIev8u0oqR10Elb06+1"`
         key: String,
+    },
+    #[serde(rename = "/cosmos.crypto.multisig.LegacyAminoPubKey")]
+    LegacyAminoPubKey {
+        /// Multisig threshold.
+        threshold: u32,
+        /// Public keys which comprise the multisig key.
+        public_keys: Vec<PublicKey>,
     },
 }
 
