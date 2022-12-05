@@ -12,7 +12,6 @@ pub struct State {
     evmos: Chain,
     kyve: Chain,
     osmosis: Chain,
-    secret: Chain,
     reqwest_client: reqwest::Client,
 }
 
@@ -24,6 +23,7 @@ impl State {
         State {
             axelar: init_chain! {
                 name: "axelar",
+                epoch: false,
                 gecko: Some("axelar"),
                 base_prefix: "axelar",
                 valoper_prefix: "axelarvaloper",
@@ -39,6 +39,7 @@ impl State {
             },
             evmos: init_chain! {
                 name: "evmos",
+                epoch: false,
                 gecko: Some("evmos"),
                 base_prefix: "evmos",
                 valoper_prefix: "evmosvaloper",
@@ -54,6 +55,7 @@ impl State {
             },
             kyve: init_chain! {
                 name: "kyve",
+                epoch: false,
                 gecko: None,
                 base_prefix: "kyve",
                 valoper_prefix: "kyvevaloper",
@@ -69,6 +71,7 @@ impl State {
             },
             osmosis: init_chain! {
                 name: "osmosis",
+                epoch: false,
                 gecko: Some("osmosis"),
                 base_prefix: "osmo",
                 valoper_prefix: "osmovaloper",
@@ -79,21 +82,6 @@ impl State {
                 rest_url: "https://rest.cosmos.directory/osmosis",
                 wss_url: "wss://rpc.osmosis.interbloc.org/websocket",
                 sdk_version: 46,
-                decimals_pow: 100,
-                client: client.clone(),
-            },
-            secret: init_chain! {
-                name: "secret",
-                gecko: Some("secret"),
-                base_prefix: "secret",
-                valoper_prefix: "secretvaloper",
-                cons_prefix: "secretvalcons",
-                main_denom: "uscrt",
-                rpc_url: "https://rpc.cosmos.directory/secretnetwork",
-                jsonrpc_url: None,
-                rest_url: "https://rest.cosmos.directory/secretnetwork",
-                wss_url: "wss://scrt-rpc.blockpane.com/websocket",
-                sdk_version: 45,
                 decimals_pow: 100,
                 client: client.clone(),
             },
@@ -108,7 +96,6 @@ impl State {
             "evmos" => Ok(self.evmos.clone()),
             "kyve" => Ok(self.kyve.clone()),
             "osmosis" => Ok(self.osmosis.clone()),
-            "secret" => Ok(self.secret.clone()),
             _ => Err(format!("{name} is not a supported chain.")),
         }
     }
@@ -120,19 +107,17 @@ impl State {
             self.evmos.update_data(),
             self.kyve.update_data(),
             self.osmosis.update_data(),
-            self.secret.update_data(),
         );
     }
 
     /// Updates all the prices' of chains.
     pub async fn update_prices(&self) {
-        let prices = get_prices(self.reqwest_client.clone(), &["axelar", "evmos", "osmosis", "secret", ]).await;
+        let prices = get_prices(self.reqwest_client.clone(), &["axelar", "evmos", "osmosis", ]).await;
 
         join!(
             self.axelar.update_price(prices.get("axelar")),
             self.evmos.update_price(prices.get("evmos")),
             self.osmosis.update_price(prices.get("osmosis")),
-            self.secret.update_price(prices.get("secret")),
         );
     }
 
@@ -143,7 +128,6 @@ impl State {
             self.evmos.update_validator_database(),
             self.kyve.update_validator_database(),
             self.osmosis.update_validator_database(),
-            self.secret.update_validator_database(),
         );
     }
 
@@ -154,7 +138,6 @@ impl State {
             self.evmos.subscribe_to_events(),
             self.kyve.subscribe_to_events(),
             self.osmosis.subscribe_to_events(),
-            self.secret.subscribe_to_events(),
         );
     }
 }
