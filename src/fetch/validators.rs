@@ -1,4 +1,5 @@
 use chrono::DateTime;
+use futures::{future::join_all, FutureExt};
 use serde::{Deserialize, Serialize};
 
 use super::{
@@ -19,6 +20,16 @@ impl Chain {
             Ok(res) => Ok(OutRestResponse::new(res.validator, 0)),
             Err(error) => Err(error),
         }
+    }
+    /// Returns the signing info by given cons address.
+    pub async fn get_validator_signing_info(&self, cons_addr: &str) -> Result<OutRestResponse<InternalSlashingSigningInfoItem>, String> {
+        let path = format!("/cosmos/slashing/v1beta1/signing_infos/{cons_addr}");
+
+        let resp = self.rest_api_request::<SigningInfoResp>(&path, &[]).await?;
+
+        let signing_info = resp.val_signing_info.try_into()?;
+
+        Ok(OutRestResponse::new(signing_info, 0))
     }
 
     /// Returns the delegations to given validator address.
@@ -144,11 +155,13 @@ impl Chain {
 
         let validator = resp.validator;
 
+        println!("1");
+
+        let validator_metadata = self.get_validator_metadata_by_valoper_addr(validator.operator_address.clone()).await?;
+
+        println!("2");
         let validator = InternalValidator {
-            logo_url: self
-                .get_validator_metadata_by_valoper_addr(validator.operator_address.clone())
-                .await?
-                .logo_url,
+            logo_url: validator_metadata.logo_url,
             commission: validator
                 .commission
                 .commission_rates
@@ -156,16 +169,35 @@ impl Chain {
                 .parse()
                 .map_err(|_| format!("Cannot parse commission rate, '{}'.", validator.commission.commission_rates.rate))?,
             uptime: 0.0, // TODO!
+            status: {
+                let signing_info = self.get_validator_signing_info(&validator_metadata.cons_address).await?;
+
+                println!("3");
+
+                if validator.jailed {
+                    "Jailed"
+                } else if validator.status == "BOND_STATUS_UNBONDED" {
+                    "Inactive"
+                } else if signing_info.value.tombstoned {
+                    "Tombstoned"
+                } else {
+                    "Active"
+                }
+                .to_string()
+            },
             max_commission: validator
                 .commission
                 .commission_rates
                 .max_rate
                 .parse()
                 .map_err(|_| format!("Cannot parse maximum commission rate, '{}'.", validator.commission.commission_rates.rate))?,
+            self_delegate_address: self
+                .convert_valoper_to_self_delegate_address(&validator.operator_address)
+                .ok_or_else(|| format!("Cannot parse self delegate address, {}.", validator.operator_address))?,
             operator_address: validator.operator_address,
+            consensus_address: validator_metadata.cons_address,
             name: validator.description.moniker,
             website: validator.description.website,
-            self_delegate_address: String::new(), // TODO!
             details: validator.description.details,
             voting_power_percentage: 0.0, // TODO!
             voting_power: 0,              // TODO!
@@ -262,22 +294,116 @@ impl Chain {
         self.rest_api_request(&path, &[]).await
     }
 
+    /// Returns the latest validator set.
+    pub async fn get_validator_set(&self) -> Result<OutRestResponse<Vec<ValidatorSetValidator>>, String> {
+        let config = PaginationConfig::new().limit(100);
+
+        let mut first_resp = self._get_validator_set(config).await?;
+
+        let mut validator_set = vec![];
+
+        validator_set.append(&mut first_resp.value);
+
+        let pages_to_request = first_resp.pages;
+
+        let mut jobs = vec![];
+
+        for page in 2..=pages_to_request {
+            jobs.push(self._get_validator_set(config.page(page)))
+        }
+
+        let resps = join_all(jobs).await;
+
+        for resp in resps {
+            let mut validators = resp?.value;
+
+            validator_set.append(&mut validators)
+        }
+
+        Ok(OutRestResponse::new(validator_set, 0))
+    }
+
+    /// Returns the latest validator set.
+    async fn _get_validator_set(&self, config: PaginationConfig) -> Result<OutRestResponse<Vec<ValidatorSetValidator>>, String> {
+        let mut query = vec![];
+
+        query.push(("pagination.reverse", format!("{}", config.is_reverse())));
+        query.push(("pagination.limit", format!("{}", config.get_limit())));
+        query.push(("pagination.count_total", "true".to_string()));
+        query.push(("pagination.offset", format!("{}", config.get_offset())));
+
+        println!("asdsad");
+        let resp = self
+            .rest_api_request::<ValidatorSetResp>("/cosmos/base/tendermint/v1beta1/validatorsets/latest", &query)
+            .await?;
+
+        let pages = calc_pages(resp.pagination, config)?;
+
+        let validators = resp.validators;
+
+        Ok(OutRestResponse::new(validators, pages))
+    }
+
     /// Returns the validator set at given height.
-    pub async fn _get_validator_set(&self, height: u64) -> Result<ValidatorSetResp, String> {
-        let path = format!("/validatorsets/{height}");
-        self.rest_api_request::<ValidatorSetResp>(&path, &[]).await
+    pub async fn get_validator_set_by_height(&self, height: u64) -> Result<OutRestResponse<Vec<ValidatorSetValidator>>, String> {
+        let config = PaginationConfig::new().limit(100);
+
+        let mut first_resp = self._get_validator_set_by_height(height, config).await?;
+
+        let mut validator_set = vec![];
+
+        validator_set.append(&mut first_resp.value);
+
+        let pages_to_request = first_resp.pages;
+
+        let mut jobs = vec![];
+
+        println!("{}", pages_to_request);
+
+        for page in 2..=pages_to_request {
+            jobs.push(self._get_validator_set(config.page(page)))
+        }
+
+        let resps = join_all(jobs).await;
+
+        for resp in resps {
+            let mut validators = resp?.value;
+
+            validator_set.append(&mut validators)
+        }
+
+        Ok(OutRestResponse::new(validator_set, 0))
+    }
+
+    /// Returns the validator set at given height.
+    pub async fn _get_validator_set_by_height(
+        &self,
+        height: u64,
+        config: PaginationConfig,
+    ) -> Result<OutRestResponse<Vec<ValidatorSetValidator>>, String> {
+        let path = format!("/cosmos/base/tendermint/v1beta1/validatorsets/{height}");
+        let mut query = vec![];
+
+        query.push(("pagination.reverse", format!("{}", config.is_reverse())));
+        query.push(("pagination.limit", format!("{}", config.get_limit())));
+        query.push(("pagination.count_total", "true".to_string()));
+        query.push(("pagination.offset", format!("{}", config.get_offset())));
+
+        let resp = self.rest_api_request::<ValidatorSetResp>(&path, &query).await?;
+
+        let validators = resp.validators;
+
+        println!("{}", resp.pagination.total.clone());
+        let pages = calc_pages(resp.pagination, config)?;
+
+        Ok(OutRestResponse::new(validators, pages))
     }
 }
 
 #[derive(Deserialize, Serialize, Debug)]
 pub struct ValidatorSetResp {
-    pub result: ValidatorSetRespResult,
-}
-
-#[derive(Deserialize, Serialize, Debug)]
-pub struct ValidatorSetRespResult {
-    /// Array of validators.
     pub validators: Vec<ValidatorSetValidator>,
+    pub pagination: Pagination,
 }
 
 #[derive(Deserialize, Serialize, Debug)]
@@ -291,7 +417,7 @@ pub struct ValidatorSetValidator {
 #[derive(Deserialize, Serialize, Debug)]
 pub struct ValidatorSetPubKey {
     /// Validator pubkey. Eg: `"LtiHVLCcE+oFII0vpIl9mfkGDmk9BpPg1eUkvKnO4xw=""`
-    pub value: String,
+    pub key: String,
 }
 
 #[derive(Deserialize, Serialize, Debug)]
@@ -413,6 +539,9 @@ pub struct ValidatorListResp {
 pub struct ConsensusPubkey {
     // Consensus public key. Eg: `"zy/GxGwk1Pm3HiG67iani1u+MUieM98ZvSIrXC8mISE="`
     pub key: String,
+    /// Type of public key. Eg: `"/cosmos.crypto.secp256k1.PubKey"`
+    #[serde(rename = "@type")]
+    pub key_type: String,
 }
 
 #[derive(Deserialize, Serialize, Debug)]
@@ -448,6 +577,7 @@ pub struct InternalValidator {
     uptime: f64,
     max_commission: f64,
     operator_address: String,
+    consensus_address: String,
     name: String,
     website: String,
     self_delegate_address: String,
@@ -456,6 +586,7 @@ pub struct InternalValidator {
     voting_power: u64,
     bonded_height: u64,
     change: f64,
+    status: String,
 }
 
 #[derive(Deserialize, Serialize, Debug)]
@@ -539,10 +670,79 @@ impl InternalRedelegation {
                 },
                 _ => return Err(format!("Tx doesn't have a log, {}.", tx_response.txhash)),
             },
-            validator_to_address: validator_to_metadata.address,
+            validator_to_address: validator_to_metadata.valoper_address,
             validator_to_logo_url: validator_to_metadata.logo_url,
             validator_to_name: validator_to_metadata.name,
             delegator_address,
         })
     }
+}
+
+#[derive(Deserialize, Serialize, Debug)]
+pub struct SlashingSigningInfo {
+    pub info: Vec<SlashingSigningInfoItem>,
+    pub pagination: Pagination,
+}
+
+#[derive(Deserialize, Serialize, Debug)]
+pub struct SlashingSigningInfoItem {
+    /// Validator address. Eg: `"evmosvalcons1qx4hehfny66jfzymzn6d5t38m0ely3cvw6zn06"`
+    pub address: String,
+    /// The block height slashing is started at. Eg: `"0"`
+    pub start_height: String,
+    /// Unknown. Eg: `"5888077"`
+    pub index_offset: String,
+    /// The time jailed until. Eg: `"2022-05-14T04:31:49.705643236Z"`
+    pub jailed_until: String,
+    /// Tombstoned state. Eg: `false`
+    pub tombstoned: bool,
+    /// The count of missed blocks. Eg: `"16433"`
+    pub missed_blocks_counter: String,
+}
+
+#[derive(Deserialize, Serialize, Debug)]
+pub struct InternalSlashingSigningInfoItem {
+    /// Validator address. Eg: `"evmosvalcons1qx4hehfny66jfzymzn6d5t38m0ely3cvw6zn06"`
+    pub address: String,
+    /// The block height slashing is started at. Eg: `0`
+    pub start_height: u64,
+    /// Unknown. Eg: `5888077`
+    pub index_offset: u64,
+    /// The timestamp in milliseconds jailed until.
+    pub jailed_until: i64,
+    /// Tombstoned state. Eg: `false`
+    pub tombstoned: bool,
+    /// The count of missed blocks. Eg: `16433`
+    pub missed_blocks_counter: u64,
+}
+
+impl TryFrom<SlashingSigningInfoItem> for InternalSlashingSigningInfoItem {
+    type Error = String;
+    fn try_from(value: SlashingSigningInfoItem) -> Result<Self, Self::Error> {
+        Ok(Self {
+            address: value.address,
+            start_height: value
+                .start_height
+                .parse()
+                .map_err(|_| format!("Cannot parse slashing start height, `{}`.", value.start_height))?,
+            index_offset: value
+                .start_height
+                .parse()
+                .map_err(|_| format!("Cannot parse slashing index offset, `{}`.", value.index_offset))?,
+            jailed_until: DateTime::parse_from_rfc3339(&value.jailed_until)
+                .map_err(|_| format!("Cannot parse jailed untile datetime, '{}'", value.jailed_until))?
+                .timestamp_millis(),
+            tombstoned: value.tombstoned,
+            missed_blocks_counter: value
+                .missed_blocks_counter
+                .parse()
+                .map_err(|_| format!("Cannot parse missed blocks counter, `{}`.", value.missed_blocks_counter))?,
+        })
+    }
+}
+
+#[derive(Deserialize, Serialize, Debug)]
+pub struct SigningInfoResp {
+    /// Validator signing info.
+    pub val_signing_info: SlashingSigningInfoItem,
 }
