@@ -11,6 +11,7 @@ pub struct Chain<'a> {
     pub name: &'a str,
     pub logo: &'a str,
     pub gecko: Option<&'a str>,
+    pub epoch: bool,
     pub prefix: &'a str,
     pub main_denom: String,
     pub rpc_url: &'a str,
@@ -63,6 +64,7 @@ async fn main() {
 async fn create_chain<'a>(chain_map: &HashMap<&'a str, &'a str>, client: Client) -> Chain<'a> {
     let name = chain_map.get("name").unwrap();
     let logo = chain_map.get("logo").unwrap();
+    let epoch = chain_map.get("epoch").unwrap_or(&"false") == &"true";
     let gecko = chain_map.get("gecko").map(|a| *a);
     let prefix = chain_map.get("prefix").unwrap_or(name);
     let rpc_url = chain_map.get("rpc").unwrap();
@@ -86,6 +88,7 @@ async fn create_chain<'a>(chain_map: &HashMap<&'a str, &'a str>, client: Client)
     Chain {
         name,
         logo,
+        epoch,
         gecko,
         prefix,
         main_denom,
@@ -126,6 +129,7 @@ fn update_chains_yml(chains: &[Chain]) {
 
     for chain in chains {
         content += &format!("name: {}\n", chain.name);
+        content += &format!("epoch: {}\n", chain.epoch);
         if chain.gecko.is_some() {
             content += &format!("gecko: {}\n", chain.gecko.unwrap());
         } else {
@@ -181,6 +185,7 @@ fn update_state_rs(chains: &[Chain]) {
             r#"
             {name}: init_chain! {{
                 name: "{name}",
+                epoch: {epoch},
                 gecko: {gecko},
                 base_prefix: "{fix}",
                 valoper_prefix: "{fix}valoper",
@@ -195,6 +200,7 @@ fn update_state_rs(chains: &[Chain]) {
                 client: client.clone(),
             }},"#,
             name = chain.name,
+            epoch = chain.epoch,
             gecko = chain
                 .gecko
                 .map(|gecko| format!("Some(\"{gecko}\")"))
