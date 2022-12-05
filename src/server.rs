@@ -2,6 +2,7 @@ use std::time::Duration;
 
 use actix_cors::Cors;
 use actix_web::{web, App, HttpServer};
+use actix_cors::Cors;
 use web::Data;
 
 use crate::routes;
