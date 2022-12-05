@@ -254,7 +254,6 @@ pub struct BlockId {
 pub struct Block {
     pub header: BlockHeader,
     pub data: BlockData,
-    pub evidence: BlockEvidence,
     pub last_commit: BlockLastCommit,
 }
 
@@ -354,11 +353,6 @@ pub struct BlockLastCommitSignatures {
     pub signature: Option<String>,
 }
 
-#[derive(Deserialize, Serialize, Debug)]
-pub struct BlockEvidence {
-    // Property below is an unknown array. TODO!
-    // evidence: Vec<UNKNOWN>
-}
 #[derive(Deserialize, Serialize, Debug)]
 pub struct BlockLastCommit {
     /// The block height of the latest commit. Eg: `"4611327"`
