@@ -159,6 +159,16 @@ impl Chain {
 
         let validator_metadata = self.get_validator_metadata_by_valoper_addr(validator.operator_address.clone()).await?;
 
+        let delegator_shares = self.calc_amount_u128_to_f64(
+            validator
+                .delegator_shares
+                .split_once('.')
+                .map(|(pri, _)| pri)
+                .unwrap_or(&validator.delegator_shares)
+                .parse::<u128>()
+                .map_err(|_| format!("Cannot parse delegator shares, {}.", validator.delegator_shares))?,
+        );
+
         println!("2");
         let validator = InternalValidator {
             logo_url: validator_metadata.logo_url,
@@ -199,10 +209,16 @@ impl Chain {
             name: validator.description.moniker,
             website: validator.description.website,
             details: validator.description.details,
-            voting_power_percentage: 0.0, // TODO!
-            voting_power: 0,              // TODO!
-            bonded_height: 0,             // TODO!
-            change: 0.0,                  // TODO!
+            voting_power: delegator_shares as u64,
+            voting_power_percentage: (delegator_shares
+                / *self
+                    .inner
+                    .data
+                    .bonded
+                    .lock()
+                    .map_err(|_| "Cannot access to total bonded tokens in the cache.".to_string())? as f64),
+            bonded_height: 0, // TODO!
+            change: 0.0,      // TODO!
         };
 
         Ok(OutRestResponse::new(validator, 0))
