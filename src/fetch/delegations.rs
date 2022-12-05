@@ -38,7 +38,6 @@ impl Chain {
                                 .parse::<u128>()
                                 .map_err(|_| format!("Cannot parse delegation amount, '{}'", delegation_response.balance.amount))?,
                         ),
-                        reward: 0.0,
                         validator_logo_url: validator_metadata.logo_url,
                         validator_name: validator_metadata.name,
                         validator_address: validator_metadata.valoper_address,
@@ -198,7 +197,6 @@ pub struct InternalDelegation {
     pub validator_name: String,
     pub validator_address: String,
     pub amount: f64,
-    pub reward: f64,
 }
 
 #[derive(Deserialize, Serialize, Debug)]
