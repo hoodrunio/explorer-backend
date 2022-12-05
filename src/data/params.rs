@@ -6,7 +6,7 @@ pub struct ChainParams {
     pub staking: ChainParamsStaking,
     pub slashing: ChainParamsSlashing,
     pub gov: ChainParamsGov,
-    pub distribution: ChainParamsDistribution, // TODO! Where to get data?
+    pub distribution: ChainParamsDistribution,
 }
 
 /// The staking params.
