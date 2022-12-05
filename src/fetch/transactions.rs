@@ -505,7 +505,9 @@ pub enum InternalTransactionContentKnowns {
         option: String,
     },
     #[serde(rename = "Ethereum Tx")]
-    EthereumTx { hash: String },
+    EthereumTx {
+        hash: String,
+    },
 }
 
 impl From<InternalTransaction> for TransactionItem {
@@ -764,6 +766,8 @@ pub struct TxResponse {
     pub data: String,
     /// JSON encoded raw log. Eg: `"[{\"events\":[{\"type\":\"coin_received\",\"attributes\":[{\"key\":\"receiver\",\"value\":\"cosmos1vl8xm7x04cedgh639hc9ucvf6zc754fyfewhef\"},{\"key\":\"amount\",\"value\":\"450000uatom\"}]},{\"type\":\"coin_spent\",\"attributes\":[{\"key\":\"spender\",\"value\":\"cosmos1h4qpl2fxlcatp495pn8wjqcfkq3h66r9vk4hxf\"},{\"key\":\"amount\",\"value\":\"450000uatom\"}]},{\"type\":\"message\",\"attributes\":[{\"key\":\"action\",\"value\":\"/cosmos.bank.v1beta1.MsgSend\"},{\"key\":\"sender\",\"value\":\"cosmos1h4qpl2fxlcatp495pn8wjqcfkq3h66r9vk4hxf\"},{\"key\":\"module\",\"value\":\"bank\"}]},{\"type\":\"transfer\",\"attributes\":[{\"key\":\"recipient\",\"value\":\"cosmos1vl8xm7x04cedgh639hc9ucvf6zc754fyfewhef\"},{\"key\":\"sender\",\"value\":\"cosmos1h4qpl2fxlcatp495pn8wjqcfkq3h66r9vk4hxf\"},{\"key\":\"amount\",\"value\":\"450000uatom\"}]}]}]"`
     pub raw_log: String,
+    /// Array of logs.
+    pub logs: Vec<TxResponseLog>,
     /// Info. Eg: `""`
     pub info: String,
     // Gas wanted. Eg: `"80000"`
@@ -774,6 +778,28 @@ pub struct TxResponse {
     pub tx: TxsResponseTx,
     // Timestamp. Eg: `"2022-07-19T05:26:26Z"`
     pub timestamp: String,
+}
+
+#[derive(Deserialize, Serialize, Debug, Clone)]
+pub struct TxResponseLog {
+    /// Array of events.
+    pub events: Vec<TxResponseEvent>,
+}
+
+#[derive(Deserialize, Serialize, Debug, Clone)]
+pub struct TxResponseEvent {
+    /// Event type. Eg: `"redelegate"`
+    pub r#type: String,
+    /// Array of attributes.
+    pub attributes: Vec<TxResponseEventAttribute>,
+}
+
+#[derive(Deserialize, Serialize, Debug, Clone)]
+pub struct TxResponseEventAttribute {
+    /// Event attribute key. Eg: `"completion_time"`
+    pub key: String,
+    /// Event attribute value. Eg: `"2022-12-18T19:20:04Z"`
+    pub value: String,
 }
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
