@@ -505,7 +505,7 @@ impl InternalRedelegation {
         let (delegator_address, validator_dst_address, amount) = match tx.body.messages.get(0) {
             Some(TxsTransactionMessage::Known(TxsTransactionMessageKnowns::Redelegate {
                 delegator_address,
-                validator_src_address,
+                validator_src_address: _,
                 validator_dst_address,
                 amount,
             })) => (delegator_address.clone(), validator_dst_address.clone(), amount),
