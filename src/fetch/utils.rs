@@ -37,4 +37,8 @@ impl Chain {
             0.00
         }
     }
+
+    pub fn convert_valoper_to_self_delegate_address(&self, valoper_addr: &str) -> Option<String> {
+        bech32::encode(self.inner.base_prefix, bech32::decode(valoper_addr).ok()?.1, bech32::Variant::Bech32).ok()
+    }
 }
