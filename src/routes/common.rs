@@ -35,6 +35,14 @@ pub fn calc_pages(pagination: Pagination, config: PaginationConfig) -> Result<u8
     } else if config.get_offset() >= pagination_total {
         Err("There is no error. And this page doesn't have any data to show you.".to_string())
     } else {
-        Ok((pagination_total / config.get_limit() as u32) as u8)
+        let num_of_full_pages = pagination_total / config.get_limit() as u32;
+
+        let num_of_pages = if pagination_total % config.get_limit() as u32 > 0 {
+            num_of_full_pages + 1
+        } else {
+            num_of_full_pages
+        };
+
+        Ok(num_of_pages as u8)
     }
 }
