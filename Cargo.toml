@@ -8,6 +8,7 @@ build = "build.rs"
 
 [dependencies]
 actix = "0.13.0"
+actix-cors = "0.6.4"
 actix-web = "4.2.1"
 actix-web-actors = "4.1.0"
 base64 = "0.13.1"
