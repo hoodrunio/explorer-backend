@@ -1,6 +1,6 @@
-use std::collections::BTreeMap;
 use std::fs;
 use std::sync::Mutex;
+use std::{collections::BTreeMap, sync::Arc};
 
 use futures::future::join_all;
 use serde::{Deserialize, Serialize};
@@ -17,23 +17,26 @@ use crate::{
 pub struct ValidatorMetadataRaw {
     pub name: String,
     pub logo_url: String,
+    pub cons_address: String,
 }
 
 /// Validator name and the URL of its logo.
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct ValidatorMetadata {
-    pub address: String,
     pub name: String,
     pub logo_url: String,
+    pub valoper_address: String,
+    pub cons_address: String,
 }
 
 /// Validator name and the URL of its logo.
 #[derive(Clone, Debug)]
 pub struct ValidatorMetadataFull {
-    pub address: String,
     pub name: String,
     pub logo_url: String,
     pub hex: String,
+    pub valoper_address: String,
+    pub cons_address: String,
 }
 
 /// The in-memory database implementation for validator names and monikers.
@@ -107,23 +110,12 @@ impl Chain {
             .cloned()
         {
             Some(validator_metadata_raw) => Ok(ValidatorMetadata {
-                address: valoper_addr,
+                valoper_address: valoper_addr,
                 logo_url: validator_metadata_raw.logo_url,
                 name: validator_metadata_raw.name,
+                cons_address: validator_metadata_raw.cons_address,
             }),
-            None => Ok({
-                let validator = self.get_validator(&valoper_addr).await?.value;
-
-                let validator_metadata = ValidatorMetadata {
-                    name: validator.description.moniker,
-                    logo_url: get_validator_logo(self.inner.client.clone(), &validator.description.identity).await,
-                    address: valoper_addr,
-                };
-
-                self.save_validator_to_database(validator_metadata.clone());
-
-                validator_metadata
-            }),
+            None => Err(format!("Cannot find the validator, {}.", valoper_addr)),
         }
     }
 
@@ -133,9 +125,10 @@ impl Chain {
     pub fn get_validator_metadata_by_valoper_addr_blocking(&self, valoper_addr: String) -> Option<ValidatorMetadata> {
         match self.inner.data.db.valoper_to_metadata_map.lock().ok()?.get(&valoper_addr).cloned() {
             Some(validator_metadata_raw) => Some(ValidatorMetadata {
-                address: valoper_addr,
+                valoper_address: valoper_addr,
                 logo_url: validator_metadata_raw.logo_url,
                 name: validator_metadata_raw.name,
+                cons_address: validator_metadata_raw.cons_address,
             }),
             None => None,
         }
@@ -201,10 +194,11 @@ impl Chain {
     pub fn save_validator_to_database(&self, validator: ValidatorMetadata) {
         if let Ok(mut map) = self.inner.data.db.valoper_to_metadata_map.lock() {
             map.insert(
-                validator.address,
+                validator.valoper_address,
                 ValidatorMetadataRaw {
                     name: validator.name,
                     logo_url: validator.logo_url,
+                    cons_address: validator.cons_address,
                 },
             );
         }
@@ -224,13 +218,14 @@ impl Chain {
 
         // Save validators to the database.
         for validator in validators {
-            hex_to_valoper_map.insert(validator.hex.clone(), validator.address.clone());
+            hex_to_valoper_map.insert(validator.hex.clone(), validator.valoper_address.clone());
 
             valoper_to_metadata_map.insert(
-                validator.address,
+                validator.valoper_address,
                 ValidatorMetadataRaw {
                     name: validator.name,
                     logo_url: validator.logo_url,
+                    cons_address: validator.cons_address,
                 },
             );
         }
@@ -265,31 +260,44 @@ impl Chain {
     pub async fn update_validator_database(&self) {
         let resp = self.get_validators_unspecified(PaginationConfig::new().limit(10000)).await;
 
+        let cons_address_map = match self.get_validator_set().await {
+            Ok(resp) => Arc::new(
+                resp.value
+                    .into_iter()
+                    .map(|validator| (validator.pub_key.key, validator.address))
+                    .collect::<BTreeMap<String, String>>(),
+            ),
+            Err(err) => return eprintln!("Database job:\n{}", err),
+        };
+
         let mut validators_future = vec![];
 
         match resp {
             Ok(resp) => {
                 for validator in resp.validators {
+                    let cons_address_map = cons_address_map.clone();
                     validators_future.push(async move {
                         let hex_addr = convert_consensus_pub_key_to_hex_address(&validator.consensus_pubkey.key);
 
                         match hex_addr {
                             Some(hex_addr) => Some(match self.get_validator_metadata_by_hex_addr_blocking(hex_addr.clone()) {
                                 Some(metadata) => ValidatorMetadataFull {
-                                    address: validator.operator_address.clone(),
+                                    valoper_address: validator.operator_address.clone(),
                                     hex: hex_addr,
                                     logo_url: metadata.logo_url,
                                     name: metadata.name,
+                                    cons_address: metadata.cons_address,
                                 },
                                 None => ValidatorMetadataFull {
                                     name: validator.description.moniker,
-                                    address: validator.operator_address.clone(),
+                                    valoper_address: validator.operator_address.clone(),
                                     hex: convert_consensus_pub_key_to_hex_address(&validator.consensus_pubkey.key)
                                         .unwrap_or(format!("Error, {}", validator.operator_address)),
                                     logo_url: get_validator_logo(self.inner.client.clone(), &validator.description.identity).await,
+                                    cons_address: cons_address_map.get(&validator.consensus_pubkey.key).cloned()?,
                                 },
                             }),
-                            None => None,
+                            _ => None,
                         }
                     });
                 }
