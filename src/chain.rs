@@ -25,6 +25,8 @@ impl Chain {
 pub struct ChainConfig {
     /// The name of the chain.
     pub name: &'static str,
+    /// The name of the chain.
+    pub epoch: bool,
     /// The optional Coin Gecko ID.
     pub gecko: Option<&'static str>,
     /// The base prefix of the chain.
