@@ -1,7 +1,10 @@
 use chrono::DateTime;
 use serde::{Deserialize, Serialize};
 
-use super::others::{DenomAmount, Pagination, PaginationConfig};
+use super::{
+    others::{DenomAmount, Pagination, PaginationConfig},
+    transactions::{Tx, TxResponse, TxsResp, TxsTransactionMessage, TxsTransactionMessageKnowns},
+};
 use crate::{
     chain::Chain,
     routes::{calc_pages, OutRestResponse},
@@ -99,10 +102,38 @@ impl Chain {
     /// Returns the redelegations to given validator address.
     pub async fn get_validator_redelegations(
         &self,
-        _validator_addr: &str,
-        _config: PaginationConfig,
-    ) -> Result<OutRestResponse<Vec<InternalUnbonding>>, String> {
-        todo!() // TODO!
+        validator_addr: &str,
+        config: PaginationConfig,
+    ) -> Result<OutRestResponse<Vec<InternalRedelegation>>, String> {
+        let mut query = vec![];
+        query.push(("events", format!("redelegate.source_validator='{}'", validator_addr)));
+        query.push(("message.action", "'/cosmos.staking.v1beta1.MsgBeginRedelegate'".to_string()));
+        query.push(("pagination.reverse", format!("{}", config.is_reverse())));
+        query.push(("pagination.limit", format!("{}", config.get_limit())));
+        query.push(("pagination.count_total", "true".to_string()));
+        query.push(("pagination.offset", format!("{}", config.get_offset())));
+        query.push(("order_by", "ORDER_BY_DESC".to_string()));
+
+        let resp = self.rest_api_request::<TxsResp>("/cosmos/tx/v1beta1/txs", &query).await?;
+
+        let mut redelegations = vec![];
+
+        for i in 0..resp.txs.len() {
+            let (tx, tx_response) = (
+                resp.txs
+                    .get(i)
+                    .ok_or_else(|| "The count of transactions and transaction responses aren't the same.".to_string())?,
+                resp.tx_responses
+                    .get(i)
+                    .ok_or_else(|| "The count of transactions and transaction responses aren't the same.".to_string())?,
+            );
+
+            redelegations.push(InternalRedelegation::new(tx, tx_response, self).await?)
+        }
+
+        let pages = calc_pages(resp.pagination, config)?;
+
+        Ok(OutRestResponse::new(redelegations, pages))
     }
 
     /// Returns validator info by given validator address.
@@ -457,4 +488,61 @@ pub struct ValidatorListValidatorDescription {
     pub security_contact: String,
     /// Validator details. Eg: `"reliable \u0026\u0026 secure staking"`
     pub details: String,
+}
+
+#[derive(Deserialize, Serialize, Debug)]
+pub struct InternalRedelegation {
+    pub amount: f64,
+    pub completion_time: i64,
+    pub delegator_address: String,
+    pub validator_to_address: String,
+    pub validator_to_logo_url: String,
+    pub validator_to_name: String,
+}
+
+impl InternalRedelegation {
+    pub async fn new(tx: &Tx, tx_response: &TxResponse, chain: &Chain) -> Result<Self, String> {
+        let (delegator_address, validator_dst_address, amount) = match tx.body.messages.get(0) {
+            Some(TxsTransactionMessage::Known(TxsTransactionMessageKnowns::Redelegate {
+                delegator_address,
+                validator_src_address,
+                validator_dst_address,
+                amount,
+            })) => (delegator_address.clone(), validator_dst_address.clone(), amount),
+            _ => return Err(format!("Tx doesn't have a redelegation message, {}.", tx_response.txhash)),
+        };
+
+        let validator_to_metadata = chain.get_validator_metadata_by_valoper_addr(validator_dst_address).await?;
+
+        Ok(Self {
+            amount: chain.calc_amount_u128_to_f64(
+                amount
+                    .amount
+                    .parse()
+                    .map_err(|_| format!("Cannot parse redelegation amount, {}.", amount.amount))?,
+            ),
+            completion_time: match tx_response.logs.get(0) {
+                Some(log) => match log.events.iter().find(|event| event.r#type == "redelegate") {
+                    Some(event) => match event.attributes.iter().find(|attr| attr.key == "completion_time") {
+                        Some(attr) => match DateTime::parse_from_rfc3339(&attr.value) {
+                            Ok(date_time) => date_time.timestamp_millis(),
+                            _ => return Err(format!("Cannot parse datetime, {}.", attr.value)),
+                        },
+                        _ => {
+                            return Err(format!(
+                                "Tx redelagate event log doesn't have `completion_time` attribute, {}.",
+                                tx_response.txhash
+                            ))
+                        }
+                    },
+                    _ => return Err(format!("Tx doesn't have a redelagate event log, {}.", tx_response.txhash)),
+                },
+                _ => return Err(format!("Tx doesn't have a log, {}.", tx_response.txhash)),
+            },
+            validator_to_address: validator_to_metadata.address,
+            validator_to_logo_url: validator_to_metadata.logo_url,
+            validator_to_name: validator_to_metadata.name,
+            delegator_address,
+        })
+    }
 }
