@@ -454,8 +454,9 @@ impl InternalTransaction {
                                 option: match option.as_ref() {
                                     "VOTE_OPTION_YES" => "Yes",
                                     "VOTE_OPTION_NO" => "No",
-                                    // Other VOTE options gonna be added in preferred format.
-                                    // TODO!
+                                    "VOTE_OPTION_ABSTAIN" => "Abstain",
+                                    "VOTE_OPTION_UNSPECIFIED" => "Empty",
+                                    "VOTE_OPTION_NO_WITH_VETO" => "Veto",
                                     _ => "Unknown",
                                 }
                                 .to_string(),
