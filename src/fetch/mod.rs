@@ -10,3 +10,4 @@ pub mod tokenomics;
 pub mod transactions;
 pub mod utils;
 pub mod validators;
+pub mod apr;
