@@ -282,6 +282,86 @@ impl InternalTransaction {
     async fn new(tx: Tx, tx_response: TxResponse, chain: &Chain) -> Result<Self, String> {
         let mut jobs = vec![];
 
+        let r#type = tx
+            .body
+            .messages
+            .get(0)
+            .map(|msg| match msg {
+                TxsTransactionMessage::Known(msg) => match msg {
+                    TxsTransactionMessageKnowns::Delegate {
+                        delegator_address: _,
+                        validator_address: _,
+                        amount: _,
+                    } => "Delegate",
+                    TxsTransactionMessageKnowns::Redelegate {
+                        delegator_address: _,
+                        validator_src_address: _,
+                        validator_dst_address: _,
+                        amount: _,
+                    } => "Redelegate",
+                    TxsTransactionMessageKnowns::Revoke {
+                        granter_address: _,
+                        grantee_address: _,
+                    } => "Revoke",
+                    TxsTransactionMessageKnowns::Send {
+                        from_address: _,
+                        to_address: _,
+                        amount: _,
+                    } => "Send",
+                    TxsTransactionMessageKnowns::Undelegate {
+                        delegator_address: _,
+                        validator_address: _,
+                        amount: _,
+                    } => "Undelegate",
+                    TxsTransactionMessageKnowns::Vote {
+                        proposal_id: _,
+                        voter: _,
+                        option: _,
+                    } => "Vote",
+                    TxsTransactionMessageKnowns::WithdrawDelegatorReward {
+                        delegator_address: _,
+                        validator_address: _,
+                    } => "Withdraw Delegator Rewards",
+                    TxsTransactionMessageKnowns::EthereumTx { hash: _ } => "Ethereum Tx",
+                }
+                .to_string(),
+                TxsTransactionMessage::Unknown { r#type } => r#type.to_string(),
+            })
+            .ok_or_else(|| format!("There is no TX type, '{}'.", tx_response.txhash))?;
+
+        let amount = tx
+            .body
+            .messages
+            .get(0)
+            .map(|msg| match msg {
+                TxsTransactionMessage::Known(msg) => match msg {
+                    TxsTransactionMessageKnowns::Delegate {
+                        delegator_address: _,
+                        validator_address: _,
+                        amount,
+                    } => chain._get_amount(&amount.amount),
+                    TxsTransactionMessageKnowns::Redelegate {
+                        delegator_address: _,
+                        validator_src_address: _,
+                        validator_dst_address: _,
+                        amount,
+                    } => chain._get_amount(&amount.amount),
+                    TxsTransactionMessageKnowns::Send {
+                        from_address: _,
+                        to_address: _,
+                        amount,
+                    } => amount.get(0).map(|amount| chain._get_amount(&amount.amount)).unwrap_or(0.00),
+                    TxsTransactionMessageKnowns::Undelegate {
+                        delegator_address: _,
+                        validator_address: _,
+                        amount,
+                    } => chain._get_amount(&amount.amount),
+                    _ => 0.00,
+                },
+                _ => 0.00,
+            })
+            .ok_or_else(|| format!("There is no TX type, '{}'.", tx_response.txhash))?;
+
         for message in tx.body.messages {
             jobs.push(async move {
                 Ok::<InternalTransactionContent, String>(match message {
@@ -433,12 +513,16 @@ impl InternalTransaction {
                 .gas_used
                 .parse::<u64>()
                 .map_err(|_| format!("Cannot parse transaction gas used, '{}'.", tx_response.gas_used))?,
-            result: "Success".to_string(),
+            result: if tx_response.raw_log.starts_with('[') || tx_response.raw_log.starts_with('{') {
+                "Success".to_string()
+            } else {
+                "Failed".to_string()
+            },
             memo: tx.body.memo,
             raw: tx_response.raw_log,
             content,
-            amount: 0.0,
-            r#type: "".to_string(),
+            amount,
+            r#type,
         })
     }
 }
@@ -578,8 +662,38 @@ impl TransactionItem {
                 })
                 .ok_or_else(|| format!("There is no TX type, '{}'.", tx_response.txhash))?,
             hash: tx_response.txhash.to_string(),
-            // How to find the amount in different types of TXs. TODO!
-            amount: 0.0,
+            amount: tx
+                .body
+                .messages
+                .get(0)
+                .map(|msg| match msg {
+                    TxsTransactionMessage::Known(msg) => match msg {
+                        TxsTransactionMessageKnowns::Delegate {
+                            delegator_address: _,
+                            validator_address: _,
+                            amount,
+                        } => chain._get_amount(&amount.amount),
+                        TxsTransactionMessageKnowns::Redelegate {
+                            delegator_address: _,
+                            validator_src_address: _,
+                            validator_dst_address: _,
+                            amount,
+                        } => chain._get_amount(&amount.amount),
+                        TxsTransactionMessageKnowns::Send {
+                            from_address: _,
+                            to_address: _,
+                            amount,
+                        } => amount.get(0).map(|amount| chain._get_amount(&amount.amount)).unwrap_or(0.00),
+                        TxsTransactionMessageKnowns::Undelegate {
+                            delegator_address: _,
+                            validator_address: _,
+                            amount,
+                        } => chain._get_amount(&amount.amount),
+                        _ => 0.00,
+                    },
+                    _ => 0.00,
+                })
+                .ok_or_else(|| format!("There is no TX type, '{}'.", tx_response.txhash))?,
             fee: tx
                 .auth_info
                 .fee
@@ -590,7 +704,11 @@ impl TransactionItem {
                 .map(|amount| chain.calc_amount_u128_to_f64(amount))
                 .unwrap_or(0.0),
             // How to define the result here? TODO!,
-            result: "Success".to_string(),
+            result: if tx_response.raw_log.starts_with('[') || tx_response.raw_log.starts_with('{') {
+                "Success".to_string()
+            } else {
+                "Failed".to_string()
+            },
             time: DateTime::parse_from_rfc3339(&tx_response.timestamp)
                 .map_err(|_| format!("Cannot parse transaction timestamp, '{}'.", tx_response.timestamp))?
                 .timestamp_millis(),
