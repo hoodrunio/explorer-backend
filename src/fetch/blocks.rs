@@ -176,7 +176,7 @@ impl InternalBlock {
                 .map_err(|_| format!("Cannot parse block height, '{}'.", block_resp.block.header.height))?,
             hash: block_resp.block_id.hash,
             proposer_name: proposer.name,
-            proposer_address: proposer.address,
+            proposer_address: proposer.valoper_address,
             proposer_logo_url: proposer.logo_url,
             time: DateTime::parse_from_rfc3339(&block_resp.block.header.time)
                 .map_err(|_| format!("Cannot parse block datetime, '{}'.", block_resp.block.header.time))?
