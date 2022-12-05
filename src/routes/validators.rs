@@ -136,3 +136,23 @@ pub async fn validator_delegator_pair(path: Path<(String, String, String)>, chai
         Err(err) => Response::Error(err),
     })
 }
+
+#[get("{chain}/validator-set/{height}")]
+pub async fn validator_set_by_height(path: Path<(String, u64)>, chains: Data<State>) -> impl Responder {
+    let (chain, height) = path.into_inner();
+
+    Json(match chains.get(&chain) {
+        Ok(chain) => chain.get_validator_set_by_height(height).await.into(),
+        Err(err) => Response::Error(err),
+    })
+}
+
+#[get("{chain}/validator-set")]
+pub async fn validator_set(path: Path<String>, chains: Data<State>) -> impl Responder {
+    let chain = path.into_inner();
+
+    Json(match chains.get(&chain) {
+        Ok(chain) => chain.get_validator_set().await.into(),
+        Err(err) => Response::Error(err),
+    })
+}
