@@ -41,7 +41,7 @@ impl Chain {
                         reward: 0.0,
                         validator_logo_url: validator_metadata.logo_url,
                         validator_name: validator_metadata.name,
-                        validator_address: validator_metadata.address,
+                        validator_address: validator_metadata.valoper_address,
                     }
                 })
             }
@@ -104,10 +104,10 @@ impl Chain {
                         completion_time,
                         validator_from_logo_url: validator_from.logo_url,
                         validator_from_name: validator_from.name,
-                        validator_from_address: validator_from.address,
+                        validator_from_address: validator_from.valoper_address,
                         validator_to_logo_url: validator_to.logo_url,
                         validator_to_name: validator_to.name,
-                        validator_to_address: validator_to.address,
+                        validator_to_address: validator_to.valoper_address,
                     }
                 })
             }
@@ -162,7 +162,7 @@ impl Chain {
                             .timestamp_millis(),
                         validator_logo_url: validator_metadata.logo_url,
                         validator_name: validator_metadata.name,
-                        validator_address: validator_metadata.address,
+                        validator_address: validator_metadata.valoper_address,
                     }
                 })
             }
