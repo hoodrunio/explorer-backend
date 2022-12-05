@@ -1,7 +1,7 @@
 use std::time::Duration;
 
-use actix_web::{web, App, HttpServer};
 use actix_cors::Cors;
+use actix_web::{web, App, HttpServer};
 use web::Data;
 
 use crate::routes;
@@ -102,6 +102,8 @@ pub async fn start_web_server() -> std::io::Result<()> {
             .service(routes::validator_redelegations)
             .service(routes::validator_unbondings)
             .service(routes::validators_bonded)
+            .service(routes::validator_set)
+            .service(routes::validator_set_by_height)
             .service(routes::validators_of_delegator)
             .service(routes::validators_unbonded)
             .service(routes::validators_unbonding)
