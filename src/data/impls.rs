@@ -42,25 +42,22 @@ impl Chain {
     /// Updates the native coin price, supply and the chart.
     pub async fn update_price(&self, new_price: Option<&f64>) {
         self.update_supply().await;
-        match new_price {
-            Some(new_price) => {
-                if let Ok(mut price) = self.inner.data.price.lock() {
-                    *price = *new_price;
-                }
+        if let Some(new_price) = new_price {
+            if let Ok(mut price) = self.inner.data.price.lock() {
+                *price = *new_price;
+            }
 
-                if let Ok(mut chart) = self.inner.data.chart.lock() {
-                    chart.add_new(*new_price);
-                }
+            if let Ok(mut chart) = self.inner.data.chart.lock() {
+                chart.add_new(*new_price);
+            }
 
-                if let Ok(supply) = self.inner.data.supply.lock() {
-                    let new_mcap = (*new_price * *supply as f64) as u64;
+            if let Ok(supply) = self.inner.data.supply.lock() {
+                let new_mcap = (*new_price * *supply as f64) as u64;
 
-                    if let Ok(mut mcap) = self.inner.data.mcap.lock() {
-                        *mcap = new_mcap;
-                    }
+                if let Ok(mut mcap) = self.inner.data.mcap.lock() {
+                    *mcap = new_mcap;
                 }
             }
-            _ => (),
         }
     }
 

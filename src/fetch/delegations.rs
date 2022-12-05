@@ -1,5 +1,4 @@
 use chrono::DateTime;
-use futures::future::join_all;
 use serde::{Deserialize, Serialize};
 use tokio::join;
 
@@ -7,7 +6,6 @@ use super::others::{DenomAmount, Pagination, PaginationConfig};
 use crate::{
     chain::Chain,
     routes::{calc_pages, OutRestResponse},
-    utils::get_validator_logo,
 };
 
 impl Chain {
@@ -24,42 +22,34 @@ impl Chain {
 
         let resp = self.rest_api_request::<DelagationsResp>(&path, &query).await?;
 
-        let mut jobs = vec![];
-
-        for delegation_response in resp.delegation_responses {
-            jobs.push(async move {
-                let validator = self.get_validator(&delegation_response.delegation.validator_address).await?;
-                let validator_logo = get_validator_logo(self.inner.client.clone(), &validator.description.identity).await;
-                let validator_name = validator.description.moniker;
-                let amount = self.calc_amount_u128_to_f64(
-                    delegation_response
-                        .balance
-                        .amount
-                        .parse::<u128>()
-                        .or_else(|_| Err(format!("Cannot parse delegation amount, '{}'", delegation_response.balance.amount)))?,
-                );
-                let reward = 0.0;
-                Ok::<InternalDelegation, String>(InternalDelegation {
-                    amount,
-                    reward,
-                    validator_logo,
-                    validator_name,
-                    validator_address: delegation_response.delegation.validator_address,
-                })
-            })
-        }
-
         let mut delegations = vec![];
 
-        let resps = join_all(jobs).await;
-
-        for delegation in resps {
-            delegations.push(delegation?);
+        for delegation_response in resp.delegation_responses {
+            if let Ok(validator_metadata) = self
+                .get_validator_metadata_by_valoper_addr(delegation_response.delegation.validator_address)
+                .await
+            {
+                delegations.push({
+                    InternalDelegation {
+                        amount: self.calc_amount_u128_to_f64(
+                            delegation_response
+                                .balance
+                                .amount
+                                .parse::<u128>()
+                                .map_err(|_| format!("Cannot parse delegation amount, '{}'", delegation_response.balance.amount))?,
+                        ),
+                        reward: 0.0,
+                        validator_logo_url: validator_metadata.logo_url,
+                        validator_name: validator_metadata.name,
+                        validator_address: validator_metadata.address,
+                    }
+                })
+            }
         }
 
         let pages = calc_pages(resp.pagination, config)?;
 
-        OutRestResponse::new(delegations, pages)
+        Ok(OutRestResponse::new(delegations, pages))
     }
 
     /// Returns the redelegations of given address.
@@ -79,75 +69,53 @@ impl Chain {
 
         let resp = self.rest_api_request::<RedelagationsResp>(&path, &query).await?;
 
-        let mut jobs = vec![];
-
-        for redelegation_response in resp.redelegation_responses {
-            jobs.push(async move {
-                let (validator_from, validator_to) = join!(
-                    self.get_validator(&redelegation_response.redelegation.validator_src_address),
-                    self.get_validator(&redelegation_response.redelegation.validator_dst_address)
-                );
-
-                let validator_from = validator_from?;
-                let validator_to = validator_to?;
-
-                let (validator_from_logo, validator_to_logo) = join!(
-                    get_validator_logo(self.inner.client.clone(), &validator_from.description.identity),
-                    get_validator_logo(self.inner.client.clone(), &validator_to.description.identity),
-                );
-
-                let validator_from_name = validator_from.description.moniker;
-                let validator_to_name = validator_to.description.moniker;
-
-                let validator_from_address = redelegation_response.redelegation.validator_src_address;
-                let validator_to_address = redelegation_response.redelegation.validator_dst_address;
-
-                let redelegation_resp_entry = redelegation_response
-                    .redelegation
-                    .entries
-                    .get(0)
-                    .ok_or_else(|| format!("There is no completion time."))?;
-
-                let amount = self.calc_amount_u128_to_f64(
-                    redelegation_resp_entry
-                        .balance
-                        .parse::<u128>()
-                        .or_else(|_| Err(format!("Cannot parse redelegation amount, '{}'", redelegation_resp_entry.balance)))?,
-                );
-
-                let completion_time = DateTime::parse_from_rfc3339(&redelegation_resp_entry.redelegation_entry.completion_time)
-                    .or_else(|_| {
-                        Err(format!(
-                            "Cannot parse redelegation completion datetime, '{}'.",
-                            redelegation_resp_entry.redelegation_entry.completion_time
-                        ))
-                    })?
-                    .timestamp_millis();
-
-                Ok::<InternalRedelegation, String>(InternalRedelegation {
-                    amount,
-                    completion_time,
-                    validator_from_logo,
-                    validator_from_name,
-                    validator_from_address,
-                    validator_to_logo,
-                    validator_to_name,
-                    validator_to_address,
-                })
-            })
-        }
-
         let mut redelegations = vec![];
 
-        let resps = join_all(jobs).await;
+        for redelegation_response in resp.redelegation_responses {
+            if let (Ok(validator_from), Ok(validator_to)) = join!(
+                self.get_validator_metadata_by_valoper_addr(redelegation_response.redelegation.validator_src_address),
+                self.get_validator_metadata_by_valoper_addr(redelegation_response.redelegation.validator_dst_address),
+            ) {
+                redelegations.push({
+                    let redelegation_resp_entry = redelegation_response
+                        .redelegation
+                        .entries
+                        .get(0)
+                        .ok_or_else(|| "There is no redelegation entry.".to_string())?;
 
-        for redelegation in resps {
-            redelegations.push(redelegation?);
+                    let amount = self.calc_amount_u128_to_f64(
+                        redelegation_resp_entry
+                            .balance
+                            .parse::<u128>()
+                            .map_err(|_| format!("Cannot parse redelegation amount, '{}'", redelegation_resp_entry.balance))?,
+                    );
+
+                    let completion_time = DateTime::parse_from_rfc3339(&redelegation_resp_entry.redelegation_entry.completion_time)
+                        .map_err(|_| {
+                            format!(
+                                "Cannot parse redelegation completion datetime, '{}'.",
+                                redelegation_resp_entry.redelegation_entry.completion_time
+                            )
+                        })?
+                        .timestamp_millis();
+
+                    InternalRedelegation {
+                        amount,
+                        completion_time,
+                        validator_from_logo_url: validator_from.logo_url,
+                        validator_from_name: validator_from.name,
+                        validator_from_address: validator_from.address,
+                        validator_to_logo_url: validator_to.logo_url,
+                        validator_to_name: validator_to.name,
+                        validator_to_address: validator_to.address,
+                    }
+                })
+            }
         }
 
         let pages = calc_pages(resp.pagination, config)?;
 
-        OutRestResponse::new(redelegations, pages)
+        Ok(OutRestResponse::new(redelegations, pages))
     }
 
     /// Returns the unbonding delegations of given address.
@@ -167,54 +135,42 @@ impl Chain {
 
         let resp = self.rest_api_request::<UnbondingDelegationResp>(&path, &query).await?;
 
-        let mut jobs = vec![];
-
-        for unbonding_response in resp.unbonding_responses {
-            jobs.push(async move {
-                let validator = self.get_validator(&unbonding_response.validator_address).await?;
-                let validator_logo = get_validator_logo(self.inner.client.clone(), &validator.description.identity).await;
-                let validator_name = validator.description.moniker;
-                let validator_address = unbonding_response.validator_address;
-
-                let unbonding_entry = unbonding_response.entries.get(0).ok_or_else(|| format!("There is no completion time."))?;
-
-                let balance = self.calc_amount_u128_to_f64(
-                    unbonding_entry
-                        .balance
-                        .parse::<u128>()
-                        .or_else(|_| Err(format!("Cannot parse unbonding delegation balance, '{}'", unbonding_entry.balance)))?,
-                );
-
-                let completion_time = DateTime::parse_from_rfc3339(&unbonding_entry.completion_time)
-                    .or_else(|_| {
-                        Err(format!(
-                            "Cannot parse unbonding delegation completion datetime, '{}'.",
-                            unbonding_entry.completion_time
-                        ))
-                    })?
-                    .timestamp_millis();
-
-                Ok::<InternalUnbonding, String>(InternalUnbonding {
-                    balance,
-                    completion_time,
-                    validator_logo,
-                    validator_name,
-                    validator_address,
-                })
-            })
-        }
-
         let mut unbondings = vec![];
 
-        let resps = join_all(jobs).await;
+        for unbonding_response in resp.unbonding_responses {
+            if let Ok(validator_metadata) = self.get_validator_metadata_by_valoper_addr(unbonding_response.validator_address).await {
+                unbondings.push({
+                    let unbonding_entry = unbonding_response
+                        .entries
+                        .get(0)
+                        .ok_or_else(|| "There is no unbonding delegation entry.".to_string())?;
 
-        for unbonding in resps {
-            unbondings.push(unbonding?);
+                    InternalUnbonding {
+                        balance: self.calc_amount_u128_to_f64(
+                            unbonding_entry
+                                .balance
+                                .parse::<u128>()
+                                .map_err(|_| format!("Cannot parse unbonding delegation balance, '{}'", unbonding_entry.balance))?,
+                        ),
+                        completion_time: DateTime::parse_from_rfc3339(&unbonding_entry.completion_time)
+                            .map_err(|_| {
+                                format!(
+                                    "Cannot parse unbonding delegation completion datetime, '{}'.",
+                                    unbonding_entry.completion_time
+                                )
+                            })?
+                            .timestamp_millis(),
+                        validator_logo_url: validator_metadata.logo_url,
+                        validator_name: validator_metadata.name,
+                        validator_address: validator_metadata.address,
+                    }
+                })
+            }
         }
 
         let pages = calc_pages(resp.pagination, config)?;
 
-        OutRestResponse::new(unbondings, pages)
+        Ok(OutRestResponse::new(unbondings, pages))
     }
 }
 #[derive(Deserialize, Serialize, Debug)]
@@ -238,7 +194,7 @@ pub struct DelegationResponse {
 
 #[derive(Deserialize, Serialize, Debug)]
 pub struct InternalDelegation {
-    pub validator_logo: String,
+    pub validator_logo_url: String,
     pub validator_name: String,
     pub validator_address: String,
     pub amount: f64,
@@ -247,10 +203,10 @@ pub struct InternalDelegation {
 
 #[derive(Deserialize, Serialize, Debug)]
 pub struct InternalRedelegation {
-    pub validator_from_logo: String,
+    pub validator_from_logo_url: String,
     pub validator_from_name: String,
     pub validator_from_address: String,
-    pub validator_to_logo: String,
+    pub validator_to_logo_url: String,
     pub validator_to_name: String,
     pub validator_to_address: String,
     pub amount: f64,
@@ -259,7 +215,7 @@ pub struct InternalRedelegation {
 
 #[derive(Deserialize, Serialize, Debug)]
 pub struct InternalUnbonding {
-    pub validator_logo: String,
+    pub validator_logo_url: String,
     pub validator_name: String,
     pub validator_address: String,
     pub balance: f64,
@@ -373,9 +329,9 @@ impl TryFrom<RedelegationEntry> for InternalRedelegationEntry {
             creation_height: value
                 .creation_height
                 .parse()
-                .or_else(|_| Err(format!("Cannot parse redelegation creation height, '{}'.", value.creation_height)))?,
+                .map_err(|_| format!("Cannot parse redelegation creation height, '{}'.", value.creation_height))?,
             completion_time: DateTime::parse_from_rfc3339(&value.completion_time)
-                .or_else(|_| Err(format!("Cannot parse redelegation completion datetime, '{}'.", value.completion_time)))?
+                .map_err(|_| format!("Cannot parse redelegation completion datetime, '{}'.", value.completion_time))?
                 .timestamp_millis(),
             initial_balance: value.initial_balance,
             shares_dst: value.shares_dst,

@@ -12,7 +12,7 @@ impl Chain {
 
         let withdraw_address = resp.withdraw_address;
 
-        OutRestResponse::new(withdraw_address, 0)
+        Ok(OutRestResponse::new(withdraw_address, 0))
     }
 
     /// Returns the rewards of given delegator address.
@@ -23,7 +23,7 @@ impl Chain {
 
         let delegator_rewards = InternalDelegatorRewards::new(resp, self);
 
-        OutRestResponse::new(delegator_rewards, 0)
+        Ok(OutRestResponse::new(delegator_rewards, 0))
     }
 }
 
@@ -48,15 +48,15 @@ impl InternalDelegatorRewards {
         let mut rewards = vec![];
 
         for reward in dlg_rwd_resp.rewards {
-            rewards.push(InternalDelegatorReward::new(reward, &chain));
+            rewards.push(InternalDelegatorReward::new(reward, chain));
         }
 
         let total = match dlg_rwd_resp.total.get(0) {
             Some(denom_amount) => chain.calc_amount_u128_to_f64(
                 denom_amount
                     .amount
-                    .split_once(".")
-                    .and_then(|(pri, _)| Some(pri))
+                    .split_once('.')
+                    .map(|(pri, _)| pri)
                     .unwrap_or(&denom_amount.amount)
                     .parse::<u128>()
                     .unwrap_or(0),
@@ -88,8 +88,8 @@ impl InternalDelegatorReward {
             Some(denom_amount) => chain.calc_amount_u128_to_f64(
                 denom_amount
                     .amount
-                    .split_once(".")
-                    .and_then(|(pri, _)| Some(pri))
+                    .split_once('.')
+                    .map(|(pri, _)| pri)
                     .unwrap_or(&denom_amount.amount)
                     .parse::<u128>()
                     .unwrap_or(0),

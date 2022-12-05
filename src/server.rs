@@ -1,5 +1,6 @@
 use std::time::Duration;
 
+use actix_cors::Cors;
 use actix_web::{web, App, HttpServer};
 use actix_cors::Cors;
 use web::Data;
@@ -30,6 +31,21 @@ pub async fn start_web_server() -> std::io::Result<()> {
         }
     });
 
+    // Spawn a thread to update in-memory validator database. Every 3 minutes.
+    let state_clone = state.clone();
+    tokio::spawn(async move {
+        loop {
+            state_clone.update_database().await;
+            tokio::time::sleep(Duration::from_secs(180)).await;
+        }
+    });
+
+    // Subscribes to events.
+    let state_clone = state.clone();
+    tokio::spawn(async move {
+        state_clone.subscribe_to_events().await;
+    });
+
     HttpServer::new(move || {
         let cors = Cors::default()
             .allow_any_origin()
@@ -51,6 +67,8 @@ pub async fn start_web_server() -> std::io::Result<()> {
             .service(routes::delegator_rewards)
             .service(routes::delegator_withdraw_address)
             .service(routes::inflation)
+            .service(routes::last_ten_blocks)
+            .service(routes::last_ten_txs)
             .service(routes::params)
             .service(routes::proposal_deposit)
             .service(routes::proposal_deposits)
@@ -66,6 +84,7 @@ pub async fn start_web_server() -> std::io::Result<()> {
             .service(routes::redelegations)
             .service(routes::signing)
             .service(routes::staking_pool)
+            .service(web::resource("{chain}/socket").route(web::get().to(routes::socket)))
             .service(routes::supplies)
             .service(routes::supply)
             .service(routes::tx_by_hash)

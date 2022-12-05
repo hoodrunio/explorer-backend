@@ -20,12 +20,13 @@ pub struct Chain<'a> {
     pub decimals_pow: u64,
     pub sdk_version: u8,
     pub manual_versioning: bool,
+    pub json_rpc: Option<&'a str>,
 }
 
 #[tokio::main]
 async fn main() {
     // Create `Client`.
-    let client = Client::builder().timeout(Duration::from_secs(4)).build().unwrap();
+    let client = Client::builder().timeout(Duration::from_secs(10)).build().unwrap();
 
     // Read `Chains.yml` file.
     let chains_yml_content = read_to_string("Chains.yml").unwrap();
@@ -80,6 +81,8 @@ async fn create_chain<'a>(chain_map: &HashMap<&'a str, &'a str>, client: Client)
         None => get_main_denom(rest_url, client.clone()).await,
     };
 
+    let json_rpc = chain_map.get("jsonrpc").map(|a| *a);
+
     Chain {
         name,
         logo,
@@ -93,6 +96,7 @@ async fn create_chain<'a>(chain_map: &HashMap<&'a str, &'a str>, client: Client)
         decimals_pow,
         sdk_version,
         manual_versioning,
+        json_rpc,
     }
 }
 
@@ -144,6 +148,9 @@ fn update_chains_yml(chains: &[Chain]) {
         } else {
             content += &format!("# version: 0.{}\n", chain.sdk_version);
         };
+        if let Some(jsonrpc) = chain.json_rpc {
+            content += &format!("jsonrpc: {}\n", jsonrpc);
+        };
         content += &format!("rpc: {}\n", chain.rpc_url);
         content += &format!("rest: {}\n", chain.rest_url);
         content += &format!("wss: {}\n", chain.wss_url);
@@ -159,14 +166,20 @@ fn update_state_rs(chains: &[Chain]) {
     let mut get_fn = String::new();
     let mut update_data_fn = String::new();
     let mut update_prices_fn = String::new();
+    let mut update_database_fn = String::new();
+    let mut subscribe_to_events_fn = String::new();
     let mut get_prices_props = String::new();
+    let path = format!(
+        "{home}/.backend",
+        home = std::env::var("HOME").expect("$HOME environment variable must be specified."),
+    );
 
     for chain in chains {
         state_props += &format!("\n    {}: Chain,", chain.name);
 
         new_fn += &format!(
             r#"
-            {name}: init_chain!{{
+            {name}: init_chain! {{
                 name: "{name}",
                 gecko: {gecko},
                 base_prefix: "{fix}",
@@ -174,6 +187,7 @@ fn update_state_rs(chains: &[Chain]) {
                 cons_prefix: "{fix}valcons",
                 main_denom: "{main_denom}",
                 rpc_url: "{rpc}",
+                jsonrpc_url: {jsonrpc},
                 rest_url: "{rest}",
                 wss_url: "{wss}",
                 sdk_version: {ver},
@@ -188,6 +202,10 @@ fn update_state_rs(chains: &[Chain]) {
             fix = chain.prefix,
             main_denom = chain.main_denom,
             rpc = chain.rpc_url,
+            jsonrpc = chain
+                .json_rpc
+                .map(|json_rpc| format!("Some(\"{json_rpc}\")"))
+                .unwrap_or_else(|| "None".to_string()),
             rest = chain.rest_url,
             wss = chain.wss_url,
             ver = chain.sdk_version,
@@ -197,6 +215,10 @@ fn update_state_rs(chains: &[Chain]) {
         get_fn += &format!("\n            \"{chain}\" => Ok(self.{chain}.clone()),", chain = chain.name);
 
         update_data_fn += &format!("\n            self.{chain}.update_data(),", chain = chain.name);
+
+        update_database_fn += &format!("\n            self.{chain}.update_validator_database(),", chain = chain.name);
+
+        subscribe_to_events_fn += &format!("\n            self.{chain}.subscribe_to_events(),", chain = chain.name);
 
         match chain.gecko {
             Some(gecko) => {
@@ -211,9 +233,11 @@ fn update_state_rs(chains: &[Chain]) {
         "\
 use crate::chain::Chain;
 use crate::data::ChainData;
-use crate::utils::get_prices;
-use tokio::join; 
 use crate::init_chain;
+use crate::utils::get_prices;
+use tokio::join;
+
+pub const PATH: &str = \"{path}\";
 
 /// The state of the server.
 pub struct State {{{state_props}
@@ -229,7 +253,7 @@ impl State {{
             reqwest_client: client,
         }}
     }}
-    
+
     /// Returns the matched chain.
     pub fn get(&self, name: &str) -> Result<Chain, String> {{
         match name {{{get_fn}
@@ -248,6 +272,18 @@ impl State {{
         let prices = get_prices(self.reqwest_client.clone(), &[{get_prices_props}]).await;
 
         join!({update_prices_fn}
+        );
+    }}
+
+    /// Updates all the validator databases of chain.
+    pub async fn update_database(&self) {{
+        join!({update_database_fn}
+        );
+    }}
+
+    /// Subscribes to all the events for all the chains.
+    pub async fn subscribe_to_events(&self) {{
+        join!({subscribe_to_events_fn}
         );
     }}
 }}

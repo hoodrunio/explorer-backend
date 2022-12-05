@@ -5,16 +5,15 @@ use super::others::{DenomAmount, Pagination, PaginationConfig};
 use crate::{
     chain::Chain,
     routes::{calc_pages, OutRestResponse},
-    utils::get_validator_logo,
 };
 
 impl Chain {
     /// Returns validator by given validator address.
-    pub async fn get_validator(&self, validator_addr: &str) -> Result<ValidatorListValidator, String> {
+    pub async fn get_validator(&self, validator_addr: &str) -> Result<OutRestResponse<ValidatorListValidator>, String> {
         let path = format!("/cosmos/staking/v1beta1/validators/{validator_addr}");
 
         match self.rest_api_request::<ValidatorResp>(&path, &[]).await {
-            Ok(res) => Ok(res.validator),
+            Ok(res) => Ok(OutRestResponse::new(res.validator, 0)),
             Err(error) => Err(error),
         }
     }
@@ -46,14 +45,14 @@ impl Chain {
                         .balance
                         .amount
                         .parse::<u128>()
-                        .or_else(|_| Err(format!("Cannot parse delegation balance, '{}'.", delegation.balance.amount)))?,
+                        .map_err(|_| format!("Cannot parse delegation balance, '{}'.", delegation.balance.amount))?,
                 ),
             })
         }
 
         let pages = calc_pages(resp.pagination, config)?;
 
-        OutRestResponse::new(delegations, pages)
+        Ok(OutRestResponse::new(delegations, pages))
     }
 
     /// Returns the unbonding delegations to given validator address.
@@ -83,15 +82,10 @@ impl Chain {
                         entry
                             .balance
                             .parse::<u128>()
-                            .or_else(|_| Err(format!("Cannot parse unbonding delegation balance, '{}'.", entry.balance)))?,
+                            .map_err(|_| format!("Cannot parse unbonding delegation balance, '{}'.", entry.balance))?,
                     ),
                     completion_time: DateTime::parse_from_rfc3339(&entry.completion_time)
-                        .or_else(|_| {
-                            Err(format!(
-                                "Cannot parse unbonding delegation completion datetime, '{}'.",
-                                entry.completion_time
-                            ))
-                        })?
+                        .map_err(|_| format!("Cannot parse unbonding delegation completion datetime, '{}'.", entry.completion_time))?
                         .timestamp_millis(),
                 })
             }
@@ -99,7 +93,7 @@ impl Chain {
 
         let pages = calc_pages(resp.pagination, config)?;
 
-        OutRestResponse::new(unbondings, pages)
+        Ok(OutRestResponse::new(unbondings, pages))
     }
 
     /// Returns the redelegations to given validator address.
@@ -117,43 +111,38 @@ impl Chain {
 
         let resp = self.rest_api_request::<ValidatorResp>(&path, &[]).await?;
 
-        let identity = resp.validator.description.identity;
-        let commission = resp.validator.commission.commission_rates.rate.parse().or_else(|_| {
-            Err(format!(
-                "Cannot parse commission rate, '{}'.",
-                resp.validator.commission.commission_rates.rate
-            ))
-        })?;
-        let max_commission = resp.validator.commission.commission_rates.max_rate.parse().or_else(|_| {
-            Err(format!(
-                "Cannot parse maximum commission rate, '{}'.",
-                resp.validator.commission.commission_rates.rate
-            ))
-        })?;
-        let logo = get_validator_logo(self.inner.client.clone(), &identity).await;
-        let operator_address = resp.validator.operator_address;
-        let self_delegate_address = String::new(); // TODO!
-        let website = resp.validator.description.website;
-        let details = resp.validator.description.details;
-        let name = resp.validator.description.moniker;
+        let validator = resp.validator;
 
         let validator = InternalValidator {
-            logo,
-            commission,
+            logo_url: self
+                .get_validator_metadata_by_valoper_addr(validator.operator_address.clone())
+                .await?
+                .logo_url,
+            commission: validator
+                .commission
+                .commission_rates
+                .rate
+                .parse()
+                .map_err(|_| format!("Cannot parse commission rate, '{}'.", validator.commission.commission_rates.rate))?,
             uptime: 0.0, // TODO!
-            max_commission,
-            operator_address,
-            name,
-            website,
-            self_delegate_address,
-            details,
+            max_commission: validator
+                .commission
+                .commission_rates
+                .max_rate
+                .parse()
+                .map_err(|_| format!("Cannot parse maximum commission rate, '{}'.", validator.commission.commission_rates.rate))?,
+            operator_address: validator.operator_address,
+            name: validator.description.moniker,
+            website: validator.description.website,
+            self_delegate_address: String::new(), // TODO!
+            details: validator.description.details,
             voting_power_percentage: 0.0, // TODO!
             voting_power: 0,              // TODO!
             bonded_height: 0,             // TODO!
             change: 0.0,                  // TODO!
         };
 
-        OutRestResponse::new(validator, 0)
+        Ok(OutRestResponse::new(validator, 0))
     }
 
     /// Returns all the validators by given delegator address.
@@ -240,6 +229,12 @@ impl Chain {
         let path = format!("/cosmos/staking/v1beta1/delegators/{delegator_addr}/validators/{validator_addr}");
 
         self.rest_api_request(&path, &[]).await
+    }
+
+    /// Returns the validator set at given height.
+    pub async fn _get_validator_set(&self, height: u64) -> Result<ValidatorSetResp, String> {
+        let path = format!("/validatorsets/{height}");
+        self.rest_api_request::<ValidatorSetResp>(&path, &[]).await
     }
 }
 
@@ -417,7 +412,7 @@ pub struct ValidatorListValidator {
 
 #[derive(Deserialize, Serialize, Debug)]
 pub struct InternalValidator {
-    logo: String,
+    logo_url: String,
     commission: f64,
     uptime: f64,
     max_commission: f64,

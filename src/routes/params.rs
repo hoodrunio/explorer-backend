@@ -18,7 +18,7 @@ pub async fn params(path: Path<String>, chains: Data<State>) -> impl Responder {
                 pages: 0,
                 value: params.clone(),
             }),
-            Err(_) => Response::Error(format!("Cannot return chain parameters.")),
+            Err(_) => Response::Error("Cannot return chain parameters.".to_string()),
         },
         Err(err) => Response::Error(err),
     })

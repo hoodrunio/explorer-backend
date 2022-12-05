@@ -16,12 +16,10 @@ pub async fn get_prices(client: Client, coin_ids: &[&'static str]) -> HashMap<St
     match client.get(URL).query(query).send().await {
         Ok(resp) => match resp.json::<HashMap<String, CoinGeckoPrice>>().await {
             Ok(price_map) => return price_map.iter().map(|(name, cgp)| (name.clone(), cgp.usd)).collect(),
-            _ => (),
+            _ => HashMap::new(),
         },
-        _ => (),
+        _ => HashMap::new(),
     }
-
-    HashMap::new()
 }
 
 #[derive(Deserialize)]

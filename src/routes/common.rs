@@ -19,8 +19,8 @@ pub struct OutRestResponse<T> {
 
 impl<T> OutRestResponse<T> {
     /// Tries to create a new `OutRestResponse`.
-    pub fn new(value: T, pages: u8) -> Result<Self, String> {
-        Ok(Self { value, pages })
+    pub fn new(value: T, pages: u8) -> Self {
+        Self { value, pages }
     }
 }
 
@@ -28,12 +28,12 @@ pub fn calc_pages(pagination: Pagination, config: PaginationConfig) -> Result<u8
     let pagination_total = pagination
         .total
         .parse::<u32>()
-        .or_else(|_| Err(format!("Cannot parse pagination total, '{}'", pagination.total)))?;
+        .map_err(|_| format!("Cannot parse pagination total, '{}'", pagination.total))?;
 
     if pagination_total < config.get_limit().into() {
         Ok(1)
     } else if config.get_offset() >= pagination_total {
-        Err(format!("There is no error. And this page doesn't have any data to show you."))
+        Err("There is no error. And this page doesn't have any data to show you.".to_string())
     } else {
         Ok((pagination_total / config.get_limit() as u32) as u8)
     }

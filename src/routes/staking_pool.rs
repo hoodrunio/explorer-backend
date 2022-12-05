@@ -22,7 +22,7 @@ pub async fn staking_pool(path: Path<String>, chains: Data<State>) -> impl Respo
                     unbonded: *unbonded,
                 },
             }),
-            _ => Response::Error(format!("Cannot return community pool.")),
+            _ => Response::Error("Cannot return community pool.".to_string()),
         },
         Err(err) => Response::Error(err),
     })

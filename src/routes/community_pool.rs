@@ -16,7 +16,7 @@ pub async fn community_pool(path: Path<String>, chains: Data<State>) -> impl Res
     Json(match chains.get(&chain) {
         Ok(chain) => match chain.inner.data.pool.lock() {
             Ok(pool) => Response::Success(OutRestResponse { pages: 0, value: *pool }),
-            Err(_) => Response::Error(format!("Cannot return community pool.")),
+            Err(_) => Response::Error("Cannot return community pool.".to_string()),
         },
         Err(err) => Response::Error(err),
     })

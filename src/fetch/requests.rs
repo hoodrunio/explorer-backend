@@ -36,6 +36,29 @@ impl Chain {
                 },
                 Err(error) => {
                     eprintln!("{:#?}", error);
+                    Err(format!("Cannot parse JSON. ({error})"))
+                }
+            },
+            Err(_) => Err("Unsuccessful request.".to_string()),
+        }
+    }
+
+    /// Makes a post request to the JSON RPC node.
+    pub(super) async fn jsonrpc_request<T: DeserializeOwned>(&self, body: String) -> Result<T, String> {
+        // Create the URL request to.
+        let url = self
+            .inner
+            .jsonrpc_url
+            .ok_or_else(|| format!("`jsonrpc` key for {} is empty in `Chains.yml` file.", self.inner.name))?;
+
+        match self.inner.client.post(url).body(body).send().await {
+            Ok(res) => match res.json::<JsonRpcResponse<T>>().await {
+                Ok(res_json) => match res_json {
+                    JsonRpcResponse::Success(res) => Ok(res.result),
+                    JsonRpcResponse::Error(res) => Err(res.error.message),
+                },
+                Err(error) => {
+                    eprintln!("{}", error);
                     Err("Cannot parse JSON.".to_string())
                 }
             },
@@ -78,4 +101,23 @@ pub struct RPCErrorResponseError {
     pub message: String,
     /// Description about error.
     pub data: String,
+}
+
+#[derive(Deserialize, Serialize, Debug)]
+#[serde(untagged)]
+pub enum JsonRpcResponse<T> {
+    Success(RPCSuccessResponse<T>),
+    Error(JsonRpcErrorResponse),
+}
+
+#[derive(Deserialize, Serialize, Debug)]
+pub struct JsonRpcErrorResponse {
+    /// The JSON RPC error.
+    pub error: JsonRpcErrorResponseError,
+}
+
+#[derive(Deserialize, Serialize, Debug)]
+pub struct JsonRpcErrorResponseError {
+    /// The cause of the error.
+    pub message: String,
 }
