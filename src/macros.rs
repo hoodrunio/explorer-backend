@@ -3,6 +3,7 @@
 macro_rules! init_chain {
     (
         name: $name:expr,
+        epoch: $epoch:expr,
         gecko: $gecko:expr,
         base_prefix: $base_prefix:expr,
         valoper_prefix:$valoper_prefix:expr,
@@ -18,6 +19,7 @@ macro_rules! init_chain {
     ) => {
         Chain::new(crate::chain::ChainConfig {
             name: $name,
+            epoch: $epoch,
             gecko: $gecko,
             base_prefix: $base_prefix,
             valoper_prefix: $valoper_prefix,
