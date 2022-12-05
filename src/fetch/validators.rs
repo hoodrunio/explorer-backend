@@ -1,6 +1,7 @@
 use chrono::DateTime;
 use futures::{future::join_all, FutureExt};
 use serde::{Deserialize, Serialize};
+use tokio::join;
 
 use super::{
     others::{DenomAmount, Pagination, PaginationConfig},
@@ -151,9 +152,14 @@ impl Chain {
     pub async fn get_validator_info(&self, validator_addr: &str) -> Result<OutRestResponse<InternalValidator>, String> {
         let path = format!("/cosmos/staking/v1beta1/validators/{validator_addr}");
 
-        let resp = self.rest_api_request::<ValidatorResp>(&path, &[]).await?;
+        let (resp, bonded_height) = join!(
+            self.rest_api_request::<ValidatorResp>(&path, &[]),
+            self.get_validator_bonded_height(&validator_addr)
+        );
 
-        let validator = resp.validator;
+        let bonded_height = bonded_height?;
+
+        let validator = resp?.validator;
 
         println!("1");
 
@@ -217,8 +223,8 @@ impl Chain {
                     .bonded
                     .lock()
                     .map_err(|_| "Cannot access to total bonded tokens in the cache.".to_string())? as f64),
-            bonded_height: 0, // TODO!
-            change_24h: 0.0,      // TODO!
+            bonded_height,            
+            voting_power_change: 0.0, // TODO!
         };
 
         Ok(OutRestResponse::new(validator, 0))
@@ -414,6 +420,30 @@ impl Chain {
 
         Ok(OutRestResponse::new(validators, pages))
     }
+
+    /// Returns the validator set at given height.
+    async fn get_validator_bonded_height(&self, valoper_addr: &str) -> Result<u64, String> {
+        let mut query = vec![];
+
+        query.push(("events", format!("create_validator.validator='{}'", valoper_addr)));
+        query.push(("pagination.reverse", format!("{}", true)));
+        query.push(("pagination.limit", 1.to_string()));
+
+        let resp = self.rest_api_request::<TxsResp>(&format!("/cosmos/tx/v1beta1/txs"), &query).await?;
+
+        let bonded_height_str = resp
+            .tx_responses
+            .get(0)
+            .ok_or_else(|| "Couldn't find bonded height.".to_string())?
+            .height
+            .clone();
+
+        let bonded_height = bonded_height_str
+            .parse::<u64>()
+            .map_err(|_| format!("Cannot parse bonded height, {}.", bonded_height_str))?;
+
+        Ok(bonded_height)
+    }
 }
 
 #[derive(Deserialize, Serialize, Debug)]
@@ -601,7 +631,7 @@ pub struct InternalValidator {
     voting_power_percentage: f64,
     voting_power: u64,
     bonded_height: u64,
-    change_24h: f64,
+    voting_power_change: f64,
     status: String,
 }
 
