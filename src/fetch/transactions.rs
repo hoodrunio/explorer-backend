@@ -703,7 +703,6 @@ impl TransactionItem {
                 .and_then(|amount| amount.parse::<u128>().ok())
                 .map(|amount| chain.calc_amount_u128_to_f64(amount))
                 .unwrap_or(0.0),
-            // How to define the result here? TODO!,
             result: if tx_response.raw_log.starts_with('[') || tx_response.raw_log.starts_with('{') {
                 "Success".to_string()
             } else {
