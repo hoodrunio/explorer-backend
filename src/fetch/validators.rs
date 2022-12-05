@@ -218,7 +218,7 @@ impl Chain {
                     .lock()
                     .map_err(|_| "Cannot access to total bonded tokens in the cache.".to_string())? as f64),
             bonded_height: 0, // TODO!
-            change: 0.0,      // TODO!
+            change_24h: 0.0,      // TODO!
         };
 
         Ok(OutRestResponse::new(validator, 0))
@@ -601,7 +601,7 @@ pub struct InternalValidator {
     voting_power_percentage: f64,
     voting_power: u64,
     bonded_height: u64,
-    change: f64,
+    change_24h: f64,
     status: String,
 }
 
