@@ -1,3 +1,5 @@
-pub mod chains;
-pub mod databases;
-pub mod validators;
+mod chains;
+mod database_tr;
+mod validators;
+
+pub use database_tr::DatabaseTR;
