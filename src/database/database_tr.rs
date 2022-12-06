@@ -14,11 +14,15 @@ pub struct DatabaseTR {
 }
 
 mod consts {
+    /// The URI for the MongoDB instance.
+    pub const MONGO_DB_URI: &str = "mongodb://db.example.com:12345";
+
     /// The name of the MongoDB database.
     pub const DATABASE_NAME: &str = "testnetrun";
 
     /// Validators database name.
     pub const VALIDATORS_COLLECTION_NAME: &str = "validators";
+
     /// Chains database name.
     pub const CHAINS_COLLECTION_NAME: &str = "chains";
 }
@@ -27,11 +31,13 @@ impl DatabaseTR {
     /// Connects to MongoDB instance at given URI and creates a client to work with that instance.
     /// # Usage
     /// ```rs
-    /// let database = Database::new("mongodb://db.example.com:12345");
+    /// let database = Database::new();
     /// ```
-    pub async fn new(uri: &str) -> DatabaseTR {
+    pub async fn new() -> DatabaseTR {
         DatabaseTR {
-            mongo: (Client::with_uri_str(uri).await.expect("Cannot connect to MongoDB instance.")),
+            mongo: (Client::with_uri_str(consts::MONGO_DB_URI)
+                .await
+                .expect("Cannot connect to MongoDB instance.")),
         }
     }
 
