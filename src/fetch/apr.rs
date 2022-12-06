@@ -59,6 +59,3 @@ impl Chain {
         }
     }
 }
-
-#[test]
-fn a() {}
