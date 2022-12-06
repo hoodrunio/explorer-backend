@@ -43,22 +43,22 @@ pub async fn get_validator_logo(client: Client, validator_identity: &str) -> Str
     String::from("example.com")
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug)]
 pub struct LogoResp {
     pub them: Vec<Picture>,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug)]
 pub struct Picture {
     pub pictures: Pictures,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug)]
 pub struct Pictures {
     pub primary: Primary,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug)]
 pub struct Primary {
     pub url: String,
 }
@@ -78,4 +78,20 @@ pub fn convert_consensus_pub_key_to_hex_address(consensus_pubkey: &str) -> Optio
     } else {
         Some(hex[..40].to_uppercase())
     }
+}
+
+/// From "/cosmos.distribution.v1beta1.MsgWithdrawDelegatorReward" to "Withdraw Delegator Reward".
+pub fn get_msg_name(msg: &str) -> String {
+    let name = match msg.split_once("Msg") {
+        Some((_, name)) => name,
+        _ => match msg.split('.').last() {
+            Some(name) => name,
+            _ => msg,
+        },
+    };
+
+    name.chars()
+        .map(|ch| if ch.is_uppercase() { format!(" {ch}") } else { ch.to_string() })
+        .collect::<Vec<_>>()
+        .join("")
 }

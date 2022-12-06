@@ -8,18 +8,15 @@ impl Chain {
         // Create the URL request to.
         let url = format!("{}{}", self.inner.rpc_url, path);
 
-        match self.inner.client.get(url).query(query).send().await {
+        match self.inner.client.get(&url).query(query).send().await {
             Ok(res) => match res.json::<RPCResponse<T>>().await {
                 Ok(res_json) => match res_json {
                     RPCResponse::Success(res) => Ok(res.result),
                     RPCResponse::Error(res) => Err(res.error.data),
                 },
-                Err(error) => {
-                    eprintln!("{}", error);
-                    Err("Cannot parse JSON.".to_string())
-                }
+                Err(error) => Err(format!("Cannot parse JSON.\nURL requested: {url}\nError Message:\n{error}")),
             },
-            Err(_) => Err("Unsuccessful request.".to_string()),
+            Err(_) => Err(format!("Cannot make a request to `{url}`.")),
         }
     }
 
@@ -28,18 +25,15 @@ impl Chain {
         // Create the URL request to.
         let url = format!("{}{}", self.inner.rest_url, path);
 
-        match self.inner.client.get(url).query(query).send().await {
+        match self.inner.client.get(&url).query(query).send().await {
             Ok(res) => match res.json::<RestResponse<T>>().await {
                 Ok(res_json) => match res_json {
                     RestResponse::Success(res_json) => Ok(res_json),
                     RestResponse::Error { message, details: _ } => Err(message),
                 },
-                Err(error) => {
-                    eprintln!("{:#?}", error);
-                    Err(format!("Cannot parse JSON. ({error})"))
-                }
+                Err(error) => Err(format!("Cannot parse JSON.\nURL requested: {url}\nError Message:\n{error}")),
             },
-            Err(_) => Err("Unsuccessful request.".to_string()),
+            Err(_) => Err(format!("Cannot make a request to `{url}`.")),
         }
     }
 
@@ -57,12 +51,9 @@ impl Chain {
                     JsonRpcResponse::Success(res) => Ok(res.result),
                     JsonRpcResponse::Error(res) => Err(res.error.message),
                 },
-                Err(error) => {
-                    eprintln!("{}", error);
-                    Err("Cannot parse JSON.".to_string())
-                }
+                Err(error) => Err(format!("Cannot parse JSON.\nURL requested: {url}\nError Message:\n{error}")),
             },
-            Err(_) => Err("Unsuccessful request.".to_string()),
+            Err(_) => Err(format!("Cannot make a request to `{url}`.")),
         }
     }
 }

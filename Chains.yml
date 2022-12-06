@@ -1,4 +1,5 @@
 name: axelar
+epoch: false
 gecko: axelar
 denom: uaxl
 # prefix: axelar
@@ -11,6 +12,7 @@ wss: wss://axelar-rpc.chainode.tech/websocket
 
 
 name: evmos
+epoch: false
 gecko: evmos
 denom: aevmos
 # prefix: evmos
@@ -24,6 +26,7 @@ wss: wss://rpc-evmos.ecostake.com/websocket
 
 
 name: kyve
+epoch: false
 # gecko: no token
 denom: tkyve
 # prefix: kyve
@@ -36,6 +39,7 @@ wss: wss://rpc.beta.kyve.network/websocket
 
 
 name: osmosis
+epoch: false
 gecko: osmosis
 denom: uosmo
 prefix: osmo
@@ -45,17 +49,5 @@ logo: https://assets.coingecko.com/coins/images/16724/large/osmo.png
 rpc: https://rpc.cosmos.directory/osmosis
 rest: https://rest.cosmos.directory/osmosis
 wss: wss://rpc.osmosis.interbloc.org/websocket
-
-
-name: secret
-gecko: secret
-denom: uscrt
-# prefix: secret
-logo: https://raw.githubusercontent.com/cosmos/chain-registry/master/secretnetwork/images/scrt.svg
-# decimals: 6
-# version: 0.45
-rpc: https://rpc.cosmos.directory/secretnetwork
-rest: https://rest.cosmos.directory/secretnetwork
-wss: wss://scrt-rpc.blockpane.com/websocket
 
 

@@ -9,6 +9,7 @@ mod routes;
 mod server;
 mod state;
 mod utils;
+mod database;
 
 #[tokio::main]
 async fn main() {
