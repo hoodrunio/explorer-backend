@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use crate::{data::ChainData, state::PATH};
+use crate::database::DatabaseTR;
 
 /// The struct that represents any Cosmos based chain.
 #[derive(Clone)]
@@ -10,13 +10,7 @@ pub struct Chain {
 
 impl Chain {
     /// Creates a new chain.
-    pub fn new(chainfig: ChainConfig) -> Chain {
-        #[allow(unused_must_use)]
-        {
-            // Create a directory for the chain.
-            std::fs::create_dir_all(format!("{PATH}/{}", chainfig.name));
-        }
-
+    pub async fn new(chainfig: ChainConfig) -> Chain {
         Chain { inner: Arc::new(chainfig) }
     }
 }
@@ -51,6 +45,6 @@ pub struct ChainConfig {
     pub decimals_pow: u64,
     /// The request client.
     pub client: reqwest::Client,
-    /// The chain data.
-    pub data: ChainData,
+    /// The request client.
+    pub database: DatabaseTR,
 }

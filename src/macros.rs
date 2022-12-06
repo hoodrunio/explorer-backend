@@ -16,6 +16,7 @@ macro_rules! init_chain {
         sdk_version: $sdk_version:expr,
         decimals_pow: $decimals_pow:expr,
         client: $client:expr,
+        database: $database:expr,
     ) => {
         Chain::new(crate::chain::ChainConfig {
             name: $name,
@@ -32,7 +33,8 @@ macro_rules! init_chain {
             sdk_version: $sdk_version,
             decimals_pow: $decimals_pow,
             client: $client,
-            data: ChainData::new($name),
+            database: $database,
         })
+        .await
     };
 }
