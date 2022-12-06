@@ -14,10 +14,8 @@ pub async fn community_pool(path: Path<String>, chains: Data<State>) -> impl Res
     let chain = path.into_inner();
 
     Json(match chains.get(&chain) {
-        Ok(chain) => match chain.inner.data.pool.lock() {
-            Ok(pool) => Response::Success(OutRestResponse { pages: 0, value: *pool }),
-            Err(_) => Response::Error("Cannot return community pool.".to_string()),
-        },
+        // Datasbase might be used.
+        Ok(chain) => chain.get_community_pool().await.into(),
         Err(err) => Response::Error(err),
     })
 }

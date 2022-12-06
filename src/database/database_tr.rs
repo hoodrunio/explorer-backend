@@ -1,10 +1,9 @@
 use mongodb::{
     bson::{doc, Document},
-    error::Error,
     Client, Collection, Database,
 };
 
-use super::{chains::Chain, validators::Validator};
+use super::{chains::Chain, params::Params, validators::Validator};
 
 // Testnetrun explorer database.
 #[derive(Clone)]
@@ -21,10 +20,7 @@ mod consts {
     pub const MONGO_DB_URI: &str = "mongodb://db.example.com:12345";
 
     /// Validators database name.
-    pub const VALIDATORS_COLLECTION_NAME: &str = "validators";
-
-    /// Chains database name.
-    pub const CHAINS_COLLECTION_NAME: &str = "chains";
+    pub const VALIDATORS_COLLECTION_NAME: &str = "";
 }
 
 impl DatabaseTR {
@@ -62,7 +58,7 @@ impl DatabaseTR {
     /// let collection = database.validators_collection();
     /// ```
     fn validators_collection(&self) -> Collection<Validator> {
-        self.db().collection(consts::VALIDATORS_COLLECTION_NAME)
+        self.db().collection("validators")
     }
 
     /// Returns the chains collection.
@@ -71,7 +67,20 @@ impl DatabaseTR {
     /// let collection = database.chains_collection();
     /// ```
     fn chains_collection(&self) -> Collection<Chain> {
-        self.db().collection(consts::CHAINS_COLLECTION_NAME)
+        self.db().collection("chains")
+    }
+
+    /// Returns the params collection.
+    /// # Usage
+    /// ```rs
+    /// let collection = database.chains_collection();
+    /// ```
+    fn params_collection(&self) -> Collection<Params> {
+        // PARAMS is not an array, so it should not add a new item to an array.
+        // It should modify the same data.
+        // Once it's done, create a cron_job for params.
+        todo!();
+        // self.db().collection("params");
     }
 
     /// Adds a new validator to the validators collection of the database.
@@ -157,4 +166,16 @@ impl DatabaseTR {
             Err(_) => Err("Cannot make request to DB.".into()),
         }
     }
+
+    // Updates params collection of the database.
+    // # Usage
+    // ```rs
+    // database.add_params(params).await;
+    // ```
+    //  async fn add_params(&self, params: Params) -> Result<(), String> {
+    //      match self.chains_collection().insert_one(params, None).await {
+    //          Ok(_) => Ok(()),
+    //          Err(_) => Err("Cannot save the chain.".into()),
+    //      }
+    //  }
 }

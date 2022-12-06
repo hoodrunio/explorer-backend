@@ -39,13 +39,8 @@ pub async fn inflation(path: Path<String>, chains: Data<State>) -> impl Responde
     let chain = path.into_inner();
 
     Json(match chains.get(&chain) {
-        Ok(chain) => match chain.inner.data.inflation.lock() {
-            Ok(inflation_rate) => Response::Success(OutRestResponse {
-                pages: 0,
-                value: *inflation_rate,
-            }),
-            Err(_) => Response::Error("Cannot return inflation rate.".to_string()),
-        },
+        // Database can be used.
+        Ok(chain) => Response::Success(chain.get_inflation_rate().await),
         Err(err) => Response::Error(err),
     })
 }

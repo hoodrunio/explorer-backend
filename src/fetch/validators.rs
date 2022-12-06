@@ -161,7 +161,11 @@ impl Chain {
 
         let validator = resp?.validator;
 
-        let validator_metadata = self.get_validator_metadata_by_valoper_addr(validator.operator_address.clone()).await?;
+        let validator_metadata = self
+            .inner
+            .database
+            .find_validator_by_operator_addr(&validator.operator_address.clone())
+            .await?;
 
         let delegator_shares = self.calc_amount_u128_to_f64(
             validator
@@ -183,14 +187,17 @@ impl Chain {
                 .map_err(|_| format!("Cannot parse commission rate, '{}'.", validator.commission.commission_rates.rate))?,
             uptime: 0.0, // TODO!
             status: {
-                let signing_info = self.get_validator_signing_info(&validator_metadata.cons_address).await?;
+                // UNCOMMENT BELOW IF YOU KNOW HOW TO CALC CONSENSUS ADDRESS
+                // let signing_info = self
+                //    .get_validator_signing_info(&validator_metadata.consensus_address.unwrap_or("how to calc".into()))
+                //    .await?;
 
                 if validator.jailed {
                     "Jailed"
                 } else if validator.status == "BOND_STATUS_UNBONDED" {
                     "Inactive"
-                } else if signing_info.value.tombstoned {
-                    "Tombstoned"
+                // } else if signing_info.value.tombstoned {
+                //   "Tombstoned"
                 } else {
                     "Active"
                 }
@@ -206,18 +213,12 @@ impl Chain {
                 .convert_valoper_to_self_delegate_address(&validator.operator_address)
                 .ok_or_else(|| format!("Cannot parse self delegate address, {}.", validator.operator_address))?,
             operator_address: validator.operator_address,
-            consensus_address: validator_metadata.cons_address,
+            consensus_address: validator_metadata.consensus_address.unwrap_or("how to calc".into()), // Learn how to calculate consensus address, and change the property type to `String` not `Option<String>`.
             name: validator.description.moniker,
             website: validator.description.website,
             details: validator.description.details,
             voting_power: delegator_shares as u64,
-            voting_power_percentage: (delegator_shares
-                / *self
-                    .inner
-                    .data
-                    .bonded
-                    .lock()
-                    .map_err(|_| "Cannot access to total bonded tokens in the cache.".to_string())? as f64),
+            voting_power_percentage: 0.0, // temporary  (delegator_shares / total_bonded_tokens), `total_bonded_tokens` is from the database. IMPLEMENT PARAMS CRON_JOB AND SAVE THEM TO MONGO_DB.
             bonded_height,
             voting_power_change: 0.0, // TODO!
         };
@@ -683,7 +684,7 @@ impl InternalRedelegation {
             _ => return Err(format!("Tx doesn't have a redelegation message, {}.", tx_response.txhash)),
         };
 
-        let validator_to_metadata = chain.get_validator_metadata_by_valoper_addr(validator_dst_address).await?;
+        let validator_to_metadata = chain.inner.database.find_validator_by_operator_addr(&validator_dst_address).await?;
 
         Ok(Self {
             amount: chain.calc_amount_u128_to_f64(
@@ -710,7 +711,7 @@ impl InternalRedelegation {
                 },
                 _ => return Err(format!("Tx doesn't have a log, {}.", tx_response.txhash)),
             },
-            validator_to_address: validator_to_metadata.valoper_address,
+            validator_to_address: validator_to_metadata.operator_address,
             validator_to_logo_url: validator_to_metadata.logo_url,
             validator_to_name: validator_to_metadata.name,
             delegator_address,

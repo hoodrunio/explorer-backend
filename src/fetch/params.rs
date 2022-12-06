@@ -2,11 +2,7 @@ use serde::{Deserialize, Serialize};
 use tokio::join;
 
 use super::others::DenomAmount;
-use crate::{
-    chain::Chain,
-    data::params::{ChainParams, ChainParamsDistribution, ChainParamsGov, ChainParamsSlashing, ChainParamsStaking},
-    routes::OutRestResponse,
-};
+use crate::{chain::Chain, routes::OutRestResponse};
 
 impl Chain {
     /// Returns the all parameters of the chain.
@@ -432,4 +428,56 @@ impl TryFrom<SlashingParams> for InternalSlashingParams {
 pub struct ParamsResp<T> {
     /// The parameters.
     pub params: T,
+}
+
+/// The chain params.
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct ChainParams {
+    pub staking: ChainParamsStaking,
+    pub slashing: ChainParamsSlashing,
+    pub gov: ChainParamsGov,
+    pub distribution: ChainParamsDistribution,
+}
+
+/// The staking params.
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct ChainParamsStaking {
+    pub unbonding_time: u32,
+    pub max_validators: u32,
+    pub max_entries: u32,
+    pub historical_entries: u32,
+    pub bond_denom: String,
+}
+
+/// The slashing params.
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct ChainParamsSlashing {
+    pub signed_blocks_window: u32,
+    pub min_signed_per_window: f64,
+    pub downtime_jail_duration: u32,
+    pub slash_fraction_double_sign: f64,
+    pub slash_fraction_downtime: f64,
+}
+
+/// The governance params.
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct ChainParamsGov {
+    pub quorum: f64,
+    pub threshold: f64,
+    pub min_deposit: f64,
+    pub voting_period: u32,
+    pub max_deposit_period: u32,
+}
+
+/// The governance params.
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct ChainParamsDistribution {
+    pub community_tax: f64,
+    pub base_proposer_reward: f64,
+    pub bonus_proposer_reward: f64,
+    pub withdraw_addr_enabled: bool,
 }

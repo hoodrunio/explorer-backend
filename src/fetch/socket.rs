@@ -58,11 +58,15 @@ impl Chain {
                             if let Ok(mut mutex_previous_resp) = previous_block_header_resp.lock() {
                                 match &*mutex_previous_resp {
                                     Some(previous_resp) => {
-                                        let proposer_metadata =
-                                            match self.get_validator_metadata_by_hex_addr_blocking(previous_resp.header.proposer_address.clone()) {
-                                                Some(proposer_metadata) => proposer_metadata,
-                                                None => return,
-                                            };
+                                        let proposer_metadata = match self
+                                            .inner
+                                            .database
+                                            .find_validator_by_hex_addr(&previous_resp.header.proposer_address.clone())
+                                            .await
+                                        {
+                                            Ok(proposer_metadata) => proposer_metadata,
+                                            Err(error) => return eprintln!("block+ error:\n{error}"),
+                                        };
 
                                         let block_item = BlockItem {
                                             hash: current_resp.header.last_block_id.hash.clone(),
@@ -80,9 +84,11 @@ impl Chain {
                                             },
                                             proposer_logo_url: proposer_metadata.logo_url,
                                             proposer_name: proposer_metadata.name,
+                                            proposer_address: proposer_metadata.operator_address,
                                         };
 
-                                        self.store_new_block(block_item);
+                                        // STORE BLOCKS TO MONGO_DB HERE
+                                        // self.store_new_block(block_item);
 
                                         *mutex_previous_resp = Some(current_resp);
                                     }
@@ -110,7 +116,8 @@ impl Chain {
                                     .to_string(),
                             };
 
-                            self.store_new_tx(tx_item);
+                            // STORE TXS TO MONGO_DB HERE
+                            // self.store_new_tx(tx_item);
                         }
                         SocketResult::Empty {} => (),
                     },

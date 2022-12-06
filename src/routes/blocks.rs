@@ -64,10 +64,12 @@ pub async fn last_ten_blocks(path: Path<String>, chains: Data<State>) -> impl Re
     let chain = path.into_inner();
 
     Json(match chains.get(&chain) {
-        Ok(chain) => match chain.inner.data.last_ten_blocks.queue.lock() {
-            Ok(last_ten_blocks) => Response::Success(OutRestResponse::new(Json(last_ten_blocks.clone()), 0)),
-            _ => Response::Error("An internal error occured.".to_string()),
-        },
+        Ok(chain) => Response::<u8>::Error("Storing blocks in the database is not implemented yet.".to_string()),
+
+        // match chain.inner.data.last_ten_blocks.queue.lock() {
+        //    Ok(last_ten_blocks) => Response::Success(OutRestResponse::new(Json(last_ten_blocks.clone()), 0)),
+        //  _ => Response::Error("An internal error occured.".to_string()),
+        // },
         Err(err) => Response::Error(err),
     })
 }

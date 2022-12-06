@@ -162,7 +162,8 @@ impl NewBlocksFunc {
     pub fn new(chain: &Chain) -> Self {
         Self {
             timer: tokio::time::sleep(Duration::from_secs_f64(
-                *chain.inner.data.last_ten_blocks.avg_block_time_secs.lock().unwrap(),
+                // *chain.inner.data.last_ten_blocks.avg_block_time_secs.lock().unwrap(),
+                10.0,
             )),
         }
     }
@@ -217,22 +218,25 @@ impl ActorStream<MyWebSocket> for NewBlocksFunc {
         loop {
             ready!(this.timer.as_mut().poll(task));
             let now = this.timer.deadline();
-            this.timer
-                .as_mut()
-                .reset(now + Duration::from_secs_f64(*act.chain.inner.data.last_ten_blocks.avg_block_time_secs.lock().unwrap()));
+            this.timer.as_mut().reset(now + Duration::from_secs_f64(10.0));
 
-            if act.is_subscribed_to_blocks {
-                if let Some(blocks) = act.chain.inner.data.last_ten_blocks.get_blocks_till(act.last_block_num_sent) {
-                    for block in blocks {
-                        let block_height = block.height;
+            // .reset(now + Duration::from_secs_f64(*act.chain.inner.data.last_ten_blocks.avg_block_time_secs.lock().unwrap()));
 
-                        if let Ok(block_json_string) = serde_json::to_string(&SocketResponse::Block(block)) {
-                            ctx.text(block_json_string);
-                            act.last_block_num_sent = block_height;
-                        }
-                    }
-                }
-            }
+            // SAVE LIVE BLOCKS TO DATABASE IN `src/fetch/socket.rs` file.
+            // THEN YOU CAN GET LATEST BLOCKS FROM THE DATABASE
+
+            // if act.is_subscribed_to_blocks {
+            //     if let Some(blocks) = act.chain.inner.data.last_ten_blocks.get_blocks_till(act.last_block_num_sent) {
+            //         for block in blocks {
+            //             let block_height = block.height;
+
+            //             if let Ok(block_json_string) = serde_json::to_string(&SocketResponse::Block(block)) {
+            //                 ctx.text(block_json_string);
+            //                 act.last_block_num_sent = block_height;
+            //             }
+            //         }
+            //     }
+            // }
         }
     }
 }
@@ -253,18 +257,21 @@ impl ActorStream<MyWebSocket> for NewTxsFunc {
             let now = this.timer.deadline();
             this.timer.as_mut().reset(now + NEW_TX_DURATION);
 
-            if act.is_subscribed_to_txs {
-                if let Some(txs) = act.chain.inner.data.last_ten_txs.get_txs_till(&act.last_tx_hash_sent) {
-                    for tx in txs {
-                        let tx_hash = tx.hash.clone();
+            // SAVE LIVE TXS TO DATABASE IN `src/fetch/socket.rs` file.
+            // THEN YOU CAN GET LATEST TXS FROM THE DATABASE
 
-                        if let Ok(tx_json_string) = serde_json::to_string(&SocketResponse::Tx(tx)) {
-                            ctx.text(tx_json_string);
-                            act.last_tx_hash_sent = tx_hash;
-                        }
-                    }
-                }
-            }
+            // if act.is_subscribed_to_txs {
+            //     if let Some(txs) = act.chain.inner.data.last_ten_txs.get_txs_till(&act.last_tx_hash_sent) {
+            //         for tx in txs {
+            //             let tx_hash = tx.hash.clone();
+
+            //             if let Ok(tx_json_string) = serde_json::to_string(&SocketResponse::Tx(tx)) {
+            //                 ctx.text(tx_json_string);
+            //                 act.last_tx_hash_sent = tx_hash;
+            //             }
+            //         }
+            //     }
+            // }
         }
     }
 }

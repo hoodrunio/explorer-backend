@@ -1,10 +1,7 @@
 use crate::chain::Chain;
-use crate::data::ChainData;
+use crate::database::DatabaseTR;
 use crate::init_chain;
-use crate::utils::get_prices;
 use tokio::join;
-
-pub const PATH: &str = "/home/zan/.backend";
 
 /// The state of the server.
 pub struct State {
@@ -13,12 +10,14 @@ pub struct State {
     kyve: Chain,
     osmosis: Chain,
     reqwest_client: reqwest::Client,
+    database: DatabaseTR,
 }
 
 impl State {
     /// Creates a new `State`.
-    pub fn new() -> State {
+    pub async fn new() -> State {
         let client = reqwest::Client::new();
+        let database = DatabaseTR::new().await;
 
         State {
             axelar: init_chain! {
@@ -36,6 +35,7 @@ impl State {
                 sdk_version: 45,
                 decimals_pow: 100,
                 client: client.clone(),
+                database: database.clone().change_name("axelar"),
             },
             evmos: init_chain! {
                 name: "evmos",
@@ -52,6 +52,7 @@ impl State {
                 sdk_version: 45,
                 decimals_pow: 100000000000000,
                 client: client.clone(),
+                database: database.clone().change_name("evmos"),
             },
             kyve: init_chain! {
                 name: "kyve",
@@ -68,6 +69,7 @@ impl State {
                 sdk_version: 45,
                 decimals_pow: 100,
                 client: client.clone(),
+                database: database.clone().change_name("kyve"),
             },
             osmosis: init_chain! {
                 name: "osmosis",
@@ -84,8 +86,10 @@ impl State {
                 sdk_version: 46,
                 decimals_pow: 100,
                 client: client.clone(),
+                database: database.clone().change_name("osmosis"),
             },
             reqwest_client: client,
+            database,
         }
     }
 
@@ -100,35 +104,12 @@ impl State {
         }
     }
 
-    /// Updates all the chains' data.
-    pub async fn update_data(&self) {
-        join!(
-            self.axelar.update_data(),
-            self.evmos.update_data(),
-            self.kyve.update_data(),
-            self.osmosis.update_data(),
-        );
-    }
-
-    /// Updates all the prices' of chains.
-    pub async fn update_prices(&self) {
-        let prices = get_prices(self.reqwest_client.clone(), &["axelar", "evmos", "osmosis", ]).await;
-
-        join!(
-            self.axelar.update_price(prices.get("axelar")),
-            self.evmos.update_price(prices.get("evmos")),
-            self.osmosis.update_price(prices.get("osmosis")),
-        );
-    }
-
     /// Updates all the validator databases of chain.
-    pub async fn update_database(&self) {
-        join!(
-            self.axelar.update_validator_database(),
-            self.evmos.update_validator_database(),
-            self.kyve.update_validator_database(),
-            self.osmosis.update_validator_database(),
-        );
+    pub fn run_cron_jobs(&self) {
+        self.axelar.cron_jobs_all();
+        self.evmos.cron_jobs_all();
+        self.kyve.cron_jobs_all();
+        self.osmosis.cron_jobs_all();        
     }
 
     /// Subscribes to all the events for all the chains.

@@ -1,6 +1,7 @@
 mod chains;
 mod database_tr;
 mod validators;
+mod params;
 
 pub use database_tr::DatabaseTR;
 

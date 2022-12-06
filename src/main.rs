@@ -1,7 +1,6 @@
 use server::start_web_server;
 
 mod chain;
-mod data;
 mod encoding;
 mod fetch;
 mod macros;
@@ -10,6 +9,7 @@ mod server;
 mod state;
 mod utils;
 mod database;
+mod cron_jobs;
 
 #[tokio::main]
 async fn main() {

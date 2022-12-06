@@ -168,15 +168,8 @@ fn update_state_rs(chains: &[Chain]) {
     let mut state_props = String::new();
     let mut new_fn = String::new();
     let mut get_fn = String::new();
-    let mut update_data_fn = String::new();
-    let mut update_prices_fn = String::new();
-    let mut update_database_fn = String::new();
+    let mut run_cron_jobs_fn = String::new();
     let mut subscribe_to_events_fn = String::new();
-    let mut get_prices_props = String::new();
-    let path = format!(
-        "{home}/.backend",
-        home = std::env::var("HOME").expect("$HOME environment variable must be specified."),
-    );
 
     for chain in chains {
         state_props += &format!("\n    {}: Chain,", chain.name);
@@ -198,6 +191,7 @@ fn update_state_rs(chains: &[Chain]) {
                 sdk_version: {ver},
                 decimals_pow: {dec_pow},
                 client: client.clone(),
+                database: database.clone().change_name("{name}"),
             }},"#,
             name = chain.name,
             epoch = chain.epoch,
@@ -220,43 +214,33 @@ fn update_state_rs(chains: &[Chain]) {
 
         get_fn += &format!("\n            \"{chain}\" => Ok(self.{chain}.clone()),", chain = chain.name);
 
-        update_data_fn += &format!("\n            self.{chain}.update_data(),", chain = chain.name);
-
-        update_database_fn += &format!("\n            self.{chain}.update_validator_database(),", chain = chain.name);
+        run_cron_jobs_fn += &format!("\n        self.{chain}.cron_jobs_all();", chain = chain.name);
 
         subscribe_to_events_fn += &format!("\n            self.{chain}.subscribe_to_events(),", chain = chain.name);
-
-        match chain.gecko {
-            Some(gecko) => {
-                update_prices_fn += &format!("\n            self.{chain}.update_price(prices.get(\"{gecko}\")),", chain = chain.name);
-                get_prices_props += &format!("\"{gecko}\", ");
-            }
-            _ => (),
-        }
     }
 
     let content = format!(
         "\
 use crate::chain::Chain;
-use crate::data::ChainData;
+use crate::database::DatabaseTR;
 use crate::init_chain;
-use crate::utils::get_prices;
 use tokio::join;
-
-pub const PATH: &str = \"{path}\";
 
 /// The state of the server.
 pub struct State {{{state_props}
     reqwest_client: reqwest::Client,
+    database: DatabaseTR,
 }}
 
 impl State {{
     /// Creates a new `State`.
-    pub fn new() -> State {{
+    pub async fn new() -> State {{
         let client = reqwest::Client::new();
+        let database = DatabaseTR::new().await;
 
         State {{{new_fn}
             reqwest_client: client,
+            database,
         }}
     }}
 
@@ -267,24 +251,8 @@ impl State {{
         }}
     }}
 
-    /// Updates all the chains' data.
-    pub async fn update_data(&self) {{
-        join!({update_data_fn}
-        );
-    }}
-
-    /// Updates all the prices' of chains.
-    pub async fn update_prices(&self) {{
-        let prices = get_prices(self.reqwest_client.clone(), &[{get_prices_props}]).await;
-
-        join!({update_prices_fn}
-        );
-    }}
-
     /// Updates all the validator databases of chain.
-    pub async fn update_database(&self) {{
-        join!({update_database_fn}
-        );
+    pub fn run_cron_jobs(&self) {{{run_cron_jobs_fn}        
     }}
 
     /// Subscribes to all the events for all the chains.

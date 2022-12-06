@@ -129,6 +129,7 @@ impl Chain {
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct BlockItem {
+    pub proposer_address: String,
     pub proposer_name: String,
     pub proposer_logo_url: String,
     pub height: u64,

@@ -64,7 +64,7 @@ pub struct Primary {
 }
 
 /// Converts consensus public key to hex address for finding the associated operator address.
-pub fn convert_consensus_pub_key_to_hex_address(consensus_pubkey: &str) -> Option<String> {
+pub fn convert_consensus_pubkey_to_hex_address(consensus_pubkey: &str) -> Option<String> {
     let mut hasher = Sha256::new();
 
     hasher.update(from_base_64(consensus_pubkey.as_bytes()).ok()?);
@@ -94,4 +94,10 @@ pub fn get_msg_name(msg: &str) -> String {
         .map(|ch| if ch.is_uppercase() { format!(" {ch}") } else { ch.to_string() })
         .collect::<Vec<_>>()
         .join("")
+}
+
+/// Converts consensus pubkey to consensus address.
+pub fn convert_consensus_pubkey_to_consensus_address(msg: &str) -> String {
+    // Waiting to find how it is calculated.
+    todo!()
 }

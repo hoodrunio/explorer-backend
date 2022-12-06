@@ -1,5 +1,3 @@
-use std::time::Duration;
-
 use actix_cors::Cors;
 use actix_web::{web, App, HttpServer};
 use web::Data;
@@ -10,40 +8,20 @@ use crate::state::State;
 /// Starts the web server.
 pub async fn start_web_server() -> std::io::Result<()> {
     // Create the state of the app.
-    let state = Data::new(State::new());
+    let state = Data::new(State::new().await);
 
-    // Spawn a thread to update data.
-    let state_clone = state.clone();
-    tokio::spawn(async move {
-        loop {
-            state_clone.update_data().await;
-            tokio::time::sleep(Duration::from_secs(600)).await;
-        }
-    });
+    // Start running cron jobs to update MongoDB database.
+    state.run_cron_jobs();
 
-    // Spawn a thread to update prices.
+    // Spawn a thread to subscribe to events.
     let state_clone = state.clone();
-    tokio::spawn(async move {
-        loop {
-            state_clone.update_prices().await;
-            tokio::time::sleep(Duration::from_secs(600)).await;
-        }
-    });
 
-    // Spawn a thread to update in-memory validator database. Every 3 minutes.
-    let state_clone = state.clone();
-    tokio::spawn(async move {
-        loop {
-            state_clone.update_database().await;
-            tokio::time::sleep(Duration::from_secs(180)).await;
-        }
-    });
+    // After connecting to MongoDB, there are so many thread safety & ownership errors.
+    // You have to rewrite `src/fetch/socket.rs` to fix them.
 
-    // Subscribes to events.
-    let state_clone = state.clone();
-    tokio::spawn(async move {
-        state_clone.subscribe_to_events().await;
-    });
+    // tokio::spawn(async move {
+    //     state_clone.subscribe_to_events().await;
+    // });
 
     HttpServer::new(move || {
         // Build a CORS middleware.
@@ -85,6 +63,8 @@ pub async fn start_web_server() -> std::io::Result<()> {
             .service(routes::redelegations)
             .service(routes::signing)
             .service(routes::staking_pool)
+            // Socket's are not working as we store neither blocks nor txs in the database.
+            // And the Web Socket connection between this program and nodes is broken.
             .service(web::resource("{chain}/socket").route(web::get().to(routes::socket)))
             .service(routes::supplies)
             .service(routes::supply)

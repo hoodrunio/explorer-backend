@@ -13,13 +13,8 @@ pub async fn params(path: Path<String>, chains: Data<State>) -> impl Responder {
     let chain = path.into_inner();
 
     Json(match chains.get(&chain) {
-        Ok(chain) => match chain.inner.data.params.lock() {
-            Ok(params) => Response::Success(OutRestResponse {
-                pages: 0,
-                value: params.clone(),
-            }),
-            Err(_) => Response::Error("Cannot return chain parameters.".to_string()),
-        },
+        // Database can be used.
+        Ok(chain) => chain.get_params_all().await.into(),
         Err(err) => Response::Error(err),
     })
 }

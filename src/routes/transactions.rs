@@ -69,10 +69,12 @@ pub async fn last_ten_txs(path: Path<String>, chains: Data<State>) -> impl Respo
     let chain = path.into_inner();
 
     Json(match chains.get(&chain) {
-        Ok(chain) => match chain.inner.data.last_ten_txs.queue.lock() {
-            Ok(last_ten_txs) => Response::Success(OutRestResponse::new(Json(last_ten_txs.clone()), 0)),
-            _ => Response::Error("An internal error occured.".to_string()),
-        },
+        Ok(chain) => Response::<u8>::Error("Storing txs in the database is not implemented yet.".to_string()),
+
+        // match chain.inner.data.last_ten_txs.queue.lock() {
+        //     Ok(last_ten_txs) => Response::Success(OutRestResponse::new(Json(last_ten_txs.clone()), 0)),
+        //     _ => Response::Error("An internal error occured.".to_string()),
+        // },
         Err(err) => Response::Error(err),
     })
 }
