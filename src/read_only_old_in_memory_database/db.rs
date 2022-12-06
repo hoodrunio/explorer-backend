@@ -8,8 +8,7 @@ use serde::{Deserialize, Serialize};
 use crate::{
     chain::Chain,
     fetch::others::PaginationConfig,
-    state::PATH,
-    utils::{convert_consensus_pub_key_to_hex_address, get_validator_logo},
+    utils::{convert_consensus_pubkey_to_hex_address, get_validator_logo},
 };
 
 /// Validator name and the URL of its logo.
@@ -277,7 +276,7 @@ impl Chain {
                 for validator in resp.validators {
                     let cons_address_map = cons_address_map.clone();
                     validators_future.push(async move {
-                        let hex_addr = convert_consensus_pub_key_to_hex_address(&validator.consensus_pubkey.key);
+                        let hex_addr = convert_consensus_pubkey_to_hex_address(&validator.consensus_pubkey.key);
 
                         match hex_addr {
                             Some(hex_addr) => Some(match self.get_validator_metadata_by_hex_addr_blocking(hex_addr.clone()) {
@@ -291,7 +290,7 @@ impl Chain {
                                 None => ValidatorMetadataFull {
                                     name: validator.description.moniker,
                                     valoper_address: validator.operator_address.clone(),
-                                    hex: convert_consensus_pub_key_to_hex_address(&validator.consensus_pubkey.key)
+                                    hex: convert_consensus_pubkey_to_hex_address(&validator.consensus_pubkey.key)
                                         .unwrap_or(format!("Error, {}", validator.operator_address)),
                                     logo_url: get_validator_logo(self.inner.client.clone(), &validator.description.identity).await,
                                     cons_address: cons_address_map.get(&validator.consensus_pubkey.key).cloned()?,
