@@ -11,14 +11,14 @@ use super::{chains::Chain, validators::Validator};
 pub struct DatabaseTR {
     /// The MongoDB client that works with a MongoDB instance.
     mongo: Client,
+
+    /// Database name and chain name are the same.
+    db_name: &'static str,
 }
 
 mod consts {
     /// The URI for the MongoDB instance.
     pub const MONGO_DB_URI: &str = "mongodb://db.example.com:12345";
-
-    /// The name of the MongoDB database.
-    pub const DATABASE_NAME: &str = "testnetrun";
 
     /// Validators database name.
     pub const VALIDATORS_COLLECTION_NAME: &str = "validators";
@@ -38,7 +38,13 @@ impl DatabaseTR {
             mongo: (Client::with_uri_str(consts::MONGO_DB_URI)
                 .await
                 .expect("Cannot connect to MongoDB instance.")),
+            db_name: "unexpected_db",
         }
+    }
+
+    /// Changes the name of the database and returns a new one.
+    pub fn change_name(self, db_name: &'static str) -> DatabaseTR {
+        DatabaseTR { db_name, ..self }
     }
 
     /// Returns the MongoDB database.
@@ -47,7 +53,7 @@ impl DatabaseTR {
     /// let db = database.get_db();
     /// ```
     fn db(&self) -> Database {
-        self.mongo.database(consts::DATABASE_NAME)
+        self.mongo.database(self.db_name)
     }
 
     /// Returns the validators collection.
@@ -73,7 +79,7 @@ impl DatabaseTR {
     /// ```rs
     /// database.add_validator(validator).await;
     /// ```
-    async fn add_validator(&self, validator: Validator) -> Result<(), String> {
+    pub async fn add_validator(&self, validator: Validator) -> Result<(), String> {
         match self.validators_collection().insert_one(validator, None).await {
             Ok(_) => Ok(()),
             Err(_) => Err("Cannot save the validator.".into()),
@@ -85,7 +91,7 @@ impl DatabaseTR {
     /// ```rs
     /// database.add_validators(validators).await;
     /// ```
-    async fn add_validators(&self, validators: Vec<Validator>) -> Result<(), String> {
+    pub async fn add_validators(&self, validators: Vec<Validator>) -> Result<(), String> {
         match self.validators_collection().insert_many(validators, None).await {
             Ok(_) => Ok(()),
             Err(_) => Err("Cannot save validators.".into()),
