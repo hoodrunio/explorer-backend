@@ -27,7 +27,6 @@ impl Chain {
                     let resp = self
                         .get_txs_by_height_detailed(Some(resp.block_number), PaginationConfig::new().limit(100))
                         .await?;
-                    println!("fdsfs");
                     let tx = resp
                         .value
                         .into_iter()

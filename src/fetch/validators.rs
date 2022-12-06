@@ -161,8 +161,6 @@ impl Chain {
 
         let validator = resp?.validator;
 
-        println!("1");
-
         let validator_metadata = self.get_validator_metadata_by_valoper_addr(validator.operator_address.clone()).await?;
 
         let delegator_shares = self.calc_amount_u128_to_f64(
@@ -175,7 +173,6 @@ impl Chain {
                 .map_err(|_| format!("Cannot parse delegator shares, {}.", validator.delegator_shares))?,
         );
 
-        println!("2");
         let validator = InternalValidator {
             logo_url: validator_metadata.logo_url,
             commission: validator
@@ -187,8 +184,6 @@ impl Chain {
             uptime: 0.0, // TODO!
             status: {
                 let signing_info = self.get_validator_signing_info(&validator_metadata.cons_address).await?;
-
-                println!("3");
 
                 if validator.jailed {
                     "Jailed"
@@ -223,7 +218,7 @@ impl Chain {
                     .bonded
                     .lock()
                     .map_err(|_| "Cannot access to total bonded tokens in the cache.".to_string())? as f64),
-            bonded_height,            
+            bonded_height,
             voting_power_change: 0.0, // TODO!
         };
 
@@ -354,7 +349,6 @@ impl Chain {
         query.push(("pagination.count_total", "true".to_string()));
         query.push(("pagination.offset", format!("{}", config.get_offset())));
 
-        println!("asdsad");
         let resp = self
             .rest_api_request::<ValidatorSetResp>("/cosmos/base/tendermint/v1beta1/validatorsets/latest", &query)
             .await?;
