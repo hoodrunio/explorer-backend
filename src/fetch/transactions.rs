@@ -6,6 +6,7 @@ use futures::{
     FutureExt,
 };
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 
 use super::others::{DenomAmount, InternalDenomAmount, Pagination, PaginationConfig, PublicKey};
 use crate::{
@@ -403,7 +404,7 @@ pub struct KeyValue {
 #[serde(untagged)]
 pub enum InternalTransactionContent {
     Known(InternalTransactionContentKnowns),
-    Unknown { r#type: String },
+    Unknown { r#type: String, keys_values: HashMap<String, String> },
 }
 
 #[derive(Deserialize, Serialize, Debug)]
@@ -584,10 +585,7 @@ pub struct GrantTxGrant {
 #[serde(untagged)]
 pub enum TxsTransactionMessage {
     Known(TxsTransactionMessageKnowns),
-    Unknown {
-        #[serde(rename = "@type")]
-        r#type: String,
-    },
+    Unknown(HashMap<String, Value>),
 }
 
 impl TxsTransactionMessage {
@@ -704,7 +702,7 @@ impl TxsTransactionMessage {
                     TxsTransactionMessageKnowns::EthereumTx { hash } => {
                         InternalTransactionContent::Known(InternalTransactionContentKnowns::EthereumTx { hash })
                     }
-                    TxsTransactionMessageKnowns::Grant { granter, grantee, grant } => {
+                    TxsTransactionMessageKnowns::Grant { granter, grantee, mut grant } => {
                         InternalTransactionContent::Known(InternalTransactionContentKnowns::Grant {
                             granter,
                             grantee,
@@ -713,7 +711,11 @@ impl TxsTransactionMessage {
                                 .timestamp_millis(),
 
                             authorization_type: get_msg_name(
-                                &grant.authorization.get("@type").map(|v| v.to_string()).unwrap_or("Unknown".to_string()),
+                                &grant
+                                    .authorization
+                                    .remove("@type")
+                                    .map(|v| v.to_string())
+                                    .unwrap_or("Unknown".to_string()),
                             ),
                             authorization_data: grant
                                 .authorization
@@ -740,7 +742,13 @@ impl TxsTransactionMessage {
                         })
                     }
                 },
-                TxsTransactionMessage::Unknown { r#type } => InternalTransactionContent::Unknown { r#type },
+                TxsTransactionMessage::Unknown(mut keys_values) => {
+                    let r#type = keys_values.remove("@type").map(|t| t.to_string()).unwrap_or("Unknown".to_string());
+                    InternalTransactionContent::Unknown {
+                        r#type,
+                        keys_values: keys_values.into_iter().map(|(k, v)| (k, v.to_string())).collect(),
+                    }
+                }
             })
         }
         .boxed()
@@ -793,7 +801,11 @@ impl TxsTransactionMessage {
                 TxsTransactionMessageKnowns::Exec { grantee: _, msgs: _ } => "Exec",
             }
             .to_string(),
-            TxsTransactionMessage::Unknown { r#type } => get_msg_name(r#type),
+            TxsTransactionMessage::Unknown(keys_values) => keys_values
+                .get("@type")
+                .cloned()
+                .map(|r#type| get_msg_name(r#type.to_string().as_ref()))
+                .unwrap_or("Unknown".to_string()),
         }
     }
 }
