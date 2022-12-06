@@ -1,7 +1,8 @@
+use crate::database::ValidatorForDb;
 use chrono::DateTime;
 use serde::{Deserialize, Serialize};
 
-use crate::{chain::Chain, data::db::ValidatorMetadata, routes::OutRestResponse};
+use crate::{chain::Chain, routes::OutRestResponse};
 
 impl Chain {
     /// Returns the block at given height. Returns the latest block, if no height is given.
@@ -145,7 +146,7 @@ pub struct InternalBlock {
     proposer_address: String,
     time: i64,
     tx_count: u32,
-    signatures: Vec<ValidatorMetadata>,
+    signatures: Vec<InternalBlockSignature>,
 }
 
 impl InternalBlock {
@@ -155,12 +156,12 @@ impl InternalBlock {
         let mut signatures = vec![];
 
         for signature in block_resp.block.last_commit.signatures {
-            if let Some(validator_metadata) = chain.get_validator_metadata_by_hex_addr(signature.validator_address.clone()).await {
+            if let Ok(validator_metadata) = chain.inner.database.find_validator_by_hex_addr(&signature.validator_address).await {
                 if block_resp.block.header.proposer_address == signature.validator_address {
                     proposer = Some(validator_metadata.clone());
-                    signatures.push(validator_metadata)
+                    signatures.push(validator_metadata.into())
                 } else {
-                    signatures.push(validator_metadata)
+                    signatures.push(validator_metadata.into())
                 }
             }
         }
@@ -176,7 +177,7 @@ impl InternalBlock {
                 .map_err(|_| format!("Cannot parse block height, '{}'.", block_resp.block.header.height))?,
             hash: block_resp.block_id.hash,
             proposer_name: proposer.name,
-            proposer_address: proposer.valoper_address,
+            proposer_address: proposer.operator_address,
             proposer_logo_url: proposer.logo_url,
             time: DateTime::parse_from_rfc3339(&block_resp.block.header.time)
                 .map_err(|_| format!("Cannot parse block datetime, '{}'.", block_resp.block.header.time))?
@@ -195,6 +196,16 @@ pub struct InternalBlockSignature {
     pub logo_url: String,
     /// Validator valoper prefixed address. `cosmosvaloper156gqf9837u7d4c4678yt3rl4ls9c5vuursrrzf`
     pub address: String,
+}
+
+impl From<ValidatorForDb> for InternalBlockSignature {
+    fn from(validator_for_db: ValidatorForDb) -> Self {
+        Self {
+            name: validator_for_db.name,
+            logo_url: validator_for_db.logo_url,
+            address: validator_for_db.operator_address,
+        }
+    }
 }
 
 #[derive(Deserialize, Serialize, Debug)]
