@@ -15,14 +15,6 @@ pub struct DatabaseTR {
     db_name: &'static str,
 }
 
-mod consts {
-    /// The URI for the MongoDB instance.
-    pub const MONGO_DB_URI: &str = "mongodb://db.example.com:12345";
-
-    /// Validators database name.
-    pub const VALIDATORS_COLLECTION_NAME: &str = "";
-}
-
 impl DatabaseTR {
     /// Connects to MongoDB instance at given URI and creates a client to work with that instance.
     /// # Usage
@@ -30,10 +22,11 @@ impl DatabaseTR {
     /// let database = Database::new();
     /// ```
     pub async fn new() -> DatabaseTR {
+        // Change this URI and create a database for each chain using chain names.
+        let uri = "mongodb://db.example.com:12345";
+
         DatabaseTR {
-            mongo: (Client::with_uri_str(consts::MONGO_DB_URI)
-                .await
-                .expect("Cannot connect to MongoDB instance.")),
+            mongo: (Client::with_uri_str(uri).await.expect("Cannot connect to MongoDB instance.")),
             db_name: "unexpected_db",
         }
     }
