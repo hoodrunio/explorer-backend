@@ -26,7 +26,9 @@ impl Chain {
 
         for delegation_response in resp.delegation_responses {
             if let Ok(validator_metadata) = self
-                .get_validator_metadata_by_valoper_addr(delegation_response.delegation.validator_address)
+                .inner
+                .database
+                .find_validator_by_operator_addr(&delegation_response.delegation.validator_address)
                 .await
             {
                 delegations.push({
@@ -40,7 +42,7 @@ impl Chain {
                         ),
                         validator_logo_url: validator_metadata.logo_url,
                         validator_name: validator_metadata.name,
-                        validator_address: validator_metadata.valoper_address,
+                        validator_address: validator_metadata.operator_address,
                     }
                 })
             }
@@ -72,8 +74,12 @@ impl Chain {
 
         for redelegation_response in resp.redelegation_responses {
             if let (Ok(validator_from), Ok(validator_to)) = join!(
-                self.get_validator_metadata_by_valoper_addr(redelegation_response.redelegation.validator_src_address),
-                self.get_validator_metadata_by_valoper_addr(redelegation_response.redelegation.validator_dst_address),
+                self.inner
+                    .database
+                    .find_validator_by_operator_addr(&redelegation_response.redelegation.validator_src_address),
+                self.inner
+                    .database
+                    .find_validator_by_operator_addr(&redelegation_response.redelegation.validator_dst_address),
             ) {
                 redelegations.push({
                     let redelegation_resp_entry = redelegation_response
@@ -103,10 +109,10 @@ impl Chain {
                         completion_time,
                         validator_from_logo_url: validator_from.logo_url,
                         validator_from_name: validator_from.name,
-                        validator_from_address: validator_from.valoper_address,
+                        validator_from_address: validator_from.operator_address,
                         validator_to_logo_url: validator_to.logo_url,
                         validator_to_name: validator_to.name,
-                        validator_to_address: validator_to.valoper_address,
+                        validator_to_address: validator_to.operator_address,
                     }
                 })
             }
@@ -137,7 +143,12 @@ impl Chain {
         let mut unbondings = vec![];
 
         for unbonding_response in resp.unbonding_responses {
-            if let Ok(validator_metadata) = self.get_validator_metadata_by_valoper_addr(unbonding_response.validator_address).await {
+            if let Ok(validator_metadata) = self
+                .inner
+                .database
+                .find_validator_by_operator_addr(&unbonding_response.validator_address)
+                .await
+            {
                 unbondings.push({
                     let unbonding_entry = unbonding_response
                         .entries
@@ -161,7 +172,7 @@ impl Chain {
                             .timestamp_millis(),
                         validator_logo_url: validator_metadata.logo_url,
                         validator_name: validator_metadata.name,
-                        validator_address: validator_metadata.valoper_address,
+                        validator_address: validator_metadata.operator_address,
                     }
                 })
             }
