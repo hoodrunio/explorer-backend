@@ -13,10 +13,6 @@ impl Chain {
         let client = Client::new();
         const ANNUAL_PROVISION_MUL_RATIO: f64 = 365.3;
 
-        let inflation = 0.0;
-        let community_tax = 0.0;
-        let bonded_tokens_ratio = 0.0;
-
         // Constant declarations
         const secs_in_year: f64 = 31561920.0;
         // If the chain has epochs.
