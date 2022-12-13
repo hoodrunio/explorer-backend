@@ -63,8 +63,39 @@ impl Chain {
                     Ok(apr)
                 }
                 "evmos" => {
-                    let staking_rewards_factor = 0.0; // will be fetched. https://lcd.evmos-9001-2.bronbro.io/evmos/inflation/v1/params
+                    let evmos_inflation_params_response = match self.external_rest_api_req::<EvmosInflationParamsResponse>
+                    (&client, Method::GET, "https://lcd.evmos-9001-2.bronbro.io/evmos/inflation/v1/params", &[]).await
+                    {
+                        Ok(parsed_response) => parsed_response,
+                        Err(error) => return Err(error)
+                    };
 
+                    let staking_rewards_factor = match evmos_inflation_params_response.params.inflation_distribution.staking_rewards.parse::<f64>(){
+                        Ok(value) => value,
+                        Err(_) => return Err("FLOAT_PARSING_ERROR".to_string())
+                    };
+
+                    let evmos_inflation_epoch_prevision_response = match self.external_rest_api_req::<EvmosInflationEpochProvisionResponse>
+                    (&client, Method::GET, "https://lcd.evmos-9001-2.bronbro.io/evmos/inflation/v1/epoch_mint_provision", &[]).await
+                    {
+                        Ok(parsed_response) => parsed_response,
+                        Err(error) => return Err(error)
+                    };
+
+                    //TODO Calculate epoch_provisions from evmos_inflation_epoch_prevision_response
+                    let epoch_provisions = 1.0;
+
+                    let evmos_staking_pool_reponse = match self.external_rest_api_req::<EvmosStakingPoolResponse>
+                    (&client, Method::GET, "https://lcd.evmos-9001-2.bronbro.io/evmos/inflation/v1/epoch_mint_provision", &[]).await
+                    {
+                        Ok(parsed_response) => parsed_response,
+                        Err(error) => return Err(error)
+                    };
+
+                    //TODO Calculate bonded_tokens_amount from evmos_staking_pool_reponse
+                    let bonded_tokens_amount = 1.0;
+
+                    let annual_provisions = epoch_provisions * ANNUAL_PROVISION_MUL_RATIO;
                     let apr = annual_provisions * staking_rewards_factor / bonded_tokens_amount;
 
                     Ok(apr)
@@ -119,4 +150,55 @@ pub struct OsmosisStakingPoolTokens {
 #[derive(Deserialize, Serialize, Debug, PartialEq)]
 pub struct OsmosisEpochProvisionResponse {
     pub epoch_provisions: String,
+}
+
+#[derive(Deserialize, Serialize, Debug, PartialEq)]
+pub struct EvmosInflationParamsResponse {
+    pub params: EvmosInflationParams,
+}
+
+#[derive(Deserialize, Serialize, Debug, PartialEq)]
+pub struct EvmosInflationParams {
+    pub mint_denom: String,
+    pub exponential_calculation: EvmosInflationExponentialCalcParam,
+    pub inflation_distribution: EvmosInflationDistributionParam,
+    pub enable_inflation: String,
+}
+
+#[derive(Deserialize, Serialize, Debug, PartialEq)]
+pub struct EvmosInflationExponentialCalcParam {
+    a: String,
+    r: String,
+    c: String,
+    bonding_target: String,
+    max_variance: String,
+}
+
+#[derive(Deserialize, Serialize, Debug, PartialEq)]
+pub struct EvmosInflationDistributionParam {
+    staking_rewards: String,
+    usage_incentives: String,
+    community_pool: String,
+}
+
+#[derive(Deserialize, Serialize, Debug, PartialEq)]
+pub struct EvmosInflationEpochProvisionResponse {
+    pub epoch_mint_provision: EvmosInflationEpochProvision
+}
+
+#[derive(Deserialize, Serialize, Debug, PartialEq)]
+pub struct EvmosInflationEpochProvision {
+    pub denom: String,
+    pub amount: String
+}
+
+#[derive(Deserialize, Serialize, Debug, PartialEq)]
+pub struct EvmosStakingPoolResponse {
+    pub pool: EvmosStakingPool,
+}
+
+#[derive(Deserialize, Serialize, Debug, PartialEq)]
+pub struct EvmosStakingPool {
+    not_bonded_tokens: String,
+    bonded_tokens: String,
 }
