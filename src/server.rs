@@ -62,6 +62,7 @@ pub async fn start_web_server() -> std::io::Result<()> {
             .service(routes::proposals_voting)
             .service(routes::redelegations)
             .service(routes::signing)
+            .service(routes::calculations)
             .service(routes::staking_pool)
             // Socket's are not working as we store neither blocks nor txs in the database.
             // And the Web Socket connection between this program and nodes is broken.
