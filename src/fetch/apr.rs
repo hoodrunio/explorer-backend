@@ -14,17 +14,9 @@ impl Chain {
         const ANNUAL_PROVISION_MUL_RATIO: f64 = 365.3;
 
         // Constant declarations
-        const secs_in_year: f64 = 31561920.0;
+        const SECS_IN_YEAR: f64 = 31561920.0;
         // If the chain has epochs.
         if !self.inner.epoch {
-            // We will get those below from the database.
-            let epoch_provisions = 0.0;
-            let community_tax = 0.0;
-            let bonded_tokens_amount = 0.0;
-
-            // Calculate annual provisions.
-            let annual_provisions = epoch_provisions * 365.3;
-
             match self.inner.name {
                 "osmosis" => {
                     let epoch_provisions_response = match self.external_rest_api_req::<OsmosisEpochProvisionResponse>
@@ -49,13 +41,6 @@ impl Chain {
                         Err(_) => return Err("FLOAT_PARSING_ERROR".to_string())
                     };
 
-                    let distribution_params = match self.external_rest_api_req::<OsmosisDistributionResponse>
-                    (&client, Method::GET, "https://lcd.osmosis-1.bronbro.io/cosmos/distribution/v1beta1/params", &[]).await
-                    {
-                        Ok(parsed_response) => parsed_response,
-                        Err(error) => return Err(error)
-                    };
-
                     let annual_provisions = epoch_provisions * ANNUAL_PROVISION_MUL_RATIO;
                     let staking_rewards_factor = 0.25;
                     let apr = annual_provisions * staking_rewards_factor / bonded_tokens_amount;
@@ -63,6 +48,7 @@ impl Chain {
                     Ok(apr)
                 }
                 "evmos" => {
+                    let evmos_decimal = (self.inner.decimals_pow as f64);
                     let evmos_inflation_params_response = match self.external_rest_api_req::<EvmosInflationParamsResponse>
                     (&client, Method::GET, "https://lcd.evmos-9001-2.bronbro.io/evmos/inflation/v1/params", &[]).await
                     {
@@ -70,7 +56,7 @@ impl Chain {
                         Err(error) => return Err(error)
                     };
 
-                    let staking_rewards_factor = match evmos_inflation_params_response.params.inflation_distribution.staking_rewards.parse::<f64>(){
+                    let staking_rewards_factor = match evmos_inflation_params_response.params.inflation_distribution.staking_rewards.parse::<f64>() {
                         Ok(value) => value,
                         Err(_) => return Err("FLOAT_PARSING_ERROR".to_string())
                     };
@@ -82,19 +68,22 @@ impl Chain {
                         Err(error) => return Err(error)
                     };
 
-                    //TODO Calculate epoch_provisions from evmos_inflation_epoch_prevision_response
-                    let epoch_provisions = 1.0;
+                    let epoch_provisions = match evmos_inflation_epoch_prevision_response.epoch_mint_provision.amount.parse::<f64>() {
+                        Ok(value) => value / evmos_decimal,
+                        Err(_) => return Err("FLOAT_PARSING_ERROR".to_string())
+                    };
 
-                    let evmos_staking_pool_reponse = match self.external_rest_api_req::<EvmosStakingPoolResponse>
-                    (&client, Method::GET, "https://lcd.evmos-9001-2.bronbro.io/evmos/inflation/v1/epoch_mint_provision", &[]).await
+                    let evmos_staking_pool_response = match self.external_rest_api_req::<EvmosStakingPoolResponse>
+                    (&client, Method::GET, "https://lcd.evmos-9001-2.bronbro.io/cosmos/staking/v1beta1/pool", &[]).await
                     {
                         Ok(parsed_response) => parsed_response,
                         Err(error) => return Err(error)
                     };
 
-                    //TODO Calculate bonded_tokens_amount from evmos_staking_pool_reponse
-                    let bonded_tokens_amount = 1.0;
-
+                    let bonded_tokens_amount = match evmos_staking_pool_response.pool.bonded_tokens.parse::<f64>() {
+                        Ok(value) => value / evmos_decimal,
+                        Err(_) => return Err("FLOAT_PARSING_ERROR".to_string())
+                    };
                     let annual_provisions = epoch_provisions * ANNUAL_PROVISION_MUL_RATIO;
                     let apr = annual_provisions * staking_rewards_factor / bonded_tokens_amount;
 
@@ -111,7 +100,7 @@ impl Chain {
             let avg_block_time_24h = 0.0;
 
             // Calculate how many blocks will be created in a year with the speed same as last 24h.
-            let current_block_per_year = secs_in_year / avg_block_time_24h;
+            let current_block_per_year = SECS_IN_YEAR / avg_block_time_24h;
 
             // Calculate correction.
             let correction_annual_coefficient = current_block_per_year / block_per_year;
@@ -162,7 +151,7 @@ pub struct EvmosInflationParams {
     pub mint_denom: String,
     pub exponential_calculation: EvmosInflationExponentialCalcParam,
     pub inflation_distribution: EvmosInflationDistributionParam,
-    pub enable_inflation: String,
+    pub enable_inflation: bool,
 }
 
 #[derive(Deserialize, Serialize, Debug, PartialEq)]
@@ -183,13 +172,13 @@ pub struct EvmosInflationDistributionParam {
 
 #[derive(Deserialize, Serialize, Debug, PartialEq)]
 pub struct EvmosInflationEpochProvisionResponse {
-    pub epoch_mint_provision: EvmosInflationEpochProvision
+    pub epoch_mint_provision: EvmosInflationEpochProvision,
 }
 
 #[derive(Deserialize, Serialize, Debug, PartialEq)]
 pub struct EvmosInflationEpochProvision {
     pub denom: String,
-    pub amount: String
+    pub amount: String,
 }
 
 #[derive(Deserialize, Serialize, Debug, PartialEq)]
