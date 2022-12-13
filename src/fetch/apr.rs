@@ -16,7 +16,7 @@ impl Chain {
         // Constant declarations
         const SECS_IN_YEAR: f64 = 31561920.0;
         // If the chain has epochs.
-        if !self.inner.epoch {
+        if self.inner.epoch {
             match self.inner.name {
                 "osmosis" => {
                     let epoch_provisions_response = match self.external_rest_api_req::<OsmosisEpochProvisionResponse>

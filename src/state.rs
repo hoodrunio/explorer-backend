@@ -39,7 +39,7 @@ impl State {
             },
             evmos: init_chain! {
                 name: "evmos",
-                epoch: false,
+                epoch: true,
                 gecko: Some("evmos"),
                 base_prefix: "evmos",
                 valoper_prefix: "evmosvaloper",
@@ -73,7 +73,7 @@ impl State {
             },
             osmosis: init_chain! {
                 name: "osmosis",
-                epoch: false,
+                epoch: true,
                 gecko: Some("osmosis"),
                 base_prefix: "osmo",
                 valoper_prefix: "osmovaloper",

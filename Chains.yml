@@ -12,7 +12,7 @@ wss: wss://axelar-rpc.chainode.tech/websocket
 
 
 name: evmos
-epoch: false
+epoch: true
 gecko: evmos
 denom: aevmos
 # prefix: evmos
@@ -39,7 +39,7 @@ wss: wss://rpc.beta.kyve.network/websocket
 
 
 name: osmosis
-epoch: false
+epoch: true
 gecko: osmosis
 denom: uosmo
 prefix: osmo
