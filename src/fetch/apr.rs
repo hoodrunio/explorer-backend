@@ -1,9 +1,12 @@
+use std::fmt::format;
 use std::num::ParseFloatError;
 
 use reqwest::{Client, Method};
 use serde::{Deserialize, Serialize};
 
 use crate::chain::Chain;
+use crate::fetch::params::ChainParams;
+use crate::routes::OutRestResponse;
 
 impl Chain {
     /// Returns the APR rate of the chain.
@@ -92,28 +95,124 @@ impl Chain {
                 chain_name => Err(format!("APR for {chain_name} is not implemented.")),
             }
         } else {
-            // We will get those below from the database.
-            let annual_provisions = 0.0;
-            let community_tax = 0.0;
-            let bonded_tokens_amount = 0.0;
-            let block_per_year = 0.0;
-            let avg_block_time_24h = 0.0;
+            match self.inner.name {
+                "axelar" => {
+                    let axelar_inflation_rate = match self.get_inflation_rate().await {
+                        Ok(value) => value.value * 2.0,
+                        Err(error) => return Err(error)
+                    };
 
-            // Calculate how many blocks will be created in a year with the speed same as last 24h.
-            let current_block_per_year = SECS_IN_YEAR / avg_block_time_24h;
+                    let external_chain_voting_inflation_rate =
+                        match self.rest_api_request::<AxelarExternalChainVotingInflationRateResponse>(
+                            "/cosmos/params/v1beta1/params?subspace=reward&key=ExternalChainVotingInflationRate",
+                            &[]).await {
+                            Ok(response) => match response.param.get_parsed_value() {
+                                Ok(value) => value,
+                                Err(error) => return Err(error),
+                            },
+                            Err(error) => return Err(error),
+                        };
 
-            // Calculate correction.
-            let correction_annual_coefficient = current_block_per_year / block_per_year;
+                    let external_chain_inflation =
+                        match self.rest_api_request::<AxelarSupportedEvmChainsResponse>(
+                            "/axelar/evm/v1beta1/chains",
+                            &[]).await {
+                            Ok(response) => response.get_supported_evm_chains_length() * external_chain_voting_inflation_rate,
+                            Err(error) => return Err(error),
+                        };
 
-            let apr = (annual_provisions * (1.0 - community_tax) / bonded_tokens_amount) * correction_annual_coefficient;
+                    return Ok(external_chain_inflation + axelar_inflation_rate);
+                }
+                _ => {
+                    let chain_params = match self.get_params_all().await {
+                        Ok(res) => res.value,
+                        Err(error) => return Err(error)
+                    };
 
-            Ok(apr)
+                    let staking_pool = match self.get_staking_pool().await {
+                        Ok(res) => res.value,
+                        Err(error) => return Err(error)
+                    };
+
+
+                    // We will get those below from the database.
+                    let annual_provisions = 0.0;
+                    let community_tax = chain_params.distribution.community_tax;
+                    let bonded_tokens_amount = staking_pool.bonded as f64;
+                    let block_per_year = 0.0;
+                    let avg_block_time_24h = 0.0;
+
+                    // Calculate how many blocks will be created in a year with the speed same as last 24h.
+                    let current_real_block_per_year = SECS_IN_YEAR / avg_block_time_24h;
+
+                    // Calculate correction.
+                    let correction_annual_coefficient = current_real_block_per_year / block_per_year;
+
+                    let non_epoch_apr_calculator = NonEpochAprCalculator {
+                        annual_provisions,
+                        community_tax,
+                        bonded_tokens_amount,
+                        correction_annual_coefficient,
+                    };
+
+                    match non_epoch_apr_calculator.get_apr() {
+                        Ok(apr) => Ok(apr),
+                        Err(error) => Err(error)
+                    }
+                }
+            }
+        }
+    }
+}
+
+pub struct NonEpochAprCalculator {
+    pub annual_provisions: f64,
+    pub community_tax: f64,
+    pub bonded_tokens_amount: f64,
+    pub correction_annual_coefficient: f64,
+}
+
+impl NonEpochAprCalculator {
+    pub fn get_apr(&self) -> Result<f64, String> {
+        Ok((self.annual_provisions * (1.0 - self.community_tax)
+            / self.bonded_tokens_amount) * self.correction_annual_coefficient)
+    }
+}
+
+#[derive(Deserialize, Serialize, Debug, PartialEq)]
+pub struct AxelarExternalChainVotingInflationRateResponse {
+    param: AxelarExternalChainVotingInflationRateParam,
+}
+
+#[derive(Deserialize, Serialize, Debug, PartialEq)]
+pub struct AxelarSupportedEvmChainsResponse {
+    chains: Vec<String>,
+}
+
+impl AxelarSupportedEvmChainsResponse {
+    pub fn get_supported_evm_chains_length(&self) -> f64 {
+        self.chains.len() as f64
+    }
+}
+
+#[derive(Deserialize, Serialize, Debug, PartialEq)]
+pub struct AxelarExternalChainVotingInflationRateParam {
+    pub subspace: String,
+    pub key: String,
+    pub value: String,
+}
+
+impl AxelarExternalChainVotingInflationRateParam {
+    pub fn get_parsed_value(&self) -> Result<f64, String> {
+        match self.value.replace("\"", "").parse::<f64>() {
+            Ok(parsed_value) => Ok(parsed_value),
+            Err(_) => Err(format!("Parsed value error on AxelarExternalChainVotingInflationRateParam"))
         }
     }
 }
 
 #[derive(Deserialize, Serialize, Debug, PartialEq)]
-pub struct OsmosisDistributionParams {
+pub struct CosmosDistributionParams {
     pub community_tax: String,
     pub base_proposer_reward: String,
     pub bonus_proposer_reward: String,
@@ -121,8 +220,8 @@ pub struct OsmosisDistributionParams {
 }
 
 #[derive(Deserialize, Serialize, Debug, PartialEq)]
-pub struct OsmosisDistributionResponse {
-    pub params: OsmosisDistributionParams,
+pub struct CosmosDistributionParamsResponse {
+    pub params: CosmosDistributionParams,
 }
 
 #[derive(Deserialize, Serialize, Debug, PartialEq)]
