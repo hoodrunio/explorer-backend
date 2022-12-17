@@ -125,7 +125,24 @@ impl Chain {
                             Err(error) => return Err(error),
                         };
 
-                    return Ok(external_chain_inflation + axelar_inflation_rate);
+
+                    let chain_params = match self.get_params_all().await {
+                        Ok(res) => res.value,
+                        Err(error) => return Err(error)
+                    };
+
+                    let staking_pool = match self.get_staking_pool().await {
+                        Ok(res) => res.value,
+                        Err(error) => return Err(error)
+                    };
+
+                    //TODO Get total supply from remote
+                    let bonded_token_ratio = (staking_pool.bonded as f64) / (1000000000.0);
+                    let inflation = external_chain_inflation + axelar_inflation_rate;
+                    let community_tax = chain_params.distribution.community_tax as f64;
+
+
+                    return Ok((inflation * (1.0 - community_tax)) / bonded_token_ratio);
                 }
                 _ => {
                     let chain_params = match self.get_params_all().await {
@@ -139,7 +156,7 @@ impl Chain {
                     let annual_provisions = match self.get_annual_provisions().await {
                         Ok(res) => res.value,
                         Err(error) => return Err(error)
-                    } ;
+                    };
                     let block_per_year = match self.get_mint_params().await {
                         Ok(res) => match res.value.blocks_per_year.parse::<f64>() {
                             Ok(value) => value,
