@@ -1,8 +1,8 @@
-use crate::database::ValidatorForDb;
 use chrono::DateTime;
 use serde::{Deserialize, Serialize};
 
 use crate::{chain::Chain, routes::OutRestResponse};
+use crate::database::ValidatorForDb;
 
 impl Chain {
     /// Returns the block at given height. Returns the latest block, if no height is given.
@@ -43,6 +43,14 @@ impl Chain {
         let block = InternalBlock::new(resp, self).await?;
 
         Ok(OutRestResponse::new(block, 0))
+    }
+
+    pub async fn get_latest_block(&self) -> Result<Block, String> {
+        let latest_height = self.get_blockchain(None, None).await.unwrap().last_height;
+        let mut query = vec![];
+        query.push(("height", latest_height.to_string()));
+        let latest_block = self.rpc_request::<BlockResp>("/block", &query).await?.block;
+        Ok(latest_block)
     }
 
     /// Returns the block headers between `min_height` & `max_height`.
