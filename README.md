@@ -13,10 +13,14 @@
 
 
 # To-do
-- **APR** calculation.
+- **APR** calculation. (%90)
 - **Indexing** special chain specific data.
-- A great **database** implementation to store important stuff.
-- A nice **WebSocket** interface to provide multiple events to subscribe dynamic data.
+- EVM TX support - decode ethabi func/specs.
+- Consensus address conversation from pubkey.
+- Axelar EVM-poll/heartbeats features.
+- Add validator signature -- and uptime features.
+- A great **database** implementation to store important stuff. - fix some stuff/lifetime issues.
+- A nice **WebSocket** interface to provide multiple events to subscribe dynamic data. - fix 
 
 
 
