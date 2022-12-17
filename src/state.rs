@@ -9,6 +9,7 @@ pub struct State {
     evmos: Chain,
     kyve: Chain,
     osmosis: Chain,
+    umee: Chain,
     reqwest_client: reqwest::Client,
     database: DatabaseTR,
 }
@@ -83,10 +84,27 @@ impl State {
                 jsonrpc_url: None,
                 rest_url: "https://rest.cosmos.directory/osmosis",
                 wss_url: "wss://rpc.osmosis.interbloc.org/websocket",
-                sdk_version: 46,
+                sdk_version: 45,
                 decimals_pow: 100,
                 client: client.clone(),
                 database: database.clone().change_name("osmosis"),
+            },
+            umee: init_chain! {
+                name: "umee",
+                epoch: false,
+                gecko: Some("umee"),
+                base_prefix: "umee",
+                valoper_prefix: "umeevaloper",
+                cons_prefix: "umeevalcons",
+                main_denom: "uumee",
+                rpc_url: "https://rpc-umee.huginn.tech",
+                jsonrpc_url: None,
+                rest_url: "https://api.umee.huginn.tech",
+                wss_url: "wss://rpc-umee.huginn.tech/websocket",
+                sdk_version: 46,
+                decimals_pow: 100,
+                client: client.clone(),
+                database: database.clone().change_name("umee"),
             },
             reqwest_client: client,
             database,
@@ -100,6 +118,7 @@ impl State {
             "evmos" => Ok(self.evmos.clone()),
             "kyve" => Ok(self.kyve.clone()),
             "osmosis" => Ok(self.osmosis.clone()),
+            "umee" => Ok(self.umee.clone()),
             _ => Err(format!("{name} is not a supported chain.")),
         }
     }
@@ -109,7 +128,8 @@ impl State {
         self.axelar.cron_jobs_all();
         self.evmos.cron_jobs_all();
         self.kyve.cron_jobs_all();
-        self.osmosis.cron_jobs_all();        
+        self.osmosis.cron_jobs_all();
+        self.umee.cron_jobs_all();        
     }
 
     /// Subscribes to all the events for all the chains.
@@ -119,6 +139,7 @@ impl State {
             self.evmos.subscribe_to_events(),
             self.kyve.subscribe_to_events(),
             self.osmosis.subscribe_to_events(),
+            self.umee.subscribe_to_events(),
         );
     }
 }
