@@ -104,7 +104,7 @@ async fn create_chain<'a>(chain_map: &HashMap<&'a str, &'a str>, client: Client)
 }
 
 async fn get_sdk_ver(rest_url: &str, client: Client) -> u8 {
-    let value: Value = client.get(&format!("{rest_url}/node_info")).send().await.unwrap().json().await.unwrap();
+    let value: Value = client.get(&format!("{rest_url}/cosmos/base/tendermint/v1beta1/node_info")).send().await.unwrap().json().await.unwrap();
 
     value["application_version"]["cosmos_sdk_version"].as_str().unwrap()[3..5]
         .parse()
