@@ -1,6 +1,10 @@
+use std::fmt::format;
+use std::num::ParseFloatError;
+
 use serde::{Deserialize, Serialize};
 
 use crate::{chain::Chain, routes::OutRestResponse};
+use crate::fetch::params::ParamsResp;
 
 impl Chain {
     /// Returns staking pool information.
@@ -48,23 +52,45 @@ impl Chain {
 
         Ok(OutRestResponse::new(community_pool_amount, 0))
     }
+
+    // Returns the mint parameters of the chain.
+    pub async fn get_mint_params(&self) -> Result<OutRestResponse<MintParams>, String> {
+        match self.inner.name {
+            "example_chain_name" => {
+                //TODO If Needed Fill this block scopr with related chain
+                Err("Chain Mint Params Not Implemented Yet".to_string())
+            }
+            _ => {
+                let mint_params = match self.rest_api_request::<ParamsResp<MintParams>>("/cosmos/mint/v1beta1/params", &[])
+                    .await {
+                    Ok(value) => value,
+                    Err(error) => return Err(error)
+                };
+                Ok(OutRestResponse::new(mint_params.params, 0))
+            }
+        }
+    }
+    pub async fn get_annual_provisions(&self) -> Result<OutRestResponse<f64>, String> {
+        match self.inner.name {
+            "example_chain_name" => {
+                //TODO If Needed Fill this block scope with related chain
+                Err("Chain Mint Params Not Implemented Yet".to_string())
+            }
+            _ => {
+                let annual_provisions = match self.rest_api_request::<AnnualProvisions>("/cosmos/mint/v1beta1/annual_provisions", &[])
+                    .await {
+                    Ok(value) => match value.annual_provisions.parse::<f64>() {
+                        Ok(res) => res,
+                        Err(_) => return Err("Parsing Error".to_string())
+                    },
+                    Err(error) => return Err(error)
+                };
+                Ok(OutRestResponse::new(annual_provisions, 0))
+            }
+        }
+    }
 }
 
-// Returns the mint parameters of the chain.
-/* async fn get_mint_params(&self) -> Option<MintParams> {
-    if self.name() == "evmos" {
-        self.rest_api_request::<ParamsResp<InflationParams>>("/evmos/inflation/v1/params", &[]).await.map(|a|)
-    } else if self.name() == "echelon" {
-        self.rest_api_request::<ParamsResp<InflationParams>>("/echelon/inflation/v1/params", &[]).await
-    } else {
-        self.rest_api_request::<ParamsResp<MintParams>>("/cosmos/mint/v1beta1/params", &[])
-            .await
-            .ok()
-            .map(|res| res.params)
-    }
-    .unwrap_or(None)
-}
-*/
 
 #[derive(Deserialize, Serialize, Debug)]
 pub struct CommunityPoolResp {
@@ -94,6 +120,11 @@ pub struct InternalDenomAmount {
     pub denom: String,
     /// The amount of the token. Eg: `450000`
     pub amount: u128,
+}
+
+#[derive(Deserialize, Serialize, Debug)]
+pub struct AnnualProvisions {
+    pub annual_provisions: String,
 }
 
 impl TryFrom<DenomAmount> for InternalDenomAmount {
