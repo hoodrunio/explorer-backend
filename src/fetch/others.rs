@@ -1,29 +1,26 @@
 use std::fmt::format;
 use std::num::ParseFloatError;
 
+use chrono::DateTime;
 use serde::{Deserialize, Serialize};
 
 use crate::{chain::Chain, routes::OutRestResponse};
+use crate::fetch::blocks::BlockResp;
 use crate::fetch::params::ParamsResp;
 
 impl Chain {
     /// Returns staking pool information.
     pub async fn get_staking_pool(&self) -> Result<OutRestResponse<InternalStakingPool>, String> {
         let resp = self.rest_api_request::<StakingPoolResp>("/cosmos/staking/v1beta1/pool", &[]).await?;
-
         let staking_pool = InternalStakingPool {
-            unbonded: self.calc_amount_u128_to_u64(
-                resp.pool
-                    .not_bonded_tokens
-                    .parse::<u128>()
-                    .map_err(|_| format!("Cannot parse unbonded tokens, {}.", resp.pool.not_bonded_tokens))?,
-            ),
-            bonded: self.calc_amount_u128_to_u64(
-                resp.pool
-                    .bonded_tokens
-                    .parse::<u128>()
-                    .map_err(|_| format!("Cannot parse bonded tokens, {}.", resp.pool.bonded_tokens))?,
-            ),
+            unbonded:
+            resp.pool
+                .not_bonded_tokens
+                .parse::<u64>().unwrap(),
+            bonded:
+            resp.pool
+                .bonded_tokens
+                .parse::<u64>().unwrap(),
         };
 
         Ok(OutRestResponse::new(staking_pool, 0))
@@ -88,6 +85,40 @@ impl Chain {
                 Ok(OutRestResponse::new(annual_provisions, 0))
             }
         }
+    }
+    pub async fn get_correction_annual_coefficient(&self) -> Result<Option<f64>, String> {
+        const SECS_IN_YEAR: f64 = 31561920.0;
+        let block_per_year = match self.get_mint_params().await {
+            Ok(res) => match res.value.blocks_per_year.parse::<f64>() {
+                Ok(value) => value,
+                Err(_) => return Err("Parse Error".to_string())
+            },
+            Err(error) => return Err(error)
+        };
+        let latest_block = match self.get_latest_block().await {
+            Ok(value) => value,
+            Err(err) => return Err(err)
+        };
+        let block_window_size = 1000.0;
+        let latest_block_date_time = latest_block.header.time;
+        let lower_block_height = match latest_block.header.height.parse::<f64>() {
+            Ok(value) => value - block_window_size,
+            Err(_) => return Err("Parse Error".to_string())
+        };
+        let mut query = vec![("height", lower_block_height.to_string())];
+        let lower_block_date_time = match self.rpc_request::<BlockResp>("/block", &query).await {
+            Ok(res) => { res.block.header.time }
+            Err(error) => return Err(error)
+        };
+        let latest_block_time_sec = DateTime::parse_from_rfc3339(&latest_block_date_time).unwrap().timestamp() as f64;
+        let lower_block_time_sec = DateTime::parse_from_rfc3339(&lower_block_date_time).unwrap().timestamp() as f64;
+        let avg_block_time_24h = (latest_block_time_sec - lower_block_time_sec) / block_window_size;
+        // Calculate how many blocks will be created in a year with the speed same as last 24h.
+        let current_real_block_per_year = SECS_IN_YEAR / avg_block_time_24h;
+        // Calculate correction.
+        let correction_annual_coefficient = current_real_block_per_year / block_per_year;
+
+        Ok(Some(correction_annual_coefficient))
     }
 }
 
