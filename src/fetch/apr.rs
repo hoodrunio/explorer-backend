@@ -99,31 +99,6 @@ impl Chain {
         } else {
             match self.inner.name {
                 "axelar" => {
-                    let axelar_inflation_rate = match self.get_inflation_rate().await {
-                        Ok(value) => value.value * 2.0,
-                        Err(error) => return Err(error)
-                    };
-
-                    let external_chain_voting_inflation_rate =
-                        match self.rest_api_request::<AxelarExternalChainVotingInflationRateResponse>(
-                            "/cosmos/params/v1beta1/params?subspace=reward&key=ExternalChainVotingInflationRate",
-                            &[]).await {
-                            Ok(response) => match response.param.get_parsed_value() {
-                                Ok(value) => value,
-                                Err(error) => return Err(error),
-                            },
-                            Err(error) => return Err(error),
-                        };
-
-                    let external_chain_inflation =
-                        match self.rest_api_request::<AxelarSupportedEvmChainsResponse>(
-                            "/axelar/evm/v1beta1/chains",
-                            &[]).await {
-                            Ok(response) => response.get_supported_evm_chains_length() * external_chain_voting_inflation_rate,
-                            Err(error) => return Err(error),
-                        };
-
-
                     let chain_params = match self.get_params_all().await {
                         Ok(res) => res.value,
                         Err(error) => return Err(error)
@@ -137,7 +112,10 @@ impl Chain {
                     //TODO Get total supply from remote
                     let bonded_tokens_amount = staking_pool.bonded;
                     let bonded_token_ratio = (bonded_tokens_amount as f64) / (1000000000.0);
-                    let inflation = external_chain_inflation + axelar_inflation_rate;
+                    let inflation = match self.get_inflation_rate().await {
+                        Ok(res) => res.value,
+                        Err(error) => return Err(error)
+                    };
                     let community_tax = chain_params.distribution.community_tax as f64;
 
 
@@ -198,37 +176,6 @@ impl NonEpochAprCalculator {
     }
 }
 
-#[derive(Deserialize, Serialize, Debug, PartialEq)]
-pub struct AxelarExternalChainVotingInflationRateResponse {
-    param: AxelarExternalChainVotingInflationRateParam,
-}
-
-#[derive(Deserialize, Serialize, Debug, PartialEq)]
-pub struct AxelarSupportedEvmChainsResponse {
-    chains: Vec<String>,
-}
-
-impl AxelarSupportedEvmChainsResponse {
-    pub fn get_supported_evm_chains_length(&self) -> f64 {
-        self.chains.len() as f64
-    }
-}
-
-#[derive(Deserialize, Serialize, Debug, PartialEq)]
-pub struct AxelarExternalChainVotingInflationRateParam {
-    pub subspace: String,
-    pub key: String,
-    pub value: String,
-}
-
-impl AxelarExternalChainVotingInflationRateParam {
-    pub fn get_parsed_value(&self) -> Result<f64, String> {
-        match self.value.replace("\"", "").parse::<f64>() {
-            Ok(parsed_value) => Ok(parsed_value),
-            Err(_) => Err(format!("Parsed value error on AxelarExternalChainVotingInflationRateParam"))
-        }
-    }
-}
 
 #[derive(Deserialize, Serialize, Debug, PartialEq)]
 pub struct CosmosDistributionParams {
