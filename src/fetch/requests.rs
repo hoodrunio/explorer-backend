@@ -1,3 +1,4 @@
+use reqwest::{Client, Method};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
 use crate::chain::Chain;
@@ -54,6 +55,22 @@ impl Chain {
                 Err(error) => Err(format!("Cannot parse JSON.\nURL requested: {url}\nError Message:\n{error}")),
             },
             Err(_) => Err(format!("Cannot make a request to `{url}`.")),
+        }
+    }
+
+    // Makes a request to the External Resource
+    pub(super) async fn external_rest_api_req<T: DeserializeOwned>(&self, client: &Client, method: Method, full_path: &str, query: &[(&'static str, String)]) -> Result<T, String> {
+        let request = client.request(method, full_path);
+
+        match request.query(query).send().await {
+            Ok(res) => match res.json::<RestResponse<T>>().await {
+                Ok(res_json) => match res_json {
+                    RestResponse::Success(res_json) => Ok(res_json),
+                    RestResponse::Error { message, details: _ } => Err(message),
+                },
+                Err(error) => Err(format!("Cannot parse JSON.\nURL requested: {full_path}\nError Message:\n{error}")),
+            },
+            Err(_) => Err(format!("Cannot make a request to `{full_path}`.")),
         }
     }
 }

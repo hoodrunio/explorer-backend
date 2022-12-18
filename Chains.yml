@@ -12,7 +12,7 @@ wss: wss://axelar-rpc.chainode.tech/websocket
 
 
 name: evmos
-epoch: false
+epoch: true
 gecko: evmos
 denom: aevmos
 # prefix: evmos
@@ -39,15 +39,41 @@ wss: wss://rpc.beta.kyve.network/websocket
 
 
 name: osmosis
-epoch: false
+epoch: true
 gecko: osmosis
 denom: uosmo
 prefix: osmo
 logo: https://assets.coingecko.com/coins/images/16724/large/osmo.png
 # decimals: 6
-# version: 0.46
+# version: 0.45
 rpc: https://rpc.cosmos.directory/osmosis
 rest: https://rest.cosmos.directory/osmosis
 wss: wss://rpc.osmosis.interbloc.org/websocket
+
+
+name: umee
+epoch: false
+gecko: umee
+denom: uumee
+# prefix: umee
+logo: https://assets.coingecko.com/coins/images/20635/small/Asset_19.png
+# decimals: 6
+# version: 0.46
+rpc: https://rpc-umee.huginn.tech
+rest: https://api.umee.huginn.tech
+wss: wss://rpc-umee.huginn.tech/websocket
+
+
+name: secret
+epoch: false
+gecko: secret
+denom: usecret
+# prefix: secret
+logo: https://assets.coingecko.com/coins/images/20635/small/Asset_19.png
+# decimals: 6
+# version: 0.45
+rpc: https://secret-4.api.trivium.network:26657/
+rest: https://secretnetwork-lcd.stakely.io
+wss: wss://rpc-umee.huginn.tech/websocket
 
 

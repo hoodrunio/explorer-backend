@@ -9,6 +9,8 @@ pub struct State {
     evmos: Chain,
     kyve: Chain,
     osmosis: Chain,
+    umee: Chain,
+    secret: Chain,
     reqwest_client: reqwest::Client,
     database: DatabaseTR,
 }
@@ -39,7 +41,7 @@ impl State {
             },
             evmos: init_chain! {
                 name: "evmos",
-                epoch: false,
+                epoch: true,
                 gecko: Some("evmos"),
                 base_prefix: "evmos",
                 valoper_prefix: "evmosvaloper",
@@ -73,7 +75,7 @@ impl State {
             },
             osmosis: init_chain! {
                 name: "osmosis",
-                epoch: false,
+                epoch: true,
                 gecko: Some("osmosis"),
                 base_prefix: "osmo",
                 valoper_prefix: "osmovaloper",
@@ -83,10 +85,44 @@ impl State {
                 jsonrpc_url: None,
                 rest_url: "https://rest.cosmos.directory/osmosis",
                 wss_url: "wss://rpc.osmosis.interbloc.org/websocket",
-                sdk_version: 46,
+                sdk_version: 45,
                 decimals_pow: 100,
                 client: client.clone(),
                 database: database.clone().change_name("osmosis"),
+            },
+            umee: init_chain! {
+                name: "umee",
+                epoch: false,
+                gecko: Some("umee"),
+                base_prefix: "umee",
+                valoper_prefix: "umeevaloper",
+                cons_prefix: "umeevalcons",
+                main_denom: "uumee",
+                rpc_url: "https://rpc-umee.huginn.tech",
+                jsonrpc_url: None,
+                rest_url: "https://api.umee.huginn.tech",
+                wss_url: "wss://rpc-umee.huginn.tech/websocket",
+                sdk_version: 46,
+                decimals_pow: 100,
+                client: client.clone(),
+                database: database.clone().change_name("umee"),
+            },
+            secret: init_chain! {
+                name: "secret",
+                epoch: false,
+                gecko: Some("secret"),
+                base_prefix: "secret",
+                valoper_prefix: "secretvaloper",
+                cons_prefix: "secretvalcons",
+                main_denom: "usecret",
+                rpc_url: "https://secret-4.api.trivium.network:26657/",
+                jsonrpc_url: None,
+                rest_url: "https://secretnetwork-lcd.stakely.io",
+                wss_url: "wss://rpc-umee.huginn.tech/websocket",
+                sdk_version: 45,
+                decimals_pow: 100,
+                client: client.clone(),
+                database: database.clone().change_name("secret"),
             },
             reqwest_client: client,
             database,
@@ -100,6 +136,8 @@ impl State {
             "evmos" => Ok(self.evmos.clone()),
             "kyve" => Ok(self.kyve.clone()),
             "osmosis" => Ok(self.osmosis.clone()),
+            "umee" => Ok(self.umee.clone()),
+            "secret" => Ok(self.secret.clone()),
             _ => Err(format!("{name} is not a supported chain.")),
         }
     }
@@ -109,7 +147,9 @@ impl State {
         self.axelar.cron_jobs_all();
         self.evmos.cron_jobs_all();
         self.kyve.cron_jobs_all();
-        self.osmosis.cron_jobs_all();        
+        self.osmosis.cron_jobs_all();
+        self.umee.cron_jobs_all();
+        self.secret.cron_jobs_all();
     }
 
     /// Subscribes to all the events for all the chains.
@@ -119,6 +159,8 @@ impl State {
             self.evmos.subscribe_to_events(),
             self.kyve.subscribe_to_events(),
             self.osmosis.subscribe_to_events(),
+            self.umee.subscribe_to_events(),
+            self.secret.subscribe_to_events(),
         );
     }
 }
