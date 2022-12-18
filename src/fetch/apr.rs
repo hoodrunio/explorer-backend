@@ -135,7 +135,8 @@ impl Chain {
                     };
 
                     //TODO Get total supply from remote
-                    let bonded_token_ratio = (staking_pool.bonded as f64) / (1000000000.0);
+                    let bonded_tokens_amount = self.calc_amount_u128_to_u64(staking_pool.bonded as u128);
+                    let bonded_token_ratio = (bonded_tokens_amount as f64) / (1000000000.0);
                     let inflation = external_chain_inflation + axelar_inflation_rate;
                     let community_tax = chain_params.distribution.community_tax as f64;
 
