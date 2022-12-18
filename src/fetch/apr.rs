@@ -135,7 +135,7 @@ impl Chain {
                     };
 
                     //TODO Get total supply from remote
-                    let bonded_tokens_amount = self.calc_amount_u128_to_u64(staking_pool.bonded as u128);
+                    let bonded_tokens_amount = staking_pool.bonded;
                     let bonded_token_ratio = (bonded_tokens_amount as f64) / (1000000000.0);
                     let inflation = external_chain_inflation + axelar_inflation_rate;
                     let community_tax = chain_params.distribution.community_tax as f64;
@@ -149,7 +149,7 @@ impl Chain {
                         Err(error) => return Err(error)
                     };
                     let bonded_tokens_amount = match self.get_staking_pool().await {
-                        Ok(res) => res.value.bonded as f64,
+                        Ok(res) => (res.value.bonded * (self.inner.decimals_pow * 10000)) as f64,
                         Err(error) => return Err(error)
                     };
                     let annual_provisions = match self.get_annual_provisions().await {

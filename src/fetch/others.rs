@@ -13,14 +13,18 @@ impl Chain {
     pub async fn get_staking_pool(&self) -> Result<OutRestResponse<InternalStakingPool>, String> {
         let resp = self.rest_api_request::<StakingPoolResp>("/cosmos/staking/v1beta1/pool", &[]).await?;
         let staking_pool = InternalStakingPool {
-            unbonded:
-            resp.pool
-                .not_bonded_tokens
-                .parse::<u64>().unwrap(),
-            bonded:
-            resp.pool
-                .bonded_tokens
-                .parse::<u64>().unwrap(),
+            unbonded: self.calc_amount_u128_to_u64(
+                resp.pool
+                    .not_bonded_tokens
+                    .parse::<u128>()
+                    .map_err(|_| format!("Cannot parse unbonded tokens, {}.", resp.pool.not_bonded_tokens))?,
+            ),
+            bonded: self.calc_amount_u128_to_u64(
+                resp.pool
+                    .bonded_tokens
+                    .parse::<u128>()
+                    .map_err(|_| format!("Cannot parse bonded tokens, {}.", resp.pool.bonded_tokens))?,
+            ),
         };
 
         Ok(OutRestResponse::new(staking_pool, 0))

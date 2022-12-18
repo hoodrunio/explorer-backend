@@ -149,7 +149,7 @@ impl State {
         self.kyve.cron_jobs_all();
         self.osmosis.cron_jobs_all();
         self.umee.cron_jobs_all();
-        self.secret.cron_jobs_all();        
+        self.secret.cron_jobs_all();
     }
 
     /// Subscribes to all the events for all the chains.

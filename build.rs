@@ -1,10 +1,11 @@
-use futures::future::join_all;
-use reqwest::Client;
-use serde_json::Value;
 use std::collections::HashMap;
 use std::fs::{read_to_string, write};
 use std::path::Path;
 use std::time::Duration;
+
+use futures::future::join_all;
+use reqwest::Client;
+use serde_json::Value;
 
 #[derive(Debug)]
 pub struct Chain<'a> {
@@ -106,7 +107,9 @@ async fn create_chain<'a>(chain_map: &HashMap<&'a str, &'a str>, client: Client)
 async fn get_sdk_ver(rest_url: &str, client: Client) -> u8 {
     let value: Value = client.get(&format!("{rest_url}/cosmos/base/tendermint/v1beta1/node_info")).send().await.unwrap().json().await.unwrap();
 
-    value["application_version"]["cosmos_sdk_version"].as_str().unwrap()[3..5]
+    value["application_version"]["cosmos_sdk_version"]
+        .as_str()
+        .expect(&*format!("{rest_url} api is unresponsive please try again"))[3..5]
         .parse()
         .map_err(|_| format!("manually set the version for '{rest_url}'"))
         .unwrap()
@@ -252,7 +255,7 @@ impl State {{
     }}
 
     /// Updates all the validator databases of chain.
-    pub fn run_cron_jobs(&self) {{{run_cron_jobs_fn}        
+    pub fn run_cron_jobs(&self) {{{run_cron_jobs_fn}
     }}
 
     /// Subscribes to all the events for all the chains.
