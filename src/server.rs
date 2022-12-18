@@ -1,9 +1,15 @@
 use actix_cors::Cors;
-use actix_web::{web, App, HttpServer};
+use actix_web::{App, get, HttpResponse, HttpServer, Responder, web};
+use actix_web::web::Json;
 use web::Data;
 
 use crate::routes;
 use crate::state::State;
+
+#[get("/")]
+async fn initial() -> impl Responder {
+    Json("Server is running...")
+}
 
 /// Starts the web server.
 pub async fn start_web_server() -> std::io::Result<()> {
@@ -38,6 +44,7 @@ pub async fn start_web_server() -> std::io::Result<()> {
             // State data.
             .app_data(state.clone())
             // Services.
+            .service(initial)
             .service(routes::block_by_hash)
             .service(routes::block_by_height)
             .service(routes::headers_by_heights)
@@ -90,8 +97,8 @@ pub async fn start_web_server() -> std::io::Result<()> {
             .service(routes::validators_unbonding)
             .service(routes::validators_unspecified)
     })
-    .bind(("127.0.0.1", 8080))
-    .unwrap()
-    .run()
-    .await
+        .bind(("127.0.0.1", 8080))
+        .unwrap()
+        .run()
+        .await
 }
