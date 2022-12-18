@@ -45,7 +45,7 @@ denom: uosmo
 prefix: osmo
 logo: https://assets.coingecko.com/coins/images/16724/large/osmo.png
 # decimals: 6
-# version: 0.45
+# version: 0.46
 rpc: https://rpc.cosmos.directory/osmosis
 rest: https://rest.cosmos.directory/osmosis
 wss: wss://rpc.osmosis.interbloc.org/websocket
@@ -73,7 +73,7 @@ logo: https://assets.coingecko.com/coins/images/20635/small/Asset_19.png
 # decimals: 6
 # version: 0.45
 rpc: https://secret-4.api.trivium.network:26657/
-rest: https://secretnetwork-lcd.stakely.io
-wss: wss://rpc-umee.huginn.tech/websocket
+rest: https://secret-4.api.trivium.network:1317
+wss: wss://secret-4.api.trivium.network:26657/websocket
 
 
