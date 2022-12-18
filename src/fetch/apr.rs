@@ -8,7 +8,7 @@ use sha2::digest::typenum::private::IsGreaterOrEqualPrivate;
 
 use crate::chain::Chain;
 use crate::fetch::blocks::{Block, BlockResp};
-use crate::fetch::others::MintParams;
+use crate::fetch::others::{MintParams, StakingPoolResp};
 use crate::fetch::params::ChainParams;
 use crate::routes::OutRestResponse;
 
@@ -20,8 +20,6 @@ impl Chain {
         let client = Client::new();
         const ANNUAL_PROVISION_MUL_RATIO: f64 = 365.3;
 
-        // Constant declarations
-        const SECS_IN_YEAR: f64 = 31561920.0;
         // If the chain has epochs.
         if self.inner.epoch {
             match self.inner.name {
@@ -145,62 +143,26 @@ impl Chain {
                     return Ok((inflation * (1.0 - community_tax)) / bonded_token_ratio);
                 }
                 _ => {
-                    let chain_params = match self.get_params_all().await {
-                        Ok(res) => res.value,
+                    let community_tax = match self.get_params_all().await {
+                        Ok(res) => res.value.distribution.community_tax,
                         Err(error) => return Err(error)
                     };
-                    let staking_pool = match self.get_staking_pool().await {
-                        Ok(res) => res.value,
+                    let bonded_tokens_amount = match self.get_staking_pool().await {
+                        Ok(res) => res.value.bonded as f64,
                         Err(error) => return Err(error)
                     };
                     let annual_provisions = match self.get_annual_provisions().await {
                         Ok(res) => res.value,
                         Err(error) => return Err(error)
                     };
-                    let block_per_year = match self.get_mint_params().await {
-                        Ok(res) => match res.value.blocks_per_year.parse::<f64>() {
-                            Ok(value) => value,
-                            Err(_) => return Err("Parse Error".to_string())
-                        },
-                        Err(error) => return Err(error)
-                    };
-                    let latest_block = match self.get_latest_block().await {
-                        Ok(value) => value,
-                        Err(err) => return Err(err)
-                    };
 
-
-                    let community_tax = chain_params.distribution.community_tax;
-                    let bonded_tokens_amount = staking_pool.bonded as f64;
-                    let block_window_size = 1000.0;
-                    let latest_block_date_time = latest_block.header.time;
-                    let lower_block_height = match latest_block.header.height.parse::<f64>() {
-                        Ok(value) => value - block_window_size,
-                        Err(_) => return Err("Parse Error".to_string())
-                    };
-
-                    let mut query = vec![("height", lower_block_height.to_string())];
-                    let lower_block_date_time = match self.rpc_request::<BlockResp>("/block", &query).await {
-                        Ok(res) => { res.block.header.time }
-                        Err(error) => return Err(error)
-                    };
-
-                    let latest_block_time_sec = DateTime::parse_from_rfc3339(&latest_block_date_time).unwrap().timestamp() as f64;
-                    let lower_block_time_sec = DateTime::parse_from_rfc3339(&lower_block_date_time).unwrap().timestamp() as f64;
-
-                    let avg_block_time_24h = (latest_block_time_sec - lower_block_time_sec) / block_window_size;
-
-                    // Calculate how many blocks will be created in a year with the speed same as last 24h.
-                    let current_real_block_per_year = SECS_IN_YEAR / avg_block_time_24h;
-
-                    // Calculate correction.
-                    let correction_annual_coefficient = current_real_block_per_year / block_per_year;
+                    //If needed call self.get_correction_annual_coefficient
 
                     let non_epoch_apr_calculator = NonEpochAprCalculator {
                         annual_provisions,
                         community_tax,
                         bonded_tokens_amount,
-                        correction_annual_coefficient,
+                        correction_annual_coefficient: None,
                     };
 
                     let result = match non_epoch_apr_calculator.get_apr() {
@@ -225,13 +187,13 @@ pub struct NonEpochAprCalculator {
     pub annual_provisions: f64,
     pub community_tax: f64,
     pub bonded_tokens_amount: f64,
-    pub correction_annual_coefficient: f64,
+    pub correction_annual_coefficient: Option<f64>,
 }
 
 impl NonEpochAprCalculator {
     pub fn get_apr(&self) -> Result<f64, String> {
         Ok((self.annual_provisions * (1.0 - self.community_tax)
-            / self.bonded_tokens_amount) * self.correction_annual_coefficient)
+            / self.bonded_tokens_amount) * self.correction_annual_coefficient.unwrap_or(1.0))
     }
 }
 
