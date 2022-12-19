@@ -13,7 +13,7 @@
 
 
 # To-do
-- **APR** calculation. (%90)
+- **APR** calculation. ✅
 - **Indexing** special chain specific data.
 - EVM TX support - decode ethabi func/specs.
 - Consensus address conversation from pubkey.
