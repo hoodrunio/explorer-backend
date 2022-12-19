@@ -8,7 +8,7 @@ use crate::state::State;
 
 #[get("/")]
 async fn initial() -> impl Responder {
-    Json("Server is running...")
+    Json("Rest: OK")
 }
 
 /// Starts the web server.
