@@ -18,7 +18,7 @@ use crate::{
 impl Chain {
     /// Returns transaction by given hash.
     pub async fn get_tx_by_hash(&self, hash: &str) -> Result<OutRestResponse<InternalTransaction>, String> {
-        match self.inner.name {
+        match self.config.name.as_str() {
             "evmos" => {
                 if hash.starts_with("0x") {
                     let resp = self.get_evm_tx_by_hash(hash).await?;
@@ -598,7 +598,6 @@ impl TxsTransactionMessage {
                     } => InternalTransactionContent::Known(InternalTransactionContentKnowns::Delegate {
                         delegator_address,
                         validator_name: chain
-                            .inner
                             .database
                             .find_validator_by_operator_addr(&validator_address.clone())
                             .await?
@@ -620,14 +619,12 @@ impl TxsTransactionMessage {
                     } => InternalTransactionContent::Known(InternalTransactionContentKnowns::Redelegate {
                         delegator_address,
                         validator_from_name: chain
-                            .inner
                             .database
                             .find_validator_by_operator_addr(&validator_src_address.clone())
                             .await?
                             .name,
                         validator_from_address: validator_src_address,
                         validator_to_name: chain
-                            .inner
                             .database
                             .find_validator_by_operator_addr(&validator_dst_address.clone())
                             .await?
@@ -676,7 +673,6 @@ impl TxsTransactionMessage {
                     } => InternalTransactionContent::Known(InternalTransactionContentKnowns::Undelegate {
                         delegator_address,
                         validator_name: chain
-                            .inner
                             .database
                             .find_validator_by_operator_addr(&validator_address.clone())
                             .await?
@@ -714,7 +710,6 @@ impl TxsTransactionMessage {
                     } => InternalTransactionContent::Known(InternalTransactionContentKnowns::WithdrawDelegatorReward {
                         delegator_address,
                         validator_name: chain
-                            .inner
                             .database
                             .find_validator_by_operator_addr(&validator_address.clone())
                             .await?

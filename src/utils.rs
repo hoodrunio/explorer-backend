@@ -3,6 +3,7 @@ use hex::encode as to_hex;
 use sha2::{Digest, Sha256};
 
 use std::collections::HashMap;
+use cosmrs::AccountId;
 
 use reqwest::Client;
 use serde::Deserialize;
@@ -97,7 +98,10 @@ pub fn get_msg_name(msg: &str) -> String {
 }
 
 /// Converts consensus pubkey to consensus address.
-pub fn convert_consensus_pubkey_to_consensus_address(msg: &str) -> String {
+pub fn convert_consensus_pubkey_to_consensus_address(msg: &str, prefix: &str) -> String {
     // Waiting to find how it is calculated.
-    todo!()
+    let pub_key: tendermint::public_key::PublicKey = serde_json::from_str(msg).expect("invalid message");
+    let account_id = AccountId::new(prefix, &pub_key.to_bytes()).expect("invalid prefix");
+
+    account_id.to_string()
 }

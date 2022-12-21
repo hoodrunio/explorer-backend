@@ -24,43 +24,46 @@ pub struct Chain<'a> {
     pub manual_versioning: bool,
     pub json_rpc: Option<&'a str>,
 }
-
-#[tokio::main]
-async fn main() {
-    // Create `Client`.
-    let client = Client::builder().timeout(Duration::from_secs(10)).build().unwrap();
-
-    // Read `Chains.yml` file.
-    let chains_yml_content = read_to_string("Chains.yml").unwrap();
-
-    // Make iterable hash maps for chains.
-    let content_parts: Vec<_> = chains_yml_content
-        .split("name")
-        .filter(|part| !part.is_empty())
-        .map(|part| String::from("name") + part.trim())
-        .collect();
-
-    let chain_maps: Vec<_> = content_parts
-        .iter()
-        .map(|part| {
-            let mut chain_map = HashMap::new();
-            for line in part.lines() {
-                if !line.starts_with('#') {
-                    let (key, value) = line.split_once(": ").unwrap();
-                    chain_map.insert(key.trim(), value.trim());
-                }
-            }
-            chain_map
-        })
-        .collect();
-
-    let jobs: Vec<_> = chain_maps.iter().map(|chain_map| create_chain(chain_map, client.clone())).collect();
-
-    let chains = join_all(jobs).await;
-
-    update_chains_yml(&chains);
-    update_state_rs(&chains);
+fn main() {
+    println!("bypassing build script");
 }
+
+// #[tokio::main]
+// async fn main() {
+//     Create `Client`.
+    // let client = Client::builder().timeout(Duration::from_secs(10)).build().unwrap();
+    //
+    // Read `Chains.yml` file.
+    // let chains_yml_content = read_to_string("Chains.yml").unwrap();
+    //
+    // Make iterable hash maps for chains.
+    // let content_parts: Vec<_> = chains_yml_content
+    //     .split("name")
+    //     .filter(|part| !part.is_empty())
+    //     .map(|part| String::from("name") + part.trim())
+    //     .collect();
+    //
+    // let chain_maps: Vec<_> = content_parts
+    //     .iter()
+    //     .map(|part| {
+    //         let mut chain_map = HashMap::new();
+    //         for line in part.lines() {
+    //             if !line.starts_with('#') {
+    //                 let (key, value) = line.split_once(": ").unwrap();
+    //                 chain_map.insert(key.trim(), value.trim());
+    //             }
+    //         }
+    //         chain_map
+    //     })
+    //     .collect();
+    //
+    // let jobs: Vec<_> = chain_maps.iter().map(|chain_map| create_chain(chain_map, client.clone())).collect();
+    //
+    // let chains = join_all(jobs).await;
+    //
+    // update_chains_yml(&chains);
+    // update_state_rs(&chains);
+// }
 
 async fn create_chain<'a>(chain_map: &HashMap<&'a str, &'a str>, client: Client) -> Chain<'a> {
     let name = chain_map.get("name").unwrap();

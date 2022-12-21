@@ -39,7 +39,7 @@ impl Chain {
         let pool = resp
             .pool
             .get(0)
-            .ok_or_else(|| format!("There is no community pool for '{}' chain.", self.inner.name))?;
+            .ok_or_else(|| format!("There is no community pool for '{}' chain.", self.config.name))?;
 
         let community_pool_amount = pool
             .amount
@@ -56,7 +56,7 @@ impl Chain {
 
     // Returns the mint parameters of the chain.
     pub async fn get_mint_params(&self) -> Result<OutRestResponse<MintParams>, String> {
-        match self.inner.name {
+        match self.config.name.as_str() {
             "example_chain_name" => {
                 //TODO If Needed Fill this block scopr with related chain
                 Err("Chain Mint Params Not Implemented Yet".to_string())
@@ -72,7 +72,7 @@ impl Chain {
         }
     }
     pub async fn get_annual_provisions(&self) -> Result<OutRestResponse<f64>, String> {
-        match self.inner.name {
+        match self.config.name.as_str() {
             "example_chain_name" => {
                 //TODO If Needed Fill this block scope with related chain
                 Err("Chain Mint Params Not Implemented Yet".to_string())

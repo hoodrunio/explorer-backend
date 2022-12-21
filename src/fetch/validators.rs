@@ -162,7 +162,6 @@ impl Chain {
         let validator = resp?.validator;
 
         let validator_metadata = self
-            .inner
             .database
             .find_validator_by_operator_addr(&validator.operator_address.clone())
             .await?;
@@ -684,7 +683,7 @@ impl InternalRedelegation {
             _ => return Err(format!("Tx doesn't have a redelegation message, {}.", tx_response.txhash)),
         };
 
-        let validator_to_metadata = chain.inner.database.find_validator_by_operator_addr(&validator_dst_address).await?;
+        let validator_to_metadata = chain.database.find_validator_by_operator_addr(&validator_dst_address).await?;
 
         Ok(Self {
             amount: chain.calc_amount_u128_to_f64(

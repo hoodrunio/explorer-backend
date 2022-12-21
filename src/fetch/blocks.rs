@@ -165,7 +165,7 @@ impl InternalBlock {
         let mut signatures = vec![];
 
         for signature in block_resp.block.last_commit.signatures {
-            if let Ok(validator_metadata) = chain.inner.database.find_validator_by_hex_addr(&signature.validator_address).await {
+            if let Ok(validator_metadata) = chain.database.find_validator_by_hex_addr(&signature.validator_address).await {
                 if block_resp.block.header.proposer_address == signature.validator_address {
                     proposer = Some(validator_metadata.clone());
                     signatures.push(validator_metadata.into())

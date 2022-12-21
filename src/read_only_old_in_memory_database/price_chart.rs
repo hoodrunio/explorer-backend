@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 use std::collections::VecDeque;
 
+const MS_IN_HOUR: u32 = 60 * 60 * 1000;
 /// The chart for the price of the native coin.
 #[derive(Deserialize, Serialize, Debug)]
 pub struct PriceChart {
@@ -18,7 +19,7 @@ impl PriceChart {
         let t = chrono::offset::Utc::now().timestamp_millis() as u32;
 
         if let Some(last_item) = self.inner.back() {
-            if t > last_item.t + 3_600_000 {
+            if t > last_item.t + MS_IN_HOUR {
                 self.inner.push_back(ChartItem { p: price, t });
 
                 if self.inner.len() > 24 {
