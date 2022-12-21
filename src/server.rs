@@ -25,9 +25,9 @@ pub async fn start_web_server() -> std::io::Result<()> {
     // After connecting to MongoDB, there are so many thread safety & ownership errors.
     // You have to rewrite `src/fetch/socket.rs` to fix them.
 
-    // tokio::spawn(async move {
-    //     state_clone.subscribe_to_events().await;
-    // });
+    tokio::spawn(async move {
+         state_clone.subscribe_to_events().await;
+    });
 
     HttpServer::new(move || {
         // Build a CORS middleware.
