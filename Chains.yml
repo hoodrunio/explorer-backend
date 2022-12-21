@@ -61,9 +61,9 @@ umee:
   logo: https://assets.coingecko.com/coins/images/20635/small/Asset_19.png
   # decimals: 6
   # version: 0.46
-  rpc: https://rpc-umee.huginn.tech
-  rest: https://api.umee.huginn.tech
-  wss: wss://rpc-umee.huginn.tech/websocket
+  rpc_url: https://rpc-umee.huginn.tech
+  rest_url: https://api.umee.huginn.tech
+  wss_url: wss://rpc-umee.huginn.tech/websocket
 
 secret:
   name: secret
@@ -74,6 +74,6 @@ secret:
   logo: https://assets.coingecko.com/coins/images/20635/small/Asset_19.png
   # decimals: 6
   # version: 0.45
-  rpc: https://secret-4.api.trivium.network:26657/
-  rest: https://secretnetwork-lcd.stakely.io
-  wss: wss://rpc-umee.huginn.tech/websocket
+  rpc_url: https://secret-4.api.trivium.network:26657/
+  rest_url: https://secretnetwork-lcd.stakely.io
+  wss_url: wss://rpc-umee.huginn.tech/websocket
