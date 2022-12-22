@@ -13,7 +13,7 @@ impl Chain {
         spawn(async move {
             loop {
                 if let Err(error) = clone_chain.cron_job_validator().await {
-                    eprintln!("validator cronjob error:\n{error}")
+                    tracing::error!("validator cronjob error: {error}")
                 };
 
                 sleep(duration).await;

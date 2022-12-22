@@ -7,6 +7,7 @@ use cosmrs::AccountId;
 
 use reqwest::Client;
 use serde::Deserialize;
+use tendermint::PublicKey;
 
 /// Returns the prices of coins with given Coin Gecko IDs.
 pub async fn get_prices(client: Client, coin_ids: &[&'static str]) -> HashMap<String, f64> {
@@ -98,9 +99,8 @@ pub fn get_msg_name(msg: &str) -> String {
 }
 
 /// Converts consensus pubkey to consensus address.
-pub fn convert_consensus_pubkey_to_consensus_address(msg: &str, prefix: &str) -> String {
+pub fn convert_consensus_pubkey_to_consensus_address(pub_key: PublicKey, prefix: &str) -> String {
     // Waiting to find how it is calculated.
-    let pub_key: tendermint::public_key::PublicKey = serde_json::from_str(msg).expect("invalid message");
     let account_id = AccountId::new(prefix, &pub_key.to_bytes()).expect("invalid prefix");
 
     account_id.to_string()

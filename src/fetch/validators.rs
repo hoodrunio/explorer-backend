@@ -374,7 +374,7 @@ impl Chain {
 
         let mut jobs = vec![];
 
-        println!("{}", pages_to_request);
+        // tracing!("{}", pages_to_request);
 
         for page in 2..=pages_to_request {
             jobs.push(self._get_validator_set(config.page(page)))
@@ -409,7 +409,7 @@ impl Chain {
 
         let validators = resp.validators;
 
-        println!("{}", resp.pagination.total.clone());
+        // println!("{}", resp.pagination.total.clone());
         let pages = calc_pages(resp.pagination, config)?;
 
         Ok(OutRestResponse::new(validators, pages))

@@ -14,7 +14,7 @@ actix = "0.13.0"
 actix-cors = "0.6.4"
 actix-web = "4.2.1"
 actix-web-actors = "4.1.0"
-base64 = "0.13.1"
+base64 = "0.20.0"
 bech32 = "0.9.1"
 chrono = "0.4.23"
 futures = "0.3.25"
@@ -30,6 +30,11 @@ tokio-tungstenite = { version = "0.17.2", features = ["native-tls"] }
 tendermint = "0.28.0"
 cosmrs = "0.11.0"
 serde_yaml = "0.9.16"
+tracing = "0.1.37"
+tracing-subscriber = "0.3.16"
+tracing-actix-web = "0.7.0"
+dotenvy = "0.15.6"
+versions = { version = "4.1.0", features = ["serde"] }
 
 [build-dependencies]
 serde = { version = "1.0.147", features = ["derive"] }

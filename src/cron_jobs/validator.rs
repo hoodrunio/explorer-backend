@@ -1,9 +1,10 @@
+use std::str::FromStr;
 use std::time::Duration;
-
+use tendermint::PublicKey;
 use futures::future::join_all;
 
 use crate::database::ValidatorForDb;
-use crate::utils::{convert_consensus_pubkey_to_hex_address, get_validator_logo};
+use crate::utils::{convert_consensus_pubkey_to_consensus_address, convert_consensus_pubkey_to_hex_address, get_validator_logo};
 use crate::{chain::Chain, fetch::others::PaginationConfig};
 
 impl Chain {
@@ -15,10 +16,12 @@ impl Chain {
         let jobs: Vec<_> = validators
             .into_iter()
             .map(|validator| async move {
+                let pub_key = PublicKey::from_raw_ed25519(&base64::decode(&validator.consensus_pubkey.key).unwrap());
+                // let pub_key = PublicKey::from(&validator.consensus_pubkey).ok();
                 Ok::<_, String>(ValidatorForDb {
                     bonded_height: None,     // Find way to fetch and store.
                     change_24h: None,        // Find way to fetch and store
-                    consensus_address: None, // use it after it get's complete: `convert_consensus_pubkey_to_consensus_address()`
+                    consensus_address: pub_key.map(|p_key| p_key.to_bech32(&self.config.base_prefix)), // use it after it get's complete: `convert_consensus_pubkey_to_consensus_address()`
                     hex_address: convert_consensus_pubkey_to_hex_address(&validator.consensus_pubkey.key)
                         .ok_or_else(|| format!("Cannot parse self delegate address, {}.", validator.operator_address))?,
                     logo_url: get_validator_logo(self.client.clone(), &validator.description.identity).await,

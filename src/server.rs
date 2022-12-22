@@ -1,6 +1,7 @@
 use actix_cors::Cors;
 use actix_web::{App, get, HttpResponse, HttpServer, Responder, web};
 use actix_web::web::Json;
+use tracing_actix_web::TracingLogger;
 use web::Data;
 
 use crate::routes;
@@ -40,6 +41,7 @@ pub async fn start_web_server() -> std::io::Result<()> {
 
         // Build the app.
         App::new()
+            .wrap(TracingLogger::default())
             .wrap(cors)
             // State data.
             .app_data(state.clone())

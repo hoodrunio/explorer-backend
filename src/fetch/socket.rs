@@ -5,6 +5,7 @@ use futures::{SinkExt, StreamExt};
 use serde::Deserialize;
 use tokio::sync::Mutex;
 use tokio_tungstenite::{connect_async, tungstenite::Message};
+use tracing_subscriber::fmt::format;
 
 use crate::chain::Chain;
 
@@ -18,31 +19,24 @@ const SUBSCRIBE_TX: &str = r#"{ "jsonrpc": "2.0", "method": "subscribe", "params
 
 impl Chain {
     /// Subscribes to all the events.
-    pub async fn subscribe_to_events(&self) {
+    pub async fn subscribe_to_events(&self) -> Result<(), String> {
         // Define the URL.
         let clone = self.clone();
         let url = &clone.config.wss_url;
 
         // Connect to the `wss://` URL.
-        let (ws_stream, _) = match connect_async(url).await {
-            Ok(connection) => connection,
-            _ => return eprintln!("Failed to connect to {url}"),
-        };
+        let (ws_stream, _) = connect_async(url)
+            .await
+            .map_err(|e| format!("Failed to connect to {url}: {e}"))?;
 
         // Split the connection into two parts.
         let (mut write, mut read) = ws_stream.split();
 
         // Subscribe to block headers.
-        match write.send(SUBSCRIBE_HEADER.into()).await {
-            Ok(()) => (),
-            _ => return eprintln!("Can't subscribe to block headers for {}.", clone.config.name),
-        }
+        write.send(SUBSCRIBE_HEADER.into()).await.map_err(|e| format!("Can't subscribe to block headers for {}: {e}", clone.config.name))?;
 
         // Subscribe to block txs.
-        match write.send(SUBSCRIBE_TX.into()).await {
-            Ok(()) => (),
-            _ => return eprintln!("Can't subscribe to txs for {}.", clone.config.name),
-        }
+        write.send(SUBSCRIBE_TX.into()).await.map_err(|e| format!("Can't subscribe to txs for {}: {e}", clone.config.name))?;
 
         // The variable to hold the previous block header response to have block hash value.
         let previous_block_header_resp: Arc<Mutex<Option<NewBlockHeaderValue>>> = Arc::new(Mutex::new(None));
@@ -55,33 +49,21 @@ impl Chain {
                         SocketResult::NonEmpty(SocketResultNonEmpty::Header { data }) => {
                             let current_resp = data.value;
 
-                            println!("wss: new block on {}", self.config.name);
+                            tracing::info!("wss: new block on {}", self.config.name);
                             let mut mutex_previous_resp = previous_block_header_resp.lock().await;
                             match mutex_previous_resp.as_ref() {
                                 Some(mut previous_resp) => {
-                                    let proposer_metadata = match self
+                                    let proposer_metadata = self
                                         .database
                                         .find_validator_by_hex_addr(&previous_resp.header.proposer_address.clone())
                                         .await
-                                    {
-                                        Ok(proposer_metadata) => proposer_metadata,
-                                        Err(error) => return eprintln!("block+ error:\n{error}"),
-                                    };
+                                        .map_err(|e| format!("block+ error: {e}"))?;
 
                                     let block_item = BlockItem {
                                         hash: current_resp.header.last_block_id.hash.clone(),
-                                        height: match previous_resp.header.height.parse::<u64>() {
-                                            Ok(height) => height,
-                                            _ => return eprintln!("Cannot parse block height, {}.", previous_resp.header.height),
-                                        },
-                                        timestamp: match DateTime::parse_from_rfc3339(&previous_resp.header.time) {
-                                            Ok(date_time) => date_time.timestamp_millis(),
-                                            _ => return eprintln!("Cannot parse datetime, {}.", previous_resp.header.time),
-                                        },
-                                        tx_count: match previous_resp.num_txs.parse::<u64>() {
-                                            Ok(num_txs) => num_txs,
-                                            _ => return eprintln!("Cannot parse Tx count, {}.", previous_resp.num_txs),
-                                        },
+                                        height: previous_resp.header.height.parse::<u64>().map_err(|e| format!("Cannot parse block height, {}: {e}", previous_resp.header.height))?,
+                                        timestamp: DateTime::parse_from_rfc3339(&previous_resp.header.time).map(|d| d.timestamp_millis()).map_err(|e| format!("Cannot parse datetime, {}: e", previous_resp.header.time))?,
+                                        tx_count: previous_resp.num_txs.parse::<u64>().map_err(|e| format!("Cannot parse Tx count, {}: {e}", previous_resp.num_txs))?,
                                         proposer_logo_url: proposer_metadata.logo_url,
                                         proposer_name: proposer_metadata.name,
                                         proposer_address: proposer_metadata.operator_address,
@@ -96,16 +78,13 @@ impl Chain {
                             }
                         }
                         SocketResult::NonEmpty(SocketResultNonEmpty::Tx { events }) => {
-                            println!("wss: new tx on {}", clone.config.name);
+                            tracing::info!("wss: new tx on {}", clone.config.name);
 
                             let tx_item = TransactionItem {
                                 amount: events.transfer_amount.get(0).map(|amount| clone._get_amount(amount)).unwrap_or(0.00),
                                 fee: clone._get_amount(&events.tx_fee[0]),
                                 hash: events.tx_hash[0].clone(),
-                                height: match events.tx_height[0].parse::<u64>() {
-                                    Ok(tx_height) => tx_height,
-                                    _ => return eprintln!("Cannot parse tx height, {}.", events.tx_height[0]),
-                                },
+                                height: events.tx_height[0].parse::<u64>().map_err(|e| format!("Cannot parse tx height {}: {e}", events.tx_height[0]))?,
                                 time: std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_millis() as i64,
                                 result: "Success".to_string(),
                                 r#type: events.message_action[0]
@@ -120,10 +99,11 @@ impl Chain {
                         }
                         SocketResult::Empty {} => (),
                     },
-                    Err(error) => eprintln!("Websocket JSON parse error for {}.\n{error}", clone.config.name),
+                    Err(error) => tracing::info!("Websocket JSON parse error for {}: {error}", clone.config.name),
                 }
             }
         }
+        Ok(())
     }
 }
 
