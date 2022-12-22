@@ -577,11 +577,11 @@ pub struct ValidatorListResp {
 
 #[derive(Deserialize, Serialize, Debug)]
 pub struct ConsensusPubkey {
-    // Consensus public key. Eg: `"zy/GxGwk1Pm3HiG67iani1u+MUieM98ZvSIrXC8mISE="`
-    pub key: String,
     /// Type of public key. Eg: `"/cosmos.crypto.secp256k1.PubKey"`
     #[serde(rename = "@type")]
     pub key_type: String,
+    /// Consensus public key. Eg: `"zy/GxGwk1Pm3HiG67iani1u+MUieM98ZvSIrXC8mISE="`
+    pub key: String,
 }
 
 #[derive(Deserialize, Serialize, Debug)]

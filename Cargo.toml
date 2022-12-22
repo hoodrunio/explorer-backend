@@ -15,7 +15,6 @@ actix-cors = "0.6.4"
 actix-web = "4.2.1"
 actix-web-actors = "4.1.0"
 base64 = "0.20.0"
-bech32 = "0.9.1"
 chrono = "0.4.23"
 futures = "0.3.25"
 futures-core = "0.3.25"
@@ -35,6 +34,7 @@ tracing-subscriber = "0.3.16"
 tracing-actix-web = "0.7.0"
 dotenvy = "0.15.6"
 versions = { version = "4.1.0", features = ["serde"] }
+bech32 = "0.9.1"
 
 [build-dependencies]
 serde = { version = "1.0.147", features = ["derive"] }

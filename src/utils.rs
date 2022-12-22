@@ -3,11 +3,11 @@ use hex::encode as to_hex;
 use sha2::{Digest, Sha256};
 
 use std::collections::HashMap;
-use cosmrs::AccountId;
+use bech32::ToBase32;
+use bech32::FromBase32;
 
 use reqwest::Client;
 use serde::Deserialize;
-use tendermint::PublicKey;
 
 /// Returns the prices of coins with given Coin Gecko IDs.
 pub async fn get_prices(client: Client, coin_ids: &[&'static str]) -> HashMap<String, f64> {
@@ -99,9 +99,7 @@ pub fn get_msg_name(msg: &str) -> String {
 }
 
 /// Converts consensus pubkey to consensus address.
-pub fn convert_consensus_pubkey_to_consensus_address(pub_key: PublicKey, prefix: &str) -> String {
+pub fn convert_consensus_pubkey_to_consensus_address(address: &str, prefix: &str) -> String {
     // Waiting to find how it is calculated.
-    let account_id = AccountId::new(prefix, &pub_key.to_bytes()).expect("invalid prefix");
-
-    account_id.to_string()
+    bech32::encode(prefix, hex::decode(convert_consensus_pubkey_to_hex_address(address).unwrap()).unwrap().to_base32(), bech32::Variant::Bech32).unwrap()
 }
