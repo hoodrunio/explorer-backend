@@ -13,10 +13,10 @@
 
 
 # To-do
-- **APR** calculation. ✅
+- **APR** calculation. (✅)
 - **Indexing** special chain specific data.
 - EVM TX support - decode ethabi func/specs.
-- Consensus address conversation from pubkey.
+- Consensus address conversation from pubkey. (✅)
 - Axelar EVM-poll/heartbeats features.
 - Add validator signature -- and uptime features.
 - A great **database** implementation to store important stuff. - fix some stuff/lifetime issues.
