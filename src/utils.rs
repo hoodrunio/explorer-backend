@@ -88,7 +88,7 @@ fn base64_to_hex(base64: &str) -> Option<String> {
     let hash = hasher.finalize();
     let hex = to_hex(hash);
 
-    Some(hex)
+    Some(hex.to_uppercase())
 }
 
 /// From "/cosmos.distribution.v1beta1.MsgWithdrawDelegatorReward" to "Withdraw Delegator Reward".
