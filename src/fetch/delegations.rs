@@ -26,7 +26,6 @@ impl Chain {
 
         for delegation_response in resp.delegation_responses {
             if let Ok(validator_metadata) = self
-                .inner
                 .database
                 .find_validator_by_operator_addr(&delegation_response.delegation.validator_address)
                 .await
@@ -74,10 +73,10 @@ impl Chain {
 
         for redelegation_response in resp.redelegation_responses {
             if let (Ok(validator_from), Ok(validator_to)) = join!(
-                self.inner
+                self
                     .database
                     .find_validator_by_operator_addr(&redelegation_response.redelegation.validator_src_address),
-                self.inner
+                self
                     .database
                     .find_validator_by_operator_addr(&redelegation_response.redelegation.validator_dst_address),
             ) {
@@ -144,7 +143,6 @@ impl Chain {
 
         for unbonding_response in resp.unbonding_responses {
             if let Ok(validator_metadata) = self
-                .inner
                 .database
                 .find_validator_by_operator_addr(&unbonding_response.validator_address)
                 .await

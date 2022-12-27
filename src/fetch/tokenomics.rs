@@ -1,11 +1,11 @@
 use serde::{Deserialize, Serialize};
 
+use super::others::{DenomAmount, InternalDenomAmount, Pagination, PaginationConfig};
 use crate::{
     chain::Chain,
     routes::{calc_pages, OutRestResponse},
 };
 
-use super::others::{DenomAmount, InternalDenomAmount, Pagination, PaginationConfig};
 
 impl Chain {
     /// Returns the total supply of all tokens.
@@ -45,17 +45,17 @@ impl Chain {
 
     /// Returns the supply of the native coin.
     pub async fn get_supply_of_native_coin(&self) -> Result<OutRestResponse<InternalDenomAmount>, String> {
-        self.get_supply_by_denom(self.inner.main_denom).await
+        self.get_supply_by_denom(&self.config.main_denom).await
     }
 
     /// Returns the minting inflation rate of native coin of the chain.
     pub async fn get_inflation_rate(&self) -> Result<OutRestResponse<f64>, String> {
         let default_return_value = 0.0;
-        let mut inflation = if self.inner.name == "evmos" {
+        let mut inflation = if self.config.name == "evmos" {
             self.rest_api_request::<MintingInflationRateResp>("/evmos/inflation/v1/inflation_rate", &[])
                 .await
-                .map(|res| res.inflation_rate.parse::<f64>().unwrap_or(default_return_value) / 100.0)
-        } else if self.inner.name == "echelon" {
+                .map(|res| res.inflation_rate.parse::<f64>().unwrap_or(0.0) / 100.0)
+        } else if self.config.name == "echelon" {
             self.rest_api_request::<MintingInflationRateResp>("/echelon/inflation/v1/inflation_rate", &[])
                 .await
                 .map(|res| res.inflation_rate.parse::<f64>().unwrap_or(default_return_value) / 100.0)
@@ -67,7 +67,7 @@ impl Chain {
             .unwrap_or(default_return_value);
 
         //Axelar calculation different than others. That is why we are overriding inflation variable here.
-        if self.inner.name == "axelar" {
+        if self.config.name == "axelar" {
             let external_chain_voting_inflation_rate = self.rest_api_request::<AxelarExternalChainVotingInflationRateResponse>(
                 "/cosmos/params/v1beta1/params?subspace=reward&key=ExternalChainVotingInflationRate",
                 &[]).await.map(|res| res.param.get_parsed_value().unwrap_or(default_return_value)).unwrap_or(default_return_value);

@@ -162,7 +162,6 @@ impl Chain {
         let validator = resp?.validator;
 
         let validator_metadata = self
-            .inner
             .database
             .find_validator_by_operator_addr(&validator.operator_address.clone())
             .await?;
@@ -375,7 +374,7 @@ impl Chain {
 
         let mut jobs = vec![];
 
-        println!("{}", pages_to_request);
+        // tracing!("{}", pages_to_request);
 
         for page in 2..=pages_to_request {
             jobs.push(self._get_validator_set(config.page(page)))
@@ -410,7 +409,7 @@ impl Chain {
 
         let validators = resp.validators;
 
-        println!("{}", resp.pagination.total.clone());
+        // println!("{}", resp.pagination.total.clone());
         let pages = calc_pages(resp.pagination, config)?;
 
         Ok(OutRestResponse::new(validators, pages))
@@ -578,11 +577,11 @@ pub struct ValidatorListResp {
 
 #[derive(Deserialize, Serialize, Debug)]
 pub struct ConsensusPubkey {
-    // Consensus public key. Eg: `"zy/GxGwk1Pm3HiG67iani1u+MUieM98ZvSIrXC8mISE="`
-    pub key: String,
     /// Type of public key. Eg: `"/cosmos.crypto.secp256k1.PubKey"`
     #[serde(rename = "@type")]
     pub key_type: String,
+    /// Consensus public key. Eg: `"zy/GxGwk1Pm3HiG67iani1u+MUieM98ZvSIrXC8mISE="`
+    pub key: String,
 }
 
 #[derive(Deserialize, Serialize, Debug)]
@@ -684,7 +683,7 @@ impl InternalRedelegation {
             _ => return Err(format!("Tx doesn't have a redelegation message, {}.", tx_response.txhash)),
         };
 
-        let validator_to_metadata = chain.inner.database.find_validator_by_operator_addr(&validator_dst_address).await?;
+        let validator_to_metadata = chain.database.find_validator_by_operator_addr(&validator_dst_address).await?;
 
         Ok(Self {
             amount: chain.calc_amount_u128_to_f64(

@@ -51,13 +51,12 @@ Open [`Chains.yaml`](https://github.com/testnetrunn/explorer-backend/blob/main/C
 
 For example: 
 ```yaml
-•••
-
-name: axelar
-logo: https://assets.coingecko.com/coins/images/24489/large/tsYr25vB_400x400.jpg
-rpc: https://rpc.cosmos.directory/axelar
-rest: https://axelar-api.polkachu.com
-wss: wss://axelar-rpc.chainode.tech/websocket
+axelar:
+  name: axelar
+  logo: https://assets.coingecko.com/coins/images/24489/large/tsYr25vB_400x400.jpg
+  rpc_url: https://rpc.cosmos.directory/axelar
+  rest_url: https://axelar-api.polkachu.com
+  wss_url: wss://axelar-rpc.chainode.tech/websocket
 ```
 
 

@@ -1,79 +1,79 @@
-name: axelar
-epoch: false
-gecko: axelar
-denom: uaxl
-# prefix: axelar
-logo: https://assets.coingecko.com/coins/images/24489/large/tsYr25vB_400x400.jpg
-# decimals: 6
-# version: 0.45
-rpc: https://rpc.cosmos.directory/axelar
-rest: https://axelar-api.polkachu.com
-wss: wss://axelar-rpc.chainode.tech/websocket
+axelar:
+  name: axelar
+  epoch: false
+  gecko: axelar
+  denom: uaxl
+  # prefix: axelar
+  logo: https://assets.coingecko.com/coins/images/24489/large/tsYr25vB_400x400.jpg
+  # decimals: 6
+  # version: 0.45
+  rpc_url: https://rpc.cosmos.directory/axelar
+  rest_url: https://axelar-api.polkachu.com
+  wss_url: wss://axelar-rpc.chainode.tech/websocket
 
 
-name: evmos
-epoch: true
-gecko: evmos
-denom: aevmos
-# prefix: evmos
-logo: https://assets.coingecko.com/coins/images/24023/large/evmos.png
-decimals: 18
-# version: 0.45
-jsonrpc: https://eth.bd.evmos.org:8545/
-rpc: https://rpc.cosmos.directory/evmos
-rest: https://evmos-api.polkachu.com
-wss: wss://rpc-evmos.ecostake.com/websocket
+evmos:
+  name: evmos
+  epoch: true
+  gecko: evmos
+  denom: aevmos
+  # prefix: evmos
+  logo: https://assets.coingecko.com/coins/images/24023/large/evmos.png
+  decimals: 18
+  # version: 0.45
+  jsonrpc_url: https://eth.bd.evmos.org:8545/
+  rpc_url: https://rpc.cosmos.directory/evmos
+  rest_url: https://evmos-api.polkachu.com
+  wss_url: wss://rpc-evmos.ecostake.com/websocket
 
+kyve:
+  name: kyve
+  epoch: false
+  # gecko: no token
+  denom: tkyve
+  # prefix: kyve
+  logo: https://assets.coingecko.com/coins/images/26229/large/78351592.png
+  # decimals: 6
+  version: 0.45
+  rpc_url: https://rpc.beta.kyve.network
+  rest_url: https://api.beta.kyve.network
+  wss_url: wss://rpc.beta.kyve.network/websocket
 
-name: kyve
-epoch: false
-# gecko: no token
-denom: tkyve
-# prefix: kyve
-logo: https://assets.coingecko.com/coins/images/26229/large/78351592.png
-# decimals: 6
-version: 0.45
-rpc: https://rpc.beta.kyve.network
-rest: https://api.beta.kyve.network
-wss: wss://rpc.beta.kyve.network/websocket
+osmosis:
+  name: osmosis
+  epoch: true
+  gecko: osmosis
+  denom: uosmo
+  prefix: osmo
+  logo: https://assets.coingecko.com/coins/images/16724/large/osmo.png
+  # decimals: 6
+  # version: 0.45
+  rpc_url: https://rpc.cosmos.directory/osmosis
+  rest_url: https://rest.cosmos.directory/osmosis
+  wss_url: wss://rpc.osmosis.interbloc.org/websocket
 
+umee:
+  name: umee
+  epoch: false
+  gecko: umee
+  denom: uumee
+  # prefix: umee
+  logo: https://assets.coingecko.com/coins/images/20635/small/Asset_19.png
+  # decimals: 6
+  # version: 0.46
+  rpc_url: https://rpc-umee.huginn.tech
+  rest_url: https://api.umee.huginn.tech
+  wss_url: wss://rpc-umee.huginn.tech/websocket
 
-name: osmosis
-epoch: true
-gecko: osmosis
-denom: uosmo
-prefix: osmo
-logo: https://assets.coingecko.com/coins/images/16724/large/osmo.png
-# decimals: 6
-# version: 0.46
-rpc: https://rpc.cosmos.directory/osmosis
-rest: https://rest.cosmos.directory/osmosis
-wss: wss://rpc.osmosis.interbloc.org/websocket
-
-
-name: umee
-epoch: false
-gecko: umee
-denom: uumee
-# prefix: umee
-logo: https://assets.coingecko.com/coins/images/20635/small/Asset_19.png
-# decimals: 6
-# version: 0.46
-rpc: https://rpc-umee.huginn.tech
-rest: https://api.umee.huginn.tech
-wss: wss://rpc-umee.huginn.tech/websocket
-
-
-name: secret
-epoch: false
-gecko: secret
-denom: usecret
-# prefix: secret
-logo: https://assets.coingecko.com/coins/images/20635/small/Asset_19.png
-# decimals: 6
-# version: 0.45
-rpc: https://secret-4.api.trivium.network:26657/
-rest: https://secret-4.api.trivium.network:1317
-wss: wss://secret-4.api.trivium.network:26657/websocket
-
-
+secret:
+  name: secret
+  epoch: false
+  gecko: secret
+  denom: usecret
+  # prefix: secret
+  logo: https://assets.coingecko.com/coins/images/20635/small/Asset_19.png
+  # decimals: 6
+  # version: 0.45
+  rpc_url: https://secret-4.api.trivium.network:26657/
+  rest_url: https://secretnetwork-lcd.stakely.io
+  wss_url: wss://rpc-umee.huginn.tech/websocket

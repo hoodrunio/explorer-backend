@@ -12,7 +12,7 @@ pub struct DatabaseTR {
     mongo: Client,
 
     /// Database name and chain name are the same.
-    db_name: &'static str,
+    db_name: String,
 }
 
 impl DatabaseTR {
@@ -23,17 +23,17 @@ impl DatabaseTR {
     /// ```
     pub async fn new() -> DatabaseTR {
         // Change this URI and create a database for each chain using chain names.
-        let uri = "mongodb://db.example.com:12345";
+        let uri = "mongodb://127.0.0.1:27017";
 
         DatabaseTR {
             mongo: (Client::with_uri_str(uri).await.expect("Cannot connect to MongoDB instance.")),
-            db_name: "unexpected_db",
+            db_name: "unexpected_db".to_string(),
         }
     }
 
     /// Changes the name of the database and returns a new one.
-    pub fn change_name(self, db_name: &'static str) -> DatabaseTR {
-        DatabaseTR { db_name, ..self }
+    pub fn change_name(self, db_name: &str) -> DatabaseTR {
+        DatabaseTR { db_name: db_name.to_string(), ..self }
     }
 
     /// Returns the MongoDB database.
@@ -42,7 +42,7 @@ impl DatabaseTR {
     /// let db = database.get_db();
     /// ```
     fn db(&self) -> Database {
-        self.mongo.database(self.db_name)
+        self.mongo.database(&self.db_name)
     }
 
     /// Returns the validators collection.
@@ -96,7 +96,7 @@ impl DatabaseTR {
     pub async fn add_validators(&self, validators: Vec<Validator>) -> Result<(), String> {
         match self.validators_collection().insert_many(validators, None).await {
             Ok(_) => Ok(()),
-            Err(_) => Err("Cannot save validators.".into()),
+            Err(e) => Err(format!("Cannot save validators: {e}")),
         }
     }
 

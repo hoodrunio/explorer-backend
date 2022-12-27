@@ -17,15 +17,14 @@ impl Chain {
     ///
     /// Reference: https://github.com/bro-n-bro/prometheus_exporter/blob/main/docs/APR%20calcucation.md#non-epoch-cosmos-based--blockchains
     pub async fn get_apr(&self) -> Result<f64, String> {
-        let client = Client::new();
         const ANNUAL_PROVISION_MUL_RATIO: f64 = 365.3;
 
         // If the chain has epochs.
-        if self.inner.epoch {
-            match self.inner.name {
+        if self.config.epoch {
+            match self.config.name.as_str() {
                 "osmosis" => {
                     let epoch_provisions_response = match self.external_rest_api_req::<OsmosisEpochProvisionResponse>
-                    (&client, Method::GET, "https://lcd.osmosis-1.bronbro.io/osmosis/mint/v1beta1/epoch_provisions", &[]).await {
+                    (&self.client, Method::GET, "https://lcd.osmosis-1.bronbro.io/osmosis/mint/v1beta1/epoch_provisions", &[]).await {
                         Ok(parsed_response) => parsed_response,
                         Err(error) => return Err(error)
                     };
@@ -35,7 +34,7 @@ impl Chain {
                     };
 
                     let osmosis_staking_pool_tokens_response = match self.external_rest_api_req::<OsmosisStakingPoolTokensResponse>
-                    (&client, Method::GET, "https://lcd.osmosis-1.bronbro.io/cosmos/staking/v1beta1/pool", &[]).await
+                    (&self.client, Method::GET, "https://lcd.osmosis-1.bronbro.io/cosmos/staking/v1beta1/pool", &[]).await
                     {
                         Ok(parsed_response) => parsed_response,
                         Err(error) => return Err(error)
@@ -48,14 +47,15 @@ impl Chain {
 
                     let annual_provisions = epoch_provisions * ANNUAL_PROVISION_MUL_RATIO;
                     let staking_rewards_factor = 0.25;
+
                     let apr = annual_provisions * staking_rewards_factor / bonded_tokens_amount;
 
                     Ok(apr)
                 }
                 "evmos" => {
-                    let evmos_decimal = (self.inner.decimals_pow as f64);
+                    let evmos_decimal = (self.config.decimals_pow as f64);
                     let evmos_inflation_params_response = match self.external_rest_api_req::<EvmosInflationParamsResponse>
-                    (&client, Method::GET, "https://lcd.evmos-9001-2.bronbro.io/evmos/inflation/v1/params", &[]).await
+                    (&self.client, Method::GET, "https://lcd.evmos-9001-2.bronbro.io/evmos/inflation/v1/params", &[]).await
                     {
                         Ok(parsed_response) => parsed_response,
                         Err(error) => return Err(error)
@@ -67,7 +67,7 @@ impl Chain {
                     };
 
                     let evmos_inflation_epoch_prevision_response = match self.external_rest_api_req::<EvmosInflationEpochProvisionResponse>
-                    (&client, Method::GET, "https://lcd.evmos-9001-2.bronbro.io/evmos/inflation/v1/epoch_mint_provision", &[]).await
+                    (&self.client, Method::GET, "https://lcd.evmos-9001-2.bronbro.io/evmos/inflation/v1/epoch_mint_provision", &[]).await
                     {
                         Ok(parsed_response) => parsed_response,
                         Err(error) => return Err(error)
@@ -79,7 +79,7 @@ impl Chain {
                     };
 
                     let evmos_staking_pool_response = match self.external_rest_api_req::<EvmosStakingPoolResponse>
-                    (&client, Method::GET, "https://lcd.evmos-9001-2.bronbro.io/cosmos/staking/v1beta1/pool", &[]).await
+                    (&self.client, Method::GET, "https://lcd.evmos-9001-2.bronbro.io/cosmos/staking/v1beta1/pool", &[]).await
                     {
                         Ok(parsed_response) => parsed_response,
                         Err(error) => return Err(error)
@@ -97,7 +97,7 @@ impl Chain {
                 chain_name => Err(format!("APR for {chain_name} is not implemented.")),
             }
         } else {
-            match self.inner.name {
+            match self.config.name.as_str() {
                 "axelar" => {
                     let chain_params = match self.get_params_all().await {
                         Ok(res) => res.value,
@@ -127,7 +127,7 @@ impl Chain {
                         Err(error) => return Err(error)
                     };
                     let bonded_tokens_amount = match self.get_staking_pool().await {
-                        Ok(res) => (res.value.bonded * (self.inner.decimals_pow * 10000)) as f64,
+                        Ok(res) => (res.value.bonded * (self.config.decimals_pow * 10000)) as f64,
                         Err(error) => return Err(error)
                     };
                     let annual_provisions = match self.get_annual_provisions().await {

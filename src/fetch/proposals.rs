@@ -177,7 +177,7 @@ impl Chain {
         for proposal_vote in resp.votes {
             match proposal_vote.try_into() {
                 Ok(proposal_vote) => proposal_votes.push(proposal_vote),
-                Err(error) => eprintln!("{}", error),
+                Err(error) => tracing::error!("{error}"),
             }
         }
 
