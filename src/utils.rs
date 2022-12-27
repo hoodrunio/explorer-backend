@@ -67,7 +67,12 @@ pub struct Primary {
 
 /// Converts consensus public key to hex address for finding the associated operator address.
 pub fn convert_consensus_pubkey_to_hex_address(consensus_pubkey: &str) -> Option<String> {
-    base64_to_hex(&consensus_pubkey)
+    let hex = base64_to_hex(&consensus_pubkey).unwrap();
+    if hex.len() < 40 {
+        None
+    } else {
+        Some(hex[..40].to_uppercase())
+    }
 }
 
 /// Converts tx base64 to hex address.
@@ -83,11 +88,7 @@ fn base64_to_hex(base64: &str) -> Option<String> {
     let hash = hasher.finalize();
     let hex = to_hex(hash);
 
-    if hex.len() < 40 {
-        None
-    } else {
-        Some(hex[..40].to_uppercase())
-    }
+    Some(hex)
 }
 
 /// From "/cosmos.distribution.v1beta1.MsgWithdrawDelegatorReward" to "Withdraw Delegator Reward".
