@@ -71,7 +71,7 @@ pub fn convert_consensus_pubkey_to_hex_address(consensus_pubkey: &str) -> Option
     if hex.len() < 40 {
         None
     } else {
-        Some(hex[..40].to_uppercase())
+        Some(hex[..40].parse().unwrap())
     }
 }
 
