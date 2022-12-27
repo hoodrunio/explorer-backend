@@ -96,7 +96,7 @@ impl DatabaseTR {
     pub async fn add_validators(&self, validators: Vec<Validator>) -> Result<(), String> {
         match self.validators_collection().insert_many(validators, None).await {
             Ok(_) => Ok(()),
-            Err(e) => Err(format!("Cannot save validators: {e}")),
+            Err(_) => Err("Cannot save validators.".into()),
         }
     }
 
