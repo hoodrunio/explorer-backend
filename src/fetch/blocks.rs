@@ -3,6 +3,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{chain::Chain, routes::OutRestResponse};
 use crate::database::ValidatorForDb;
+use crate::utils::convert_tx_to_hex;
 
 impl Chain {
     /// Returns the block at given height. Returns the latest block, if no height is given.
@@ -154,6 +155,7 @@ pub struct InternalBlock {
     proposer_logo_url: String,
     proposer_address: String,
     time: i64,
+    txs: Vec<String>,
     tx_count: u32,
     signatures: Vec<InternalBlockSignature>,
 }
@@ -165,6 +167,7 @@ impl InternalBlock {
         let mut signatures = vec![];
 
         for signature in block_resp.block.last_commit.signatures {
+            //TODO there is no certainty to get validator from db check if db does not have find a way to get info from smw.
             if let Ok(validator_metadata) = chain.database.find_validator_by_hex_addr(&signature.validator_address).await {
                 if block_resp.block.header.proposer_address == signature.validator_address {
                     proposer = Some(validator_metadata.clone());
@@ -172,10 +175,22 @@ impl InternalBlock {
                 } else {
                     signatures.push(validator_metadata.into())
                 }
+            } else {
+                //Else needed because of if let pattern, what is gonna happen if let not OK? Kinda infinite loop
             }
         }
 
         let proposer = proposer.ok_or_else(|| "Proposer is not found found in the database.".to_string())?;
+
+        let mut txs: Vec<String> = vec![];
+
+        for tx_base64 in block_resp.block.data.txs {
+            if let Some(tx_hex) = convert_tx_to_hex(&tx_base64) {
+                txs.push(tx_hex.clone());
+            } else {
+                println!("Could not convert tx base to tx hex {:?} ", tx_base64);
+            }
+        }
 
         Ok(Self {
             height: block_resp
@@ -191,7 +206,8 @@ impl InternalBlock {
             time: DateTime::parse_from_rfc3339(&block_resp.block.header.time)
                 .map_err(|_| format!("Cannot parse block datetime, '{}'.", block_resp.block.header.time))?
                 .timestamp_millis(),
-            tx_count: block_resp.block_id.parts.total,
+            tx_count: txs.len() as u32,
+            txs,
             signatures,
         })
     }
