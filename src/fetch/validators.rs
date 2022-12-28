@@ -153,13 +153,15 @@ impl Chain {
     pub async fn get_validator_info(&self, validator_addr: &str) -> Result<OutRestResponse<InternalValidator>, String> {
         let path = format!("/cosmos/staking/v1beta1/validators/{validator_addr}");
 
-        let (resp, bonded_height) = join!(
+        let (resp, bonded_height, staking_pool_resp) = join!(
             self.rest_api_request::<ValidatorResp>(&path, &[]),
-            self.get_validator_bonded_height(&validator_addr)
+            self.get_validator_bonded_height(&validator_addr),
+            self.get_staking_pool()
         );
 
         let bonded_height = bonded_height?;
         let validator = resp?.validator;
+        let bonded_tokens = staking_pool_resp?.value.bonded as f64;
 
         let validator_metadata = self
             .database
@@ -176,12 +178,10 @@ impl Chain {
                 .map_err(|_| format!("Cannot parse delegator shares, {}.", validator.delegator_shares))?,
         );
 
+        let voting_power_percentage = (delegator_shares / bonded_tokens) * 100.0;
         let consensus_address = convert_consensus_pubkey_to_consensus_address(&validator.consensus_pubkey.key, &format!("{}valcons", self.config.base_prefix));
-
         let val_status_enum = self.get_validator_status(&validator, &consensus_address).await?;
-
         let uptime = self.get_validator_uptime(&consensus_address, &Some(&val_status_enum)).await?;
-
         let status = val_status_enum.as_str().to_string();
         let validator = InternalValidator {
             logo_url: validator_metadata.logo_url,
@@ -209,7 +209,7 @@ impl Chain {
             uptime,
             consensus_address,
             bonded_height,
-            voting_power_percentage: 0.0, // temporary  (delegator_shares / total_bonded_tokens), `total_bonded_tokens` is from the database. IMPLEMENT PARAMS CRON_JOB AND SAVE THEM TO MONGO_DB.
+            voting_power_percentage,
             voting_power_change: 0.0, // TODO!
         };
 
