@@ -799,3 +799,24 @@ pub struct SigningInfoResp {
     /// Validator signing info.
     pub val_signing_info: SlashingSigningInfoItem,
 }
+
+#[derive(Deserialize, Serialize, Debug, PartialEq, Eq, Clone)]
+pub enum ValidatorStatus {
+    Active,
+    Inactive,
+    Jailed,
+    Tombstoned,
+    Unknown(String),
+}
+
+impl ValidatorStatus {
+    fn as_str(&self) -> &str {
+        match self {
+            ValidatorStatus::Active => "Active",
+            ValidatorStatus::Inactive => "Inactive",
+            ValidatorStatus::Jailed => "Jailed",
+            ValidatorStatus::Tombstoned => "Tombstoned",
+            ValidatorStatus::Unknown(unknown_string) => unknown_string
+        }
+    }
+}
