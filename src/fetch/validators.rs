@@ -11,6 +11,7 @@ use crate::{
     chain::Chain,
     routes::{calc_pages, OutRestResponse},
 };
+use crate::utils::convert_consensus_pubkey_to_consensus_address;
 
 impl Chain {
     /// Returns validator by given validator address.
@@ -158,7 +159,6 @@ impl Chain {
         );
 
         let bonded_height = bonded_height?;
-
         let validator = resp?.validator;
 
         let validator_metadata = self
@@ -176,6 +176,10 @@ impl Chain {
                 .map_err(|_| format!("Cannot parse delegator shares, {}.", validator.delegator_shares))?,
         );
 
+        let consensus_address = convert_consensus_pubkey_to_consensus_address(&validator.consensus_pubkey.key, &format!("{}valcons", self.config.base_prefix));
+
+        let uptime = self.get_validator_uptime(&consensus_address).await?;
+
         let validator = InternalValidator {
             logo_url: validator_metadata.logo_url,
             commission: validator
@@ -184,7 +188,6 @@ impl Chain {
                 .rate
                 .parse()
                 .map_err(|_| format!("Cannot parse commission rate, '{}'.", validator.commission.commission_rates.rate))?,
-            uptime: 0.0, // TODO!
             status: {
                 // UNCOMMENT BELOW IF YOU KNOW HOW TO CALC CONSENSUS ADDRESS
                 // let signing_info = self
@@ -195,12 +198,12 @@ impl Chain {
                     "Jailed"
                 } else if validator.status == "BOND_STATUS_UNBONDED" {
                     "Inactive"
-                // } else if signing_info.value.tombstoned {
-                //   "Tombstoned"
+                    // } else if signing_info.value.tombstoned {
+                    //   "Tombstoned"
                 } else {
                     "Active"
                 }
-                .to_string()
+                    .to_string()
             },
             max_commission: validator
                 .commission
@@ -212,13 +215,14 @@ impl Chain {
                 .convert_valoper_to_self_delegate_address(&validator.operator_address)
                 .ok_or_else(|| format!("Cannot parse self delegate address, {}.", validator.operator_address))?,
             operator_address: validator.operator_address,
-            consensus_address: validator_metadata.consensus_address.unwrap_or("how to calc".into()), // Learn how to calculate consensus address, and change the property type to `String` not `Option<String>`.
             name: validator.description.moniker,
             website: validator.description.website,
             details: validator.description.details,
             voting_power: delegator_shares as u64,
-            voting_power_percentage: 0.0, // temporary  (delegator_shares / total_bonded_tokens), `total_bonded_tokens` is from the database. IMPLEMENT PARAMS CRON_JOB AND SAVE THEM TO MONGO_DB.
+            uptime,
+            consensus_address,
             bonded_height,
+            voting_power_percentage: 0.0, // temporary  (delegator_shares / total_bonded_tokens), `total_bonded_tokens` is from the database. IMPLEMENT PARAMS CRON_JOB AND SAVE THEM TO MONGO_DB.
             voting_power_change: 0.0, // TODO!
         };
 
@@ -437,6 +441,15 @@ impl Chain {
             .map_err(|_| format!("Cannot parse bonded height, {}.", bonded_height_str))?;
 
         Ok(bonded_height)
+    }
+
+    pub async fn get_validator_uptime(&self, consensus_address: &str) -> Result<f64, String> {
+        let (val_signing_info_resp, all_params_resp) = join!(self.get_validator_signing_info(&consensus_address),self.get_params_all());
+
+        let val_signing_info = val_signing_info_resp?.value;
+        let all_params = all_params_resp?.value;
+
+        Ok((1.0 - (val_signing_info.missed_blocks_counter as f64 / all_params.slashing.signed_blocks_window as f64)))
     }
 }
 
@@ -675,11 +688,11 @@ impl InternalRedelegation {
     pub async fn new(tx: &Tx, tx_response: &TxResponse, chain: &Chain) -> Result<Self, String> {
         let (delegator_address, validator_dst_address, amount) = match tx.body.messages.get(0) {
             Some(TxsTransactionMessage::Known(TxsTransactionMessageKnowns::Redelegate {
-                delegator_address,
-                validator_src_address: _,
-                validator_dst_address,
-                amount,
-            })) => (delegator_address.clone(), validator_dst_address.clone(), amount),
+                                                  delegator_address,
+                                                  validator_src_address: _,
+                                                  validator_dst_address,
+                                                  amount,
+                                              })) => (delegator_address.clone(), validator_dst_address.clone(), amount),
             _ => return Err(format!("Tx doesn't have a redelegation message, {}.", tx_response.txhash)),
         };
 
@@ -703,7 +716,7 @@ impl InternalRedelegation {
                             return Err(format!(
                                 "Tx redelagate event log doesn't have `completion_time` attribute, {}.",
                                 tx_response.txhash
-                            ))
+                            ));
                         }
                     },
                     _ => return Err(format!("Tx doesn't have a redelagate event log, {}.", tx_response.txhash)),
