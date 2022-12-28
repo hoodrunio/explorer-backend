@@ -109,6 +109,5 @@ pub fn get_msg_name(msg: &str) -> String {
 
 /// Converts consensus pubkey to consensus address.
 pub fn convert_consensus_pubkey_to_consensus_address(address: &str, prefix: &str) -> String {
-    // Waiting to find how it is calculated.
     bech32::encode(prefix, hex::decode(convert_consensus_pubkey_to_hex_address(address).unwrap()).unwrap().to_base32(), bech32::Variant::Bech32).unwrap()
 }
