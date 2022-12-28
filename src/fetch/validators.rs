@@ -178,8 +178,11 @@ impl Chain {
 
         let consensus_address = convert_consensus_pubkey_to_consensus_address(&validator.consensus_pubkey.key, &format!("{}valcons", self.config.base_prefix));
 
-        let uptime = self.get_validator_uptime(&consensus_address).await?;
+        let val_status_enum = self.get_validator_status(&validator, &consensus_address).await?;
 
+        let uptime = self.get_validator_uptime(&consensus_address, &Some(&val_status_enum)).await?;
+
+        let status = val_status_enum.as_str().to_string();
         let validator = InternalValidator {
             logo_url: validator_metadata.logo_url,
             commission: validator
@@ -188,23 +191,6 @@ impl Chain {
                 .rate
                 .parse()
                 .map_err(|_| format!("Cannot parse commission rate, '{}'.", validator.commission.commission_rates.rate))?,
-            status: {
-                // UNCOMMENT BELOW IF YOU KNOW HOW TO CALC CONSENSUS ADDRESS
-                // let signing_info = self
-                //    .get_validator_signing_info(&validator_metadata.consensus_address.unwrap_or("how to calc".into()))
-                //    .await?;
-
-                if validator.jailed {
-                    "Jailed"
-                } else if validator.status == "BOND_STATUS_UNBONDED" {
-                    "Inactive"
-                    // } else if signing_info.value.tombstoned {
-                    //   "Tombstoned"
-                } else {
-                    "Active"
-                }
-                    .to_string()
-            },
             max_commission: validator
                 .commission
                 .commission_rates
@@ -219,6 +205,7 @@ impl Chain {
             website: validator.description.website,
             details: validator.description.details,
             voting_power: delegator_shares as u64,
+            status,
             uptime,
             consensus_address,
             bonded_height,
@@ -443,13 +430,37 @@ impl Chain {
         Ok(bonded_height)
     }
 
-    pub async fn get_validator_uptime(&self, consensus_address: &str) -> Result<f64, String> {
+    pub async fn get_validator_uptime(&self, consensus_address: &str, val_status: &Option<&ValidatorStatus>) -> Result<f64, String> {
+        let default_uptime_value = 0.0;
+
+        if *val_status.unwrap() != ValidatorStatus::Active {
+            return Ok(default_uptime_value);
+        }
+
         let (val_signing_info_resp, all_params_resp) = join!(self.get_validator_signing_info(&consensus_address),self.get_params_all());
 
         let val_signing_info = val_signing_info_resp?.value;
         let all_params = all_params_resp?.value;
 
         Ok((1.0 - (val_signing_info.missed_blocks_counter as f64 / all_params.slashing.signed_blocks_window as f64)))
+    }
+
+    pub async fn get_validator_status(&self, validator: &ValidatorListValidator, consensus_address: &str) -> Result<ValidatorStatus, String> {
+        let signing_info = self
+            .get_validator_signing_info(&consensus_address)
+            .await?;
+
+        let status = if validator.jailed {
+            ValidatorStatus::Jailed
+        } else if validator.status == "BOND_STATUS_UNBONDED" {
+            ValidatorStatus::Inactive
+        } else if signing_info.value.tombstoned {
+            ValidatorStatus::Tombstoned
+        } else {
+            ValidatorStatus::Active
+        };
+
+        Ok(status)
     }
 }
 
