@@ -425,12 +425,12 @@ impl Chain {
 
         let resp = self.rest_api_request::<TxsResp>(&format!("/cosmos/tx/v1beta1/txs"), &query).await?;
 
-        let bonded_height_str = resp
-            .tx_responses
-            .get(0)
-            .ok_or_else(|| "Couldn't find bonded height.".to_string())?
-            .height
-            .clone();
+        //Temporary fix to prevent panic
+        let bonded_height_str = if let Some(tx) = resp.tx_responses.get(0) {
+            tx.height.clone()
+        } else {
+            "0".to_string()
+        };
 
         let bonded_height = bonded_height_str
             .parse::<u64>()
