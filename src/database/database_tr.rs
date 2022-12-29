@@ -66,14 +66,10 @@ impl DatabaseTR {
     /// Returns the params collection.
     /// # Usage
     /// ```rs
-    /// let collection = database.chains_collection();
+    /// let collection = database.params_collection();
     /// ```
     fn params_collection(&self) -> Collection<Params> {
-        // PARAMS is not an array, so it should not add a new item to an array.
-        // It should modify the same data.
-        // Once it's done, create a cron_job for params.
-        todo!();
-        // self.db().collection("params");
+        self.db().collection("params")
     }
 
     /// Adds a new validator to the validators collection of the database.
@@ -182,6 +178,14 @@ impl DatabaseTR {
         }
     }
 
+    pub async fn upsert_params(&self, params: Params) -> Result<(), String> {
+        let doc = to_document(&params).unwrap();
+        let command = doc! {"update":"params","updates":[{"q":{"staking":{"$exists":true}},"u":doc,"upsert":true}]};
+        match self.db().run_command(command, None).await {
+            Ok(_) => Ok(()),
+            Err(_) => Err("Cannot save the params.".into()),
+        }
+    }
     // Updates params collection of the database.
     // # Usage
     // ```rs
