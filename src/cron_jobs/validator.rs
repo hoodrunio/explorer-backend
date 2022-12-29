@@ -42,7 +42,7 @@ impl Chain {
         }
 
         // Save to database.
-        self.database.add_validators(validators).await?;
+        self.database.upsert_validators(validators).await?;
 
         Ok(())
     }
