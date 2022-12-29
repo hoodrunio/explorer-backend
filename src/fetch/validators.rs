@@ -420,7 +420,7 @@ impl Chain {
         let bonded_height_str = if let Some(tx) = resp.tx_responses.get(0) {
             tx.height.clone()
         } else {
-            "0".to_string()
+            "1".to_string()
         };
 
         let bonded_height = bonded_height_str
