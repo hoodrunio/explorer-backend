@@ -2,7 +2,7 @@ use mongodb::{
     bson::{doc, Document},
     Client, Collection, Database,
 };
-
+use mongodb::bson::to_document;
 use super::{chains::Chain, params::Params, validators::Validator};
 
 // Testnetrun explorer database.
@@ -88,6 +88,15 @@ impl DatabaseTR {
         }
     }
 
+    pub async fn upsert_validator(&self, validator: Validator) -> Result<(), String> {
+        let doc = to_document(&validator).unwrap();
+        let command = doc! {"update":"validators","updates":[{"q":{"operator_address":&validator.operator_address},"u":doc,"upsert":true}]};
+        match self.db().run_command(command, None).await {
+            Ok(_) => Ok(()),
+            Err(_) => Err("Cannot save the validator.".into()),
+        }
+    }
+
     /// Adds new validators to the validators collection of the database.
     /// # Usage
     /// ```rs
@@ -98,6 +107,19 @@ impl DatabaseTR {
             Ok(_) => Ok(()),
             Err(_) => Err("Cannot save validators.".into()),
         }
+    }
+
+    /// Adds new validators to the validators but if we have the same validator with same opertator address this will only update with new one.
+    /// # Usage
+    /// ```rs
+    /// database.upsert_validators(validators).await;
+    /// ```
+    pub async fn upsert_validators(&self, validators: Vec<Validator>) -> Result<(), String> {
+        for validator in validators {
+            self.upsert_validator(validator).await?;
+        };
+
+        Ok(())
     }
 
     /// Finds a validator by given document.
