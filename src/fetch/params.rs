@@ -381,7 +381,7 @@ impl TryFrom<SlashingParams> for InternalSlashingParams {
     type Error = String;
     fn try_from(value: SlashingParams) -> Result<Self, Self::Error> {
         let downtime_jail_duration: u32 = if value.downtime_jail_duration.ends_with('s') {
-            match value.downtime_jail_duration[..value.downtime_jail_duration.len() - 2].parse() {
+            match value.downtime_jail_duration[..value.downtime_jail_duration.len() - 1].parse() {
                 Ok(v) => v,
                 Err(_) => return Err(format!("Cannot parse downtime jail time, '{}'.", value.downtime_jail_duration)),
             }
