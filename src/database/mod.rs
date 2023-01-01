@@ -11,4 +11,5 @@ pub use params::StakingParams as StakingParamsForDb;
 pub use params::SlashingParams as SlashingParamsForDb;
 pub use params::GovParams as GovParamsForDb;
 pub use params::DistributionParams as DistributionParamsForDb;
+pub use params::VotingPower as VotingPowerForDb;
 pub use chains::Chain as ChainForDb;

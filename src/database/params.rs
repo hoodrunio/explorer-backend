@@ -46,3 +46,19 @@ pub struct DistributionParams {
     pub bonus_proposer_reward: f64,
     pub withdraw_addr_enabled: bool,
 }
+
+
+//Historical data db struct
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct HistoricalValidatorData {
+    pub operator_address: String,
+    pub voting_power_data: VotingPower,
+}
+
+//Voting power db struct
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct VotingPower {
+    pub voting_power: f64,
+    pub voting_power_percentage: f64,
+    pub ts: i64,
+}

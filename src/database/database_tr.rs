@@ -3,6 +3,7 @@ use mongodb::{
     Client, Collection, Database,
 };
 use mongodb::bson::to_document;
+use crate::database::params::VotingPower;
 use super::{chains::Chain, params::Params, validators::Validator};
 
 // Testnetrun explorer database.
@@ -70,6 +71,10 @@ impl DatabaseTR {
     /// ```
     fn params_collection(&self) -> Collection<Params> {
         self.db().collection("params")
+    }
+
+    fn historical_data_collection(&self) -> Collection<Params> {
+        self.db().collection("historical_data")
     }
 
     /// Adds a new validator to the validators collection of the database.
@@ -178,9 +183,29 @@ impl DatabaseTR {
         }
     }
 
+    /// Finds a validator by given document.
+    /// # Usage
+    /// ```rs
+    /// database.upsert_params(params).await;
+    /// ```
     pub async fn upsert_params(&self, params: Params) -> Result<(), String> {
         let doc = to_document(&params).unwrap();
         let command = doc! {"update":"params","updates":[{"q":{"staking":{"$exists":true}},"u":doc,"upsert":true}]};
+        match self.db().run_command(command, None).await {
+            Ok(_) => Ok(()),
+            Err(_) => Err("Cannot save the params.".into()),
+        }
+    }
+
+    pub async fn upsert_voting_power_data(&self, operator_address: &str, voting_power_data: VotingPower) -> Result<(), String> {
+        let doc = to_document(&voting_power_data).unwrap();
+        let command = doc! {
+            "update":"historical_data",
+            "updates":[{
+                "q":{"operator_address":operator_address},
+                "u":{"$push":{"voting_power":doc}},
+                "upsert":true}]
+        };
         match self.db().run_command(command, None).await {
             Ok(_) => Ok(()),
             Err(_) => Err("Cannot save the params.".into()),
