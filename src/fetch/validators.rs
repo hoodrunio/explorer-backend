@@ -168,15 +168,10 @@ impl Chain {
             .find_validator_by_operator_addr(&validator.operator_address.clone())
             .await?;
 
-        let delegator_shares = self.calc_amount_u128_to_f64(
-            validator
-                .delegator_shares
-                .split_once('.')
-                .map(|(pri, _)| pri)
-                .unwrap_or(&validator.delegator_shares)
-                .parse::<u128>()
-                .map_err(|_| format!("Cannot parse delegator shares, {}.", validator.delegator_shares))?,
-        );
+        let delegator_shares = match self.format_delegator_share(&validator.delegator_shares) {
+            Ok(val) => val,
+            Err(err) => return Err(err)
+        };
 
         let voting_power_percentage = (delegator_shares / bonded_tokens) * 100.0;
         let consensus_address = convert_consensus_pubkey_to_consensus_address(&validator.consensus_pubkey.key, &format!("{}valcons", self.config.base_prefix));
