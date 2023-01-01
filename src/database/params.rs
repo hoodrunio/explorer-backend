@@ -53,7 +53,7 @@ pub struct DistributionParams {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct HistoricalValidatorData {
     pub operator_address: String,
-    pub voting_power_data: VotingPower,
+    pub voting_power_data: Vec<VotingPower>,
 }
 
 //Voting power db struct
