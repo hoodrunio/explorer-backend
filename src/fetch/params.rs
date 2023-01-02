@@ -110,7 +110,7 @@ impl Chain {
 
         let deposit_params = InternalDepositParams {
             max_deposit_period: if resp.deposit_params.max_deposit_period.ends_with('s') {
-                match resp.deposit_params.max_deposit_period[..resp.deposit_params.max_deposit_period.len() - 2].parse() {
+                match resp.deposit_params.max_deposit_period[..resp.deposit_params.max_deposit_period.len() - 1].parse() {
                     Ok(v) => v,
                     Err(_) => {
                         return Err(format!(
@@ -243,7 +243,7 @@ impl TryFrom<VotingParams> for InternalVotingParams {
     type Error = String;
     fn try_from(value: VotingParams) -> Result<Self, Self::Error> {
         let voting_period: u32 = if value.voting_period.ends_with('s') {
-            match value.voting_period[..value.voting_period.len() - 2].parse() {
+            match value.voting_period[..value.voting_period.len() - 1].parse() {
                 Ok(v) => v,
                 Err(_) => return Err(format!("Cannot parse voting period, '{}'.", value.voting_period)),
             }
@@ -331,7 +331,7 @@ impl TryFrom<StakingParams> for InternalStakingParams {
     type Error = String;
     fn try_from(value: StakingParams) -> Result<Self, Self::Error> {
         let unbonding_time: u32 = if value.unbonding_time.ends_with('s') {
-            match value.unbonding_time[..value.unbonding_time.len() - 2].parse() {
+            match value.unbonding_time[..value.unbonding_time.len() - 1].parse() {
                 Ok(v) => v,
                 Err(_) => return Err(format!("Cannot parse unbonding time, '{}'.", value.unbonding_time)),
             }
