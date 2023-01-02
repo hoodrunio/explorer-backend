@@ -1,4 +1,4 @@
-use chrono::DateTime;
+use chrono::{DateTime, Duration, Utc};
 use futures::{future::join_all, FutureExt};
 use serde::{Deserialize, Serialize};
 use tokio::join;
@@ -174,6 +174,12 @@ impl Chain {
         };
 
         let voting_power_percentage = (delegator_shares / bonded_tokens) * 100.0;
+        let voting_power_change_24h = self.get_validator_voting_power_percentage_change(
+            &validator.operator_address,
+            Duration::hours(24),
+            voting_power_percentage)
+            .await.unwrap_or(0.0);
+
         let consensus_address = convert_consensus_pubkey_to_consensus_address(&validator.consensus_pubkey.key, &format!("{}valcons", self.config.base_prefix));
         let val_status_enum = self.get_validator_status(&validator, &consensus_address).await?;
         let uptime = self.get_validator_uptime(&consensus_address, &Some(&val_status_enum)).await?;
@@ -205,7 +211,7 @@ impl Chain {
             consensus_address,
             bonded_height,
             voting_power_percentage,
-            voting_power_change: 0.0, // TODO!
+            voting_power_change_24h,
         };
 
         Ok(OutRestResponse::new(validator, 0))
@@ -457,6 +463,40 @@ impl Chain {
 
         Ok(status)
     }
+
+    pub async fn get_validator_voting_power_percentage_change(
+        &self,
+        validator_operator_address: &str,
+        period: Duration,
+        current_voting_power_percentage: f64) -> Result<f64, String> {
+        let voting_powers_history = match self.database.find_historical_data_by_operator_address(&validator_operator_address).await {
+            Ok(voting_power_db) => {
+                voting_power_db.voting_power_data
+            }
+            Err(err) => return Err(err)
+        };
+
+        let period_millis = period.num_milliseconds();
+        let lower_constraint_timestamp = Utc::now().timestamp_millis() - period_millis;
+
+        let mut potential_voting_power: Option<f64> = None;
+
+        for voting_power in voting_powers_history {
+            if voting_power.ts < lower_constraint_timestamp {
+                potential_voting_power = Some(voting_power.voting_power);
+            } else {
+                break;
+            };
+        };
+
+        match potential_voting_power {
+            Some(value) => {
+                let bonded_tokens = self.get_staking_pool().await?.value.bonded as f64;
+                Ok((((value / bonded_tokens) * 100.0) - current_voting_power_percentage))
+            }
+            None => Err("Could not calculate voting power change".to_string())
+        }
+    }
 }
 
 #[derive(Deserialize, Serialize, Debug)]
@@ -644,7 +684,7 @@ pub struct InternalValidator {
     voting_power_percentage: f64,
     voting_power: u64,
     bonded_height: u64,
-    voting_power_change: f64,
+    voting_power_change_24h: f64,
     status: String,
 }
 
