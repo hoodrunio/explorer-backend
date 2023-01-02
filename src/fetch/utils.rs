@@ -41,4 +41,15 @@ impl Chain {
     pub fn convert_valoper_to_self_delegate_address(&self, valoper_addr: &str) -> Option<String> {
         bech32::encode(&self.config.base_prefix, bech32::decode(valoper_addr).ok()?.1, bech32::Variant::Bech32).ok()
     }
+
+    pub fn format_delegator_share(&self, validator_delegator_shares: &str) -> Result<f64, String> {
+        let formatted = validator_delegator_shares
+            .split_once('.')
+            .map(|(pri, _)| pri)
+            .unwrap_or(&validator_delegator_shares)
+            .parse::<u128>()
+            .map_err(|_| format!("Cannot parse delegator shares, {}.", validator_delegator_shares))?;
+
+        Ok(self.calc_amount_u128_to_f64(formatted))
+    }
 }

@@ -3,19 +3,34 @@ use std::time::Duration;
 use tendermint::PublicKey;
 use futures::future::join_all;
 
-use crate::database::ValidatorForDb;
+use crate::database::{ValidatorForDb, VotingPowerForDb};
 use crate::utils::{convert_consensus_pubkey_to_consensus_address, convert_consensus_pubkey_to_hex_address, get_validator_logo};
 use crate::{chain::Chain, fetch::others::PaginationConfig};
 
 impl Chain {
     pub async fn cron_job_validator(&self) -> Result<(), String> {
         let resp = self.get_validators_unspecified(PaginationConfig::new().limit(10000)).await?;
+        let staking_pool = self.get_staking_pool().await?.value;
 
         let validators = resp.validators;
 
         let jobs: Vec<_> = validators
             .into_iter()
             .map(|validator| async move {
+                match self.format_delegator_share(&validator.delegator_shares) {
+                    Ok(delegator_shares) => {
+                        let voting_power_db = VotingPowerForDb {
+                            voting_power: delegator_shares,
+                            voting_power_percentage: (delegator_shares / (staking_pool.bonded as f64)) * 100.0,
+                            ..Default::default()
+                        }.init();
+
+                        self.database.upsert_voting_power_data(&validator.operator_address, voting_power_db).await?;
+                    }
+                    Err(err) => { tracing::error!("{}",err) }
+                }
+
+
                 // let pub_key = PublicKey::from(&validator.consensus_pubkey).ok();
                 Ok::<_, String>(ValidatorForDb {
                     bonded_height: None,     // Find way to fetch and store.

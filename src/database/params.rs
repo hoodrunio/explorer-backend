@@ -1,3 +1,4 @@
+use chrono::Utc;
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -45,4 +46,40 @@ pub struct DistributionParams {
     pub base_proposer_reward: f64,
     pub bonus_proposer_reward: f64,
     pub withdraw_addr_enabled: bool,
+}
+
+
+//Historical data db struct
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct HistoricalValidatorData {
+    pub operator_address: String,
+    pub voting_power_data: Vec<VotingPower>,
+}
+
+//Voting power db struct
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct VotingPower {
+    pub voting_power: f64,
+    pub voting_power_percentage: f64,
+    pub ts: i64,
+}
+
+impl VotingPower {
+    pub fn init(self) -> Self {
+        VotingPower {
+            voting_power: self.voting_power,
+            voting_power_percentage: self.voting_power_percentage,
+            ts: self.ts,
+        }
+    }
+}
+
+impl Default for VotingPower {
+    fn default() -> Self {
+        Self {
+            voting_power: 0.0,
+            voting_power_percentage: 0.0,
+            ts: Utc::now().timestamp_millis(),
+        }
+    }
 }
