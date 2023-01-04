@@ -47,6 +47,7 @@ pub async fn start_web_server() -> std::io::Result<()> {
             .app_data(state.clone())
             // Services.
             .service(initial)
+            .service(routes::chains)
             .service(routes::block_by_hash)
             .service(routes::block_by_height)
             .service(routes::headers_by_heights)

@@ -67,4 +67,8 @@ impl State {
             });
         });
     }
+
+    pub fn get_chains(&self) -> &HashMap<String, Chain> {
+        &self.chains
+    }
 }
