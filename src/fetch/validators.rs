@@ -246,7 +246,7 @@ impl Chain {
     }
 
     /// Returns the list of validators with bonded status.
-    pub async fn get_validators_bonded(&self, pagination_config: PaginationConfig) -> Result<ValidatorListResp, String> {
+    pub async fn get_validators_bonded(&self, pagination_config: PaginationConfig) -> Result<ValidatorListApiResp, String> {
         let mut query = vec![];
 
         query.push(("status", "BOND_STATUS_BONDED".to_string()));
@@ -259,7 +259,7 @@ impl Chain {
     }
 
     /// Returns the list of validators with unbonded status.
-    pub async fn get_validators_unbonded(&self, pagination_config: PaginationConfig) -> Result<ValidatorListResp, String> {
+    pub async fn get_validators_unbonded(&self, pagination_config: PaginationConfig) -> Result<ValidatorListApiResp, String> {
         let mut query = vec![];
 
         query.push(("status", "BOND_STATUS_UNBONDED".to_string()));
@@ -272,7 +272,7 @@ impl Chain {
     }
 
     /// Returns the list of validators with unbonding status.
-    pub async fn get_validators_unbonding(&self, pagination_config: PaginationConfig) -> Result<ValidatorListResp, String> {
+    pub async fn get_validators_unbonding(&self, pagination_config: PaginationConfig) -> Result<ValidatorListApiResp, String> {
         let mut query = vec![];
 
         query.push(("status", "BOND_STATUS_UNBONDING".to_string()));
@@ -285,7 +285,7 @@ impl Chain {
     }
 
     /// Returns the list of validators with unspecified status.
-    pub async fn get_validators_unspecified(&self, pagination_config: PaginationConfig) -> Result<ValidatorListResp, String> {
+    pub async fn get_validators_unspecified(&self, pagination_config: PaginationConfig) -> Result<ValidatorListApiResp, String> {
         let mut query = vec![];
 
         query.push(("pagination.reverse", format!("{}", pagination_config.is_reverse())));
@@ -627,11 +627,22 @@ pub struct ValidatorRewards {
 }
 
 #[derive(Deserialize, Serialize, Debug)]
-pub struct ValidatorListResp {
+pub struct ValidatorListApiResp {
     /// Array of validators.
     pub validators: Vec<ValidatorListValidator>,
     /// Pagination.
     pub pagination: Pagination,
+}
+
+#[derive(Deserialize, Serialize, Debug)]
+pub struct ValidatorListResp {
+
+}
+
+impl From<ValidatorListApiResp> for ValidatorListResp {
+    fn from(other: ValidatorListApiResp) -> Self {
+
+    }
 }
 
 #[derive(Deserialize, Serialize, Debug)]
