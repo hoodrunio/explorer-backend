@@ -23,7 +23,7 @@ impl DatabaseTR {
     /// ```
     pub async fn new() -> DatabaseTR {
         // Change this URI and create a database for each chain using chain names.
-        let uri = "mongodb://127.0.0.1:27017";
+        let uri = std::env::var("MONGODB_URI").expect("MONGODB_URI must be set in .env file");
 
         DatabaseTR {
             mongo: (Client::with_uri_str(uri).await.expect("Cannot connect to MongoDB instance.")),
