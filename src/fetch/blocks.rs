@@ -377,7 +377,7 @@ pub struct BlockHeaderVersion {
     pub block: String,
 }
 
-#[derive(Deserialize, Serialize, Debug)]
+#[derive(Deserialize, Serialize, Debug, Clone, PartialEq, Eq)]
 pub struct BlockLastCommitSignatures {
     /// Unknown. Eg: `2`
     pub block_id_flag: usize,
