@@ -26,19 +26,6 @@ evmos:
   rest_url: https://evmos-api.polkachu.com
   wss_url: wss://rpc-evmos.ecostake.com/websocket
 
-kyve:
-  name: kyve
-  epoch: false
-  # gecko: no token
-  denom: tkyve
-  # prefix: kyve
-  logo: https://assets.coingecko.com/coins/images/26229/large/78351592.png
-  # decimals: 6
-  version: 0.45
-  rpc_url: https://rpc.beta.kyve.network
-  rest_url: https://api.beta.kyve.network
-  wss_url: wss://rpc.beta.kyve.network/websocket
-
 osmosis:
   name: osmosis
   epoch: true
@@ -76,4 +63,4 @@ secret:
   # version: 0.45
   rpc_url: https://secret-4.api.trivium.network:26657/
   rest_url: https://secretnetwork-lcd.stakely.io
-  wss_url: wss://rpc-umee.huginn.tech/websocket
+  wss_url: wss://scrt-rpc.agoranodes.com/websocket

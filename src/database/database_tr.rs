@@ -3,6 +3,8 @@ use mongodb::{
     Client, Collection, Database,
 };
 use mongodb::bson::to_document;
+use crate::database::blocks::Block;
+use crate::database::params::{HistoricalValidatorData, VotingPower};
 use super::{chains::Chain, params::Params, validators::Validator};
 
 // Testnetrun explorer database.
@@ -72,6 +74,24 @@ impl DatabaseTR {
         self.db().collection("params")
     }
 
+    /// Returns the historical data collection.
+    /// # Usage
+    /// ```rs
+    /// let collection = database.historical_data_collection();
+    /// ```
+    fn historical_data_collection(&self) -> Collection<HistoricalValidatorData> {
+        self.db().collection("historical_data")
+    }
+
+    /// Returns the params collection.
+    /// # Usage
+    /// ```rs
+    /// let collection = database.blocks_collection();
+    /// ```
+    fn blocks_collection(&self) -> Collection<HistoricalValidatorData> {
+        self.db().collection("blocks")
+    }
+
     /// Adds a new validator to the validators collection of the database.
     /// # Usage
     /// ```rs
@@ -116,6 +136,20 @@ impl DatabaseTR {
         };
 
         Ok(())
+    }
+
+    /// Adds new block item to the blocks collection
+    /// # Usage
+    /// ```rs
+    /// database.upsert_block(block).await;
+    /// ```
+    pub async fn upsert_block(&self, block: Block) -> Result<(), String> {
+        let doc = to_document(&block).unwrap();
+        let command = doc! {"update":"blocks","updates":[{"q":{"hash":&block.hash},"u":doc,"upsert":true}]};
+        match self.db().run_command(command, None).await {
+            Ok(_) => Ok(()),
+            Err(_) => Err("Cannot save the block to db.".into()),
+        }
     }
 
     /// Finds a validator by given document.
@@ -178,6 +212,11 @@ impl DatabaseTR {
         }
     }
 
+    /// Finds a validator by given document.
+    /// # Usage
+    /// ```rs
+    /// database.upsert_params(params).await;
+    /// ```
     pub async fn upsert_params(&self, params: Params) -> Result<(), String> {
         let doc = to_document(&params).unwrap();
         let command = doc! {"update":"params","updates":[{"q":{"staking":{"$exists":true}},"u":doc,"upsert":true}]};
@@ -186,6 +225,52 @@ impl DatabaseTR {
             Err(_) => Err("Cannot save the params.".into()),
         }
     }
+
+    /// Upsert a voting power data to historical data collection.
+    /// # Usage
+    /// ```rs
+    /// database.upsert_voting_power_data(operator_address, voting_power_data).await;
+    /// ```
+    pub async fn upsert_voting_power_data(&self, operator_address: &str, voting_power_data: VotingPower) -> Result<(), String> {
+        let doc = to_document(&voting_power_data).unwrap();
+        let command = doc! {
+            "update":"historical_data",
+            "updates":[{
+                "q":{"operator_address":operator_address},
+                "u":{"$push":{"voting_power_data":doc}},
+                "upsert":true}]
+        };
+        match self.db().run_command(command, None).await {
+            Ok(_) => Ok(()),
+            Err(_) => Err("Cannot save the params.".into()),
+        }
+    }
+
+
+    /// Finds a historical data by given document.
+    /// # Usage
+    /// ```rs
+    /// database.find_historical_data(doc).await;
+    /// ```
+    pub async fn find_historical_data(&self, doc: Document) -> Result<HistoricalValidatorData, String> {
+        match self.historical_data_collection().find_one(doc, None).await {
+            Ok(potential_h_data) => match potential_h_data {
+                Some(historical_data) => Ok(historical_data),
+                None => Err("No validator is found.".into()),
+            },
+            Err(_) => Err("Cannot make request to DB.".into())
+        }
+    }
+
+    /// Finds a historical data by given operator_address.
+    /// # Usage
+    /// ```rs
+    /// database.find_historical_data_by_operator_address(operator_address).await;
+    /// ```
+    pub async fn find_historical_data_by_operator_address(&self, operator_address: &str) -> Result<HistoricalValidatorData, String> {
+        self.find_historical_data(doc! {"operator_address":operator_address}).await
+    }
+
     // Updates params collection of the database.
     // # Usage
     // ```rs
