@@ -63,4 +63,4 @@ secret:
   # version: 0.45
   rpc_url: https://secret-4.api.trivium.network:26657/
   rest_url: https://secretnetwork-lcd.stakely.io
-  wss_url: wss://rpc-umee.huginn.tech/websocket
+  wss_url: wss://scrt-rpc.agoranodes.com/websocket
