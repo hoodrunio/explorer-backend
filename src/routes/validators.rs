@@ -8,6 +8,8 @@ use actix_web::{
     web::{Data, Json, Path, Query},
     Responder,
 };
+use futures::stream;
+use crate::fetch::validators::ValidatorListResp;
 
 // ======== Validator Methods ========
 
@@ -91,10 +93,10 @@ pub async fn validators_bonded(path: Path<String>, chains: Data<State>) -> impl 
 pub async fn validators_unbonded(path: Path<String>, chains: Data<State>) -> impl Responder {
     let chain = path.into_inner();
 
-    Json(match chains.get(&chain) {
-        Ok(chain) => chain.get_validators_unbonded(PaginationConfig::new()).await.into(),
-        Err(err) => Response::Error(err),
-    })
+    let chain = chains.get(&chain).map_err(|err| Response::Error(err))?;
+    let validators = chain.get_validators_unbonded(PaginationConfig::new()).await.map_err(|err| Response::Error(err))?;
+    let validators_resp = ValidatorListResp::from(validators);
+    Json(resp)
 }
 
 #[get("{chain}/validators-unbonding")]

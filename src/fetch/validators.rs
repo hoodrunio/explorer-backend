@@ -1,4 +1,4 @@
-use chrono::{DateTime, Duration, Utc};
+use chrono::DateTime;
 use futures::{future::join_all, FutureExt};
 use serde::{Deserialize, Serialize};
 use tokio::join;
@@ -11,7 +11,7 @@ use crate::{
     chain::Chain,
     routes::{calc_pages, OutRestResponse},
 };
-use crate::utils::convert_consensus_pubkey_to_consensus_address;
+use crate::fetch::others::Response;
 
 impl Chain {
     /// Returns validator by given validator address.
@@ -153,37 +153,30 @@ impl Chain {
     pub async fn get_validator_info(&self, validator_addr: &str) -> Result<OutRestResponse<InternalValidator>, String> {
         let path = format!("/cosmos/staking/v1beta1/validators/{validator_addr}");
 
-        let (resp, bonded_height, staking_pool_resp) = join!(
+        let (resp, bonded_height) = join!(
             self.rest_api_request::<ValidatorResp>(&path, &[]),
-            self.get_validator_bonded_height(&validator_addr),
-            self.get_staking_pool()
+            self.get_validator_bonded_height(&validator_addr)
         );
 
         let bonded_height = bonded_height?;
+
         let validator = resp?.validator;
-        let bonded_tokens = staking_pool_resp?.value.bonded as f64;
 
         let validator_metadata = self
             .database
             .find_validator_by_operator_addr(&validator.operator_address.clone())
             .await?;
 
-        let delegator_shares = match self.format_delegator_share(&validator.delegator_shares) {
-            Ok(val) => val,
-            Err(err) => return Err(err)
-        };
+        let delegator_shares = self.calc_amount_u128_to_f64(
+            validator
+                .delegator_shares
+                .split_once('.')
+                .map(|(pri, _)| pri)
+                .unwrap_or(&validator.delegator_shares)
+                .parse::<u128>()
+                .map_err(|_| format!("Cannot parse delegator shares, {}.", validator.delegator_shares))?,
+        );
 
-        let voting_power_percentage = (delegator_shares / bonded_tokens) * 100.0;
-        let voting_power_change_24h = self.get_validator_voting_power_percentage_change(
-            &validator.operator_address,
-            Duration::hours(24),
-            voting_power_percentage)
-            .await.unwrap_or(0.0);
-
-        let consensus_address = convert_consensus_pubkey_to_consensus_address(&validator.consensus_pubkey.key, &format!("{}valcons", self.config.base_prefix));
-        let val_status_enum = self.get_validator_status(&validator, &consensus_address).await?;
-        let uptime = self.get_validator_uptime(&consensus_address, &Some(&val_status_enum)).await?;
-        let status = val_status_enum.as_str().to_string();
         let validator = InternalValidator {
             logo_url: validator_metadata.logo_url,
             commission: validator
@@ -192,6 +185,24 @@ impl Chain {
                 .rate
                 .parse()
                 .map_err(|_| format!("Cannot parse commission rate, '{}'.", validator.commission.commission_rates.rate))?,
+            uptime: 0.0, // TODO!
+            status: {
+                // UNCOMMENT BELOW IF YOU KNOW HOW TO CALC CONSENSUS ADDRESS
+                // let signing_info = self
+                //    .get_validator_signing_info(&validator_metadata.consensus_address.unwrap_or("how to calc".into()))
+                //    .await?;
+
+                if validator.jailed {
+                    "Jailed"
+                } else if validator.status == "BOND_STATUS_UNBONDED" {
+                    "Inactive"
+                    // } else if signing_info.value.tombstoned {
+                    //   "Tombstoned"
+                } else {
+                    "Active"
+                }
+                    .to_string()
+            },
             max_commission: validator
                 .commission
                 .commission_rates
@@ -202,16 +213,14 @@ impl Chain {
                 .convert_valoper_to_self_delegate_address(&validator.operator_address)
                 .ok_or_else(|| format!("Cannot parse self delegate address, {}.", validator.operator_address))?,
             operator_address: validator.operator_address,
+            consensus_address: validator_metadata.consensus_address.unwrap_or("how to calc".into()), // Learn how to calculate consensus address, and change the property type to `String` not `Option<String>`.
             name: validator.description.moniker,
             website: validator.description.website,
             details: validator.description.details,
             voting_power: delegator_shares as u64,
-            status,
-            uptime,
-            consensus_address,
+            voting_power_percentage: 0.0, // temporary  (delegator_shares / total_bonded_tokens), `total_bonded_tokens` is from the database. IMPLEMENT PARAMS CRON_JOB AND SAVE THEM TO MONGO_DB.
             bonded_height,
-            voting_power_percentage,
-            voting_power_change_24h,
+            voting_power_change: 0.0, // TODO!
         };
 
         Ok(OutRestResponse::new(validator, 0))
@@ -417,85 +426,18 @@ impl Chain {
 
         let resp = self.rest_api_request::<TxsResp>(&format!("/cosmos/tx/v1beta1/txs"), &query).await?;
 
-        //Temporary fix to prevent panic
-        let bonded_height_str = if let Some(tx) = resp.tx_responses.get(0) {
-            tx.height.clone()
-        } else {
-            "1".to_string()
-        };
+        let bonded_height_str = resp
+            .tx_responses
+            .get(0)
+            .ok_or_else(|| "Couldn't find bonded height.".to_string())?
+            .height
+            .clone();
 
         let bonded_height = bonded_height_str
             .parse::<u64>()
             .map_err(|_| format!("Cannot parse bonded height, {}.", bonded_height_str))?;
 
         Ok(bonded_height)
-    }
-
-    pub async fn get_validator_uptime(&self, consensus_address: &str, val_status: &Option<&ValidatorStatus>) -> Result<f64, String> {
-        let default_uptime_value = 0.0;
-
-        if *val_status.unwrap() != ValidatorStatus::Active {
-            return Ok(default_uptime_value);
-        }
-
-        let (val_signing_info_resp, all_params_resp) = join!(self.get_validator_signing_info(&consensus_address),self.get_params_all());
-
-        let val_signing_info = val_signing_info_resp?.value;
-        let all_params = all_params_resp?.value;
-
-        Ok((1.0 - (val_signing_info.missed_blocks_counter as f64 / all_params.slashing.signed_blocks_window as f64)))
-    }
-
-    pub async fn get_validator_status(&self, validator: &ValidatorListValidator, consensus_address: &str) -> Result<ValidatorStatus, String> {
-        let signing_info = self
-            .get_validator_signing_info(&consensus_address)
-            .await?;
-
-        let status = if validator.jailed {
-            ValidatorStatus::Jailed
-        } else if validator.status == "BOND_STATUS_UNBONDED" {
-            ValidatorStatus::Inactive
-        } else if signing_info.value.tombstoned {
-            ValidatorStatus::Tombstoned
-        } else {
-            ValidatorStatus::Active
-        };
-
-        Ok(status)
-    }
-
-    pub async fn get_validator_voting_power_percentage_change(
-        &self,
-        validator_operator_address: &str,
-        period: Duration,
-        current_voting_power_percentage: f64) -> Result<f64, String> {
-        let voting_powers_history = match self.database.find_historical_data_by_operator_address(&validator_operator_address).await {
-            Ok(voting_power_db) => {
-                voting_power_db.voting_power_data
-            }
-            Err(err) => return Err(err)
-        };
-
-        let period_millis = period.num_milliseconds();
-        let lower_constraint_timestamp = Utc::now().timestamp_millis() - period_millis;
-
-        let mut potential_voting_power: Option<f64> = None;
-
-        for voting_power in voting_powers_history {
-            if voting_power.ts < lower_constraint_timestamp {
-                potential_voting_power = Some(voting_power.voting_power);
-            } else {
-                break;
-            };
-        };
-
-        match potential_voting_power {
-            Some(value) => {
-                let bonded_tokens = self.get_staking_pool().await?.value.bonded as f64;
-                Ok((((value / bonded_tokens) * 100.0) - current_voting_power_percentage))
-            }
-            None => Err("Could not calculate voting power change".to_string())
-        }
     }
 }
 
@@ -636,12 +578,48 @@ pub struct ValidatorListApiResp {
 
 #[derive(Deserialize, Serialize, Debug)]
 pub struct ValidatorListResp {
-
+    pub validators: Vec<ValidatorListElement>,
+    pub pagination: Pagination,
 }
 
-impl From<ValidatorListApiResp> for ValidatorListResp {
-    fn from(other: ValidatorListApiResp) -> Self {
+#[derive(Deserialize, Serialize, Debug)]
+pub struct ValidatorListElement {
+    pub rank: usize,
+    pub moniker: String,
+    pub voting_power: u64,
+    pub voting_power_ratio: f64,
+    pub cumulative_share: f64,
+    pub validator_commissions: ValidatorListValidatorCommission,
+    pub uptime: f64,
+    pub missed_29k: u64,
+}
 
+impl ValidatorListResp {
+    async fn convert(other: ValidatorListApiResp, chain: &Chain) -> Self {
+        for validator in other.validators {
+
+            let staking_pool_resp = chain.get_staking_pool().await.map_err(|e| Response::Error(e))?;
+            let bonded_height = bonded_height?;
+            let delegator_shares = chain.format_delegator_share(&validator.delegator_shares).map_err(|err| Response::Error(err))?;
+            let voting_power_ratio = (delegator_shares / staking_pool_resp?.value.bonded as f64);
+
+        }
+        let validators = other.validators.into_iter().map(|v| {
+            ValidatorListElement {
+                rank: 0,
+                moniker: v.description.moniker,
+                voting_power: 0,
+                voting_power_ratio: 0.0,
+                cumulative_share: 0.0,
+                validator_commissions: v.commission,
+                uptime: 0,
+                missed_29k: 0,
+            }
+        });
+        Self {
+            validators: vec![],
+            pagination: other.pagination,
+        }
     }
 }
 
@@ -695,7 +673,7 @@ pub struct InternalValidator {
     voting_power_percentage: f64,
     voting_power: u64,
     bonded_height: u64,
-    voting_power_change_24h: f64,
+    voting_power_change: f64,
     status: String,
 }
 
@@ -855,25 +833,4 @@ impl TryFrom<SlashingSigningInfoItem> for InternalSlashingSigningInfoItem {
 pub struct SigningInfoResp {
     /// Validator signing info.
     pub val_signing_info: SlashingSigningInfoItem,
-}
-
-#[derive(Deserialize, Serialize, Debug, PartialEq, Eq, Clone)]
-pub enum ValidatorStatus {
-    Active,
-    Inactive,
-    Jailed,
-    Tombstoned,
-    Unknown(String),
-}
-
-impl ValidatorStatus {
-    fn as_str(&self) -> &str {
-        match self {
-            ValidatorStatus::Active => "Active",
-            ValidatorStatus::Inactive => "Inactive",
-            ValidatorStatus::Jailed => "Jailed",
-            ValidatorStatus::Tombstoned => "Tombstoned",
-            ValidatorStatus::Unknown(unknown_string) => unknown_string
-        }
-    }
 }

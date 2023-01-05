@@ -31,38 +31,38 @@ fn main() {
 // #[tokio::main]
 // async fn main() {
 //     Create `Client`.
-    // let client = Client::builder().timeout(Duration::from_secs(10)).build().unwrap();
-    //
-    // Read `Chains.yml` file.
-    // let chains_yml_content = read_to_string("Chains.yml").unwrap();
-    //
-    // Make iterable hash maps for chains.
-    // let content_parts: Vec<_> = chains_yml_content
-    //     .split("name")
-    //     .filter(|part| !part.is_empty())
-    //     .map(|part| String::from("name") + part.trim())
-    //     .collect();
-    //
-    // let chain_maps: Vec<_> = content_parts
-    //     .iter()
-    //     .map(|part| {
-    //         let mut chain_map = HashMap::new();
-    //         for line in part.lines() {
-    //             if !line.starts_with('#') {
-    //                 let (key, value) = line.split_once(": ").unwrap();
-    //                 chain_map.insert(key.trim(), value.trim());
-    //             }
-    //         }
-    //         chain_map
-    //     })
-    //     .collect();
-    //
-    // let jobs: Vec<_> = chain_maps.iter().map(|chain_map| create_chain(chain_map, client.clone())).collect();
-    //
-    // let chains = join_all(jobs).await;
-    //
-    // update_chains_yml(&chains);
-    // update_state_rs(&chains);
+// let client = Client::builder().timeout(Duration::from_secs(10)).build().unwrap();
+//
+// Read `Chains.yml` file.
+// let chains_yml_content = read_to_string("Chains.yml").unwrap();
+//
+// Make iterable hash maps for chains.
+// let content_parts: Vec<_> = chains_yml_content
+//     .split("name")
+//     .filter(|part| !part.is_empty())
+//     .map(|part| String::from("name") + part.trim())
+//     .collect();
+//
+// let chain_maps: Vec<_> = content_parts
+//     .iter()
+//     .map(|part| {
+//         let mut chain_map = HashMap::new();
+//         for line in part.lines() {
+//             if !line.starts_with('#') {
+//                 let (key, value) = line.split_once(": ").unwrap();
+//                 chain_map.insert(key.trim(), value.trim());
+//             }
+//         }
+//         chain_map
+//     })
+//     .collect();
+//
+// let jobs: Vec<_> = chain_maps.iter().map(|chain_map| create_chain(chain_map, client.clone())).collect();
+//
+// let chains = join_all(jobs).await;
+//
+// update_chains_yml(&chains);
+// update_state_rs(&chains);
 // }
 
 async fn create_chain<'a>(chain_map: &HashMap<&'a str, &'a str>, client: Client) -> Chain<'a> {
@@ -108,7 +108,14 @@ async fn create_chain<'a>(chain_map: &HashMap<&'a str, &'a str>, client: Client)
 }
 
 async fn get_sdk_ver(rest_url: &str, client: Client) -> u8 {
-    let value: Value = client.get(&format!("{rest_url}/cosmos/base/tendermint/v1beta1/node_info")).send().await.unwrap().json().await.unwrap();
+    let value: Value = client
+        .get(&format!("{rest_url}/cosmos/base/tendermint/v1beta1/node_info"))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
 
     value["application_version"]["cosmos_sdk_version"]
         .as_str()
