@@ -12,6 +12,7 @@ mod staking_pool;
 mod tokenomics;
 mod transactions;
 mod validators;
+mod chains;
 
 pub use blocks::*;
 pub use blocks::*;
@@ -28,3 +29,4 @@ pub use staking_pool::*;
 pub use tokenomics::*;
 pub use transactions::*;
 pub use validators::*;
+pub use chains::*;

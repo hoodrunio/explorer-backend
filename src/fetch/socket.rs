@@ -8,12 +8,15 @@ use tokio_tungstenite::{connect_async, tungstenite::Message};
 use tracing_subscriber::fmt::format;
 
 use crate::chain::Chain;
+use crate::database::BlockForDb;
+use crate::fetch::blocks::Block;
 
 use super::{
     blocks::{BlockHeader, BlockItem},
     transactions::TransactionItem,
 };
 
+const SUBSCRIBE_BLOCK: &str = r#"{ "jsonrpc": "2.0", "method": "subscribe", "params": ["tm.event='NewBlock'"], "id": 0 }"#;
 const SUBSCRIBE_HEADER: &str = r#"{ "jsonrpc": "2.0", "method": "subscribe", "params": ["tm.event='NewBlockHeader'"], "id": 1 }"#;
 const SUBSCRIBE_TX: &str = r#"{ "jsonrpc": "2.0", "method": "subscribe", "params": ["tm.event='Tx'"], "id": 2 }"#;
 
@@ -32,51 +35,23 @@ impl Chain {
         // Split the connection into two parts.
         let (mut write, mut read) = ws_stream.split();
 
+        // Subscribe to blocks.
+        write.send(SUBSCRIBE_BLOCK.into()).await.map_err(|e| format!("Can't subscribe to blocks for {}: {e}", clone.config.name))?;
+
         // Subscribe to block headers.
-        write.send(SUBSCRIBE_HEADER.into()).await.map_err(|e| format!("Can't subscribe to block headers for {}: {e}", clone.config.name))?;
+        // write.send(SUBSCRIBE_HEADER.into()).await.map_err(|e| format!("Can't subscribe to block headers for {}: {e}", clone.config.name))?;
 
         // Subscribe to block txs.
         write.send(SUBSCRIBE_TX.into()).await.map_err(|e| format!("Can't subscribe to txs for {}: {e}", clone.config.name))?;
 
         // The variable to hold the previous block header response to have block hash value.
-        let previous_block_header_resp: Arc<Mutex<Option<NewBlockHeaderValue>>> = Arc::new(Mutex::new(None));
+        let previous_block_header_resp: Arc<Mutex<Option<NewBlockValue>>> = Arc::new(Mutex::new(None));
 
         while let Some(msg) = read.next().await {
             // Run the function below for each message received.
             if let Ok(Message::Text(msg)) = msg {
                 match serde_json::from_str::<SocketMessage>(&msg) {
                     Ok(msg) => match msg.result {
-                        SocketResult::NonEmpty(SocketResultNonEmpty::Header { data }) => {
-                            let current_resp = data.value;
-
-                            tracing::info!("wss: new block on {}", self.config.name);
-                            let mut mutex_previous_resp = previous_block_header_resp.lock().await;
-                            match mutex_previous_resp.as_ref() {
-                                Some(mut previous_resp) => {
-                                    let proposer_metadata = self
-                                        .database
-                                        .find_validator_by_hex_addr(&previous_resp.header.proposer_address.clone())
-                                        .await
-                                        .map_err(|e| format!("block+ error: {e}"))?;
-
-                                    let block_item = BlockItem {
-                                        hash: current_resp.header.last_block_id.hash.clone(),
-                                        height: previous_resp.header.height.parse::<u64>().map_err(|e| format!("Cannot parse block height, {}: {e}", previous_resp.header.height))?,
-                                        timestamp: DateTime::parse_from_rfc3339(&previous_resp.header.time).map(|d| d.timestamp_millis()).map_err(|e| format!("Cannot parse datetime, {}: e", previous_resp.header.time))?,
-                                        tx_count: previous_resp.num_txs.parse::<u64>().map_err(|e| format!("Cannot parse Tx count, {}: {e}", previous_resp.num_txs))?,
-                                        proposer_logo_url: proposer_metadata.logo_url,
-                                        proposer_name: proposer_metadata.name,
-                                        proposer_address: proposer_metadata.operator_address,
-                                    };
-
-                                    // STORE BLOCKS TO MONGO_DB HERE
-                                    // clone.store_new_block(block_item);
-
-                                    *mutex_previous_resp = Some(current_resp);
-                                }
-                                None => *mutex_previous_resp = Some(current_resp),
-                            }
-                        }
                         SocketResult::NonEmpty(SocketResultNonEmpty::Tx { events }) => {
                             tracing::info!("wss: new tx on {}", clone.config.name);
 
@@ -97,7 +72,43 @@ impl Chain {
                             // STORE TXS TO MONGO_DB HERE
                             // clone.store_new_tx(tx_item);
                         }
+                        SocketResult::NonEmpty(SocketResultNonEmpty::Block { data }) => {
+                            tracing::info!("wss: new block on {}", clone.config.name);
+                            let data = data;
+                            let current_resp = data.value;
+
+                            let mut mutex_previous_resp = previous_block_header_resp.lock().await;
+                            match mutex_previous_resp.as_ref() {
+                                Some(mut previous_resp) => {
+                                    let proposer_metadata = self
+                                        .database
+                                        .find_validator_by_hex_addr(&previous_resp.block.header.proposer_address.clone())
+                                        .await
+                                        .map_err(|e| format!("block+ error: {e}"))?;
+
+                                    let prev_block_data = &previous_resp.block;
+                                    let current_block_data = &current_resp.block;
+
+                                    let block_item = BlockForDb {
+                                        hash: current_block_data.header.last_block_id.hash.clone(),
+                                        height: prev_block_data.header.height.parse::<u64>().map_err(|e| format!("Cannot parse block height, {}: {e}", prev_block_data.header.height))?,
+                                        timestamp: DateTime::parse_from_rfc3339(&prev_block_data.header.time).map(|d| d.timestamp_millis()).map_err(|e| format!("Cannot parse datetime, {}: e", prev_block_data.header.time))?,
+                                        tx_count: prev_block_data.data.txs.len() as u64,
+                                        proposer_logo_url: proposer_metadata.logo_url,
+                                        proposer_name: proposer_metadata.name,
+                                        proposer_address: proposer_metadata.operator_address,
+                                        signatures: current_block_data.last_commit.signatures.clone(),
+                                    };
+
+                                    self.database.upsert_block(block_item).await.unwrap();
+
+                                    *mutex_previous_resp = Some(current_resp);
+                                }
+                                None => *mutex_previous_resp = Some(current_resp),
+                            }
+                        }
                         SocketResult::Empty {} => (),
+                        _ => {}
                     },
                     Err(error) => tracing::info!("Websocket JSON parse error for {}: {error}", clone.config.name),
                 }
@@ -126,6 +137,8 @@ pub enum SocketResultNonEmpty {
     Tx { events: TxEvents },
     #[serde(rename = "tm.event='NewBlockHeader'")]
     Header { data: NewBlockHeaderData },
+    #[serde(rename = "tm.event='NewBlock'")]
+    Block { data: NewBlockData },
 }
 
 #[derive(Deserialize)]
@@ -139,9 +152,19 @@ pub struct NewBlockHeaderData {
 }
 
 #[derive(Deserialize)]
+pub struct NewBlockData {
+    pub value: NewBlockValue,
+}
+
+#[derive(Deserialize)]
 pub struct NewBlockHeaderValue {
     pub header: BlockHeader,
     pub num_txs: String,
+}
+
+#[derive(Deserialize)]
+pub struct NewBlockValue {
+    pub block: Block,
 }
 
 #[derive(Deserialize)]
