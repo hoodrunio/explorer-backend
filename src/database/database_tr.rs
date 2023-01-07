@@ -3,6 +3,7 @@ use mongodb::{
     Client, Collection, Database,
 };
 use mongodb::bson::to_document;
+use crate::database::blocks::Block;
 use crate::database::params::{HistoricalValidatorData, VotingPower};
 use super::{chains::Chain, params::Params, validators::Validator};
 
@@ -24,7 +25,7 @@ impl DatabaseTR {
     /// ```
     pub async fn new() -> DatabaseTR {
         // Change this URI and create a database for each chain using chain names.
-        let uri = "mongodb://127.0.0.1:27017";
+        let uri = std::env::var("MONGODB_URI").expect("MONGODB_URI must be set in .env file");
 
         DatabaseTR {
             mongo: (Client::with_uri_str(uri).await.expect("Cannot connect to MongoDB instance.")),
@@ -73,8 +74,22 @@ impl DatabaseTR {
         self.db().collection("params")
     }
 
+    /// Returns the historical data collection.
+    /// # Usage
+    /// ```rs
+    /// let collection = database.historical_data_collection();
+    /// ```
     fn historical_data_collection(&self) -> Collection<HistoricalValidatorData> {
         self.db().collection("historical_data")
+    }
+
+    /// Returns the params collection.
+    /// # Usage
+    /// ```rs
+    /// let collection = database.blocks_collection();
+    /// ```
+    fn blocks_collection(&self) -> Collection<HistoricalValidatorData> {
+        self.db().collection("blocks")
     }
 
     /// Adds a new validator to the validators collection of the database.
@@ -121,6 +136,20 @@ impl DatabaseTR {
         };
 
         Ok(())
+    }
+
+    /// Adds new block item to the blocks collection
+    /// # Usage
+    /// ```rs
+    /// database.upsert_block(block).await;
+    /// ```
+    pub async fn upsert_block(&self, block: Block) -> Result<(), String> {
+        let doc = to_document(&block).unwrap();
+        let command = doc! {"update":"blocks","updates":[{"q":{"hash":&block.hash},"u":doc,"upsert":true}]};
+        match self.db().run_command(command, None).await {
+            Ok(_) => Ok(()),
+            Err(_) => Err("Cannot save the block to db.".into()),
+        }
     }
 
     /// Finds a validator by given document.

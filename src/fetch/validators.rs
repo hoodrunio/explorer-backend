@@ -159,7 +159,7 @@ impl Chain {
             self.get_staking_pool()
         );
 
-        let bonded_height = bonded_height?;
+        let bonded_height = bonded_height.unwrap_or(0);
         let validator = resp?.validator;
         let bonded_tokens = staking_pool_resp?.value.bonded as f64;
 
@@ -410,6 +410,7 @@ impl Chain {
     /// Returns the validator set at given height.
     async fn get_validator_bonded_height(&self, valoper_addr: &str) -> Result<u64, String> {
         let mut query = vec![];
+        let default_bonded_height = "0";
 
         query.push(("events", format!("create_validator.validator='{}'", valoper_addr)));
         query.push(("pagination.reverse", format!("{}", true)));
@@ -417,11 +418,9 @@ impl Chain {
 
         let resp = self.rest_api_request::<TxsResp>(&format!("/cosmos/tx/v1beta1/txs"), &query).await?;
 
-        //Temporary fix to prevent panic
-        let bonded_height_str = if let Some(tx) = resp.tx_responses.get(0) {
-            tx.height.clone()
-        } else {
-            "1".to_string()
+        let bonded_height_str = match resp.tx_responses.get(0) {
+            Some(tx) => tx.height.clone(),
+            None => default_bonded_height.into(),
         };
 
         let bonded_height = bonded_height_str
