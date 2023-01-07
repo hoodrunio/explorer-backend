@@ -1,5 +1,9 @@
+use actix_web::web::Data;
 use crate::fetch::others::{Pagination, PaginationConfig};
 use serde::{Deserialize, Serialize};
+use crate::chain::Chain;
+use crate::routes::{TNRAppError, TNRAppErrorType};
+use crate::state::State;
 
 /// The query params that has `page` param.
 #[derive(Deserialize)]
@@ -45,4 +49,14 @@ pub fn calc_pages(pagination: Pagination, config: PaginationConfig) -> Result<u8
 
         Ok(num_of_pages as u8)
     }
+}
+
+
+pub fn extract_chain(chain: &str, chains: Data<State>) -> Result<Chain, TNRAppError> {
+    chains.get(chain).map_err(|_| {
+        TNRAppError {
+            message: Some(format!("Chain could not found {}", chain)),
+            error_type: TNRAppErrorType::MessageError,
+        }
+    })
 }
