@@ -71,13 +71,12 @@ Go to [`src/routes`](https://github.com/testnetrunn/explorer-backend/tree/main/s
 Create a new function representing the endpoint like below:
 ```rs
 #[get("{chain}/example")]
-pub async fn example(path: Path<String>, chains: Data<State>) -> impl Responder {
+pub async fn example(path: Path<String>, chains: Data<State>) -> Result<impl Responder, TNRAppError> {
     let chain = path.into_inner();
 
-    Json(match chains.get(&chain) {
-        Ok(chain) => chain.get_example().await.into(),
-        Err(err) => Response::Error(err),
-    })
+    let chain = extract_chain(&chain, chains)?;
+    let data = chain.get_example().await?;,
+    Ok(TNRAppSuccessResponse::new(data))
 }
 ```
  `{chain}` means a path variable, and its type is defined at `Path<String>`.

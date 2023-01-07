@@ -4,16 +4,16 @@ use actix_web::{
     web::{Data, Json, Path},
     Responder,
 };
+use crate::routes::{extract_chain, TNRAppError, TNRAppSuccessResponse};
 
 // ======== Calculations Methods ========
 
 #[get("{chain}/calculations/apr")]
-pub async fn calculations(path: Path<String>, chains: Data<State>) -> impl Responder {
+pub async fn calculations(path: Path<String>, chains: Data<State>) -> Result<impl Responder, TNRAppError> {
     let chain = path.into_inner();
 
-    Json(match chains.get(&chain) {
-        // Database can be used.
-        Ok(chain) => chain.get_apr().await.into(),
-        Err(err) => Response::Error(err),
-    })
+    let chain = extract_chain(&chain, chains)?;
+    // Database can be used.
+    let data = chain.get_apr().await?;
+    Ok(TNRAppSuccessResponse::new(data))
 }

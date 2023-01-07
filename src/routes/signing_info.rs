@@ -4,15 +4,15 @@ use actix_web::{
     web::{Data, Json, Path},
     Responder,
 };
+use crate::routes::{extract_chain, TNRAppError, TNRAppSuccessResponse};
 
 // ======== Signing Information Methods ========
 
 #[get("{chain}/signing/{cons_address}")]
-pub async fn signing(path: Path<(String, String)>, chains: Data<State>) -> impl Responder {
+pub async fn signing(path: Path<(String, String)>, chains: Data<State>) -> Result<impl Responder, TNRAppError> {
     let (chain, cons_addr) = path.into_inner();
 
-    Json(match chains.get(&chain) {
-        Ok(chain) => chain.get_validator_signing_info(&cons_addr).await.into(),
-        Err(err) => Response::Error(err),
-    })
+    let chain = extract_chain(&chain, chains)?;
+    let data = chain.get_validator_signing_info(&cons_addr).await?;
+    Ok(TNRAppSuccessResponse::new(data))
 }
