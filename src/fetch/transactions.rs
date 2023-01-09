@@ -94,7 +94,7 @@ impl Chain {
             txs.push(TransactionItem::new(tx, tx_response, self)?)
         }
 
-        let pages = calc_pages(resp.pagination, config)?;
+        let pages = calc_pages(resp.pagination.unwrap_or(Pagination::default()), config)?;
 
         Ok(OutRestResponse::new(txs, pages))
     }
@@ -131,7 +131,7 @@ impl Chain {
             txs.push(TransactionItem::new(tx, tx_response, self)?)
         }
 
-        let pages = calc_pages(resp.pagination, config)?;
+        let pages = calc_pages(resp.pagination.unwrap_or(Pagination::default()), config)?;
 
         Ok(OutRestResponse::new(txs, pages))
     }
@@ -172,7 +172,7 @@ impl Chain {
             txs.push(InternalTransaction::new(tx, tx_response, self).await?)
         }
 
-        let pages = calc_pages(resp.pagination, config)?;
+        let pages = calc_pages(resp.pagination.unwrap_or(Pagination::default()), config)?;
 
         Ok(OutRestResponse::new(txs, pages))
     }
@@ -211,7 +211,7 @@ impl Chain {
             txs.push(TransactionItem::new(tx, tx_response, self)?)
         }
 
-        let pages = calc_pages(resp.pagination, config)?;
+        let pages = calc_pages(resp.pagination.unwrap_or(Pagination::default()), config)?;
 
         Ok(OutRestResponse::new(txs, pages))
     }
@@ -223,8 +223,8 @@ impl Chain {
         self.jsonrpc_request::<EvmTxResp>(format!(
             r#"{{"method":"eth_getTransactionByHash","params":["{hash}"],"id":1,"jsonrpc":"2.0"}}"#
         ))
-        .await?
-        .try_into()
+            .await?
+            .try_into()
     }
 }
 
@@ -549,7 +549,8 @@ impl TransactionItem {
 pub struct TxsResp {
     pub txs: Vec<Tx>,
     pub tx_responses: Vec<TxResponse>,
-    pub pagination: Pagination,
+    pub pagination: Option<Pagination>,
+    pub total: String,
 }
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
@@ -573,7 +574,7 @@ pub struct TxsTransactionAuthInfo {
 #[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct GrantTxGrant {
     /// It is almost impossible to know all the variants.
-    authorization: HashMap<String, serde_json::Value>,
+    authorization: HashMap<String, Value>,
     /// Expiration datetime. Eg: `"2024-12-05T01:04:03Z"`
     expiration: String,
 }
@@ -700,7 +701,7 @@ impl TxsTransactionMessage {
                                 "VOTE_OPTION_NO_WITH_VETO" => "Veto",
                                 _ => "Unknown",
                             }
-                            .to_string(),
+                                .to_string(),
                         })
                     }
 
@@ -768,7 +769,7 @@ impl TxsTransactionMessage {
                 }
             })
         }
-        .boxed()
+            .boxed()
     }
 
     /// Return the type of message.
@@ -817,7 +818,7 @@ impl TxsTransactionMessage {
                 } => "Grant",
                 TxsTransactionMessageKnowns::Exec { grantee: _, msgs: _ } => "Exec",
             }
-            .to_string(),
+                .to_string(),
             TxsTransactionMessage::Unknown(keys_values) => keys_values
                 .get("@type")
                 .cloned()
@@ -951,6 +952,7 @@ pub struct TxsTransactionSignerInfo {
     /// Transaction signer info sequence. Eg: `"1"`
     pub sequence: String,
 }
+
 #[derive(Deserialize, Serialize, Debug)]
 pub struct TxsTransactionModeInfo {
     pub single: TxsTransactionModeInfoSingle,
@@ -1025,6 +1027,7 @@ pub enum TxsResponseTx {
         signatures: Vec<String>,
     },
 }
+
 #[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct Tx {
     // Tx body.
