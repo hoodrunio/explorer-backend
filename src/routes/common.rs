@@ -12,6 +12,7 @@ pub struct QueryParams {
     /// The value is `1/ONE`, if it is not specified. \
     /// Example values are: 1, 2, 3, 4, etc
     pub page: Option<u8>,
+    pub limit: Option<u16>,
 }
 
 #[derive(Serialize)]
