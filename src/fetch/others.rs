@@ -303,6 +303,8 @@ pub struct PaginationConfig {
     offset: u32,
     /// It is the total number of results to be returned in the result page
     limit: u16,
+    /// It is the current page count which will include with target result
+    page: u8,
 }
 
 impl PaginationConfig {
@@ -313,6 +315,7 @@ impl PaginationConfig {
     ///     reverse: false,
     ///     offset: 0,
     ///     limit: 10,
+    ///     page: 1
     /// }
     /// ```
     pub const fn new() -> Self {
@@ -320,6 +323,7 @@ impl PaginationConfig {
             reverse: false,
             offset: 0,
             limit: 10,
+            page: 1,
         }
     }
 
@@ -338,6 +342,11 @@ impl PaginationConfig {
         self.offset
     }
 
+    /// Returns the value `offset` property holds.
+    pub const fn get_page(&self) -> u8 {
+        self.page
+    }
+
     /// Makes the response reversed.
     pub const fn reverse(self) -> Self {
         Self { reverse: true, ..self }
@@ -353,6 +362,7 @@ impl PaginationConfig {
     pub fn page(self, page: u8) -> Self {
         Self {
             offset: if page < 2 { 0 } else { (self.limit * (page as u16 - 1)).into() },
+            page,
             ..self
         }
     }
@@ -371,5 +381,29 @@ impl<T> From<Result<T, String>> for Response<T> {
             Ok(value) => Response::Success(value),
             Err(error) => Response::Error(error),
         }
+    }
+}
+
+#[derive(Deserialize, Serialize, Debug)]
+pub enum NumberValueType {
+    #[serde(rename(serialize = "percentage"))]
+    Percentage,
+    #[serde(rename(serialize = "numeric"))]
+    Numeric,
+}
+
+#[derive(Deserialize, Serialize, Debug)]
+pub struct NumberValue {
+    pub value: f64,
+    pub value_type: NumberValueType,
+}
+
+impl NumberValue {
+    pub fn percentage(num: f64) -> NumberValue {
+        NumberValue { value: num * 100.0, value_type: NumberValueType::Percentage }
+    }
+
+    pub fn numeric(num: f64) -> NumberValue {
+        NumberValue { value: num, value_type: NumberValueType::Numeric }
     }
 }
