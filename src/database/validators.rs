@@ -10,6 +10,7 @@ pub struct Validator {
     pub hex_address: String,
     pub delegator_shares: f64,
     pub is_active: bool,
+    pub uptime: f64,
     pub validator_commissions: ValidatorListValidatorCommission,
     pub operator_address: String,
     pub consensus_address: String,
