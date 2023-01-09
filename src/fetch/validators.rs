@@ -671,6 +671,7 @@ pub struct ValidatorListElement {
     pub validator_commissions: ValidatorListValidatorCommission,
     pub uptime: NumberValue,
     pub missed_29k: NumberValue,
+    pub logo_url: String,
 }
 
 impl ValidatorListResp {
@@ -702,6 +703,7 @@ impl ValidatorListResp {
                 voting_power: NumberValue::numeric(voting_power as f64),
                 voting_power_ratio: NumberValue::percentage(voting_power_ratio),
                 uptime: NumberValue::percentage(uptime),
+                logo_url: v.logo_url.clone(),
             }
             )
         }
