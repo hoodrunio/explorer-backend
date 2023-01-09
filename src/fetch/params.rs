@@ -59,7 +59,7 @@ impl Chain {
     }
 
     /// Returns the slashing parameters of the chain.
-    async fn get_slashing_params(&self) -> Result<OutRestResponse<InternalSlashingParams>, String> {
+    pub async fn get_slashing_params(&self) -> Result<OutRestResponse<InternalSlashingParams>, String> {
         let resp = self
             .rest_api_request::<ParamsResp<SlashingParams>>("/cosmos/slashing/v1beta1/params", &[])
             .await?;
