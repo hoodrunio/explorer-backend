@@ -23,7 +23,7 @@ evmos:
   # version: 0.45
   jsonrpc_url: https://eth.bd.evmos.org:8545/
   rpc_url: https://rpc.cosmos.directory/evmos
-  rest_url: https://evmos-api.polkachu.com
+  rest_url: https://rest.bd.evmos.org:1317
   wss_url: wss://rpc-evmos.ecostake.com/websocket
 
 osmosis:
