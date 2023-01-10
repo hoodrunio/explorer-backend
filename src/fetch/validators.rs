@@ -450,8 +450,8 @@ impl Chain {
     }
 
     pub async fn get_cumulative_bonded_token(&self, consensus_address: &str) -> Result<f64, String> {
-        let validator = self.database.find_validator(doc! {"consensus_address":consensus_address}).await.unwrap();
-        let validators = self.database.find_validators(Some(doc! {"$match":{"delegator_shares":{"$gte":validator.delegator_shares}}})).await.unwrap();
+        let validator = self.database.find_validator(doc! {"consensus_address":consensus_address}).await?;
+        let validators = self.database.find_validators(Some(doc! {"$match":{"delegator_shares":{"$gte":validator.delegator_shares}}})).await?;
         let mut result = 0.0;
         for v in validators {
             result = result + v.delegator_shares;
