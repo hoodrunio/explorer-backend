@@ -179,7 +179,6 @@ impl DatabaseTR {
         let default_filter = doc! {"$match":{"operator_address":{"$exists":true}}};
         //default filter necessary when using aggregate
         let mut pipeline: Vec<Document> = vec![default_filter];
-        let temp_error_message = "Error happened on db request";
 
         let filter = pipe.clone();
         match filter {
@@ -206,8 +205,8 @@ impl DatabaseTR {
         pipeline.push(limit_pipe);
 
 
-        let mut results = self.validators_collection().aggregate(pipeline, None).await.map_err(|_|format!("{}",temp_error_message))?;
-        let count_cursor = self.validators_collection().aggregate(pipe, None).await.map_err(|_| format!("{}", temp_error_message))?;
+        let mut results = self.validators_collection().aggregate(pipeline, None).await.map_err(|e| format!("{}", e.to_string()))?;
+        let count_cursor = self.validators_collection().aggregate(pipe, None).await.map_err(|e| format!("{}", e.to_string()))?;
         let count = count_cursor.count().await;
 
         let mut res: Vec<Validator> = vec![];
@@ -227,7 +226,6 @@ impl DatabaseTR {
         let default_filter = doc! {"$match":{"operator_address":{"$exists":true}}};
         //default filter necessary when using aggregate
         let mut pipeline: Vec<Document> = vec![default_filter];
-        let temp_error_message = "Error happened on db request";
         let filter = pipe.clone();
         match filter {
             None => {}
@@ -235,16 +233,15 @@ impl DatabaseTR {
         };
 
 
-        let mut results = self.validators_collection().aggregate(pipeline, None).await.map_err(|_| format!("{}", temp_error_message))?;
+        let mut results = self.validators_collection().aggregate(pipeline, None).await.map_err(|e| format!("{}", e.to_string()))?;
 
         let mut res: Vec<Validator> = vec![];
         while let Some(result) = results.next().await {
-            res.push(from_document(result.map_err(|_| format!("{}", temp_error_message))?).map_err(|_| format!("{}", temp_error_message))?);
+            res.push(from_document(result.map_err(|e| format!("{}", e.to_string()))?).map_err(|e| format!("{}", e.to_string()))?);
         };
 
         Ok(res)
     }
-
     /// Finds a validator by operator address.
     /// # Usage
     /// ```rs
