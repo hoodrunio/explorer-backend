@@ -1,4 +1,4 @@
-use futures::StreamExt;
+use futures::{StreamExt, TryStreamExt};
 use mongodb::{
     bson::{doc, Document},
     Client, Collection, Database,
@@ -179,6 +179,7 @@ impl DatabaseTR {
         let default_filter = doc! {"$match":{"operator_address":{"$exists":true}}};
         //default filter necessary when using aggregate
         let mut pipeline: Vec<Document> = vec![default_filter];
+        let temp_error_message = "Error happened on db request";
 
         let filter = pipe.clone();
         match filter {
@@ -205,8 +206,9 @@ impl DatabaseTR {
         pipeline.push(limit_pipe);
 
 
-        let mut results = self.validators_collection().aggregate(pipeline, None).await.expect("Some error message");
-        let count = self.validators_collection().aggregate(pipe, None).await.expect("Some error message").count().await;
+        let mut results = self.validators_collection().aggregate(pipeline, None).await.map_err(|_|format!("{}",temp_error_message))?;
+        let count_cursor = self.validators_collection().aggregate(pipe, None).await.map_err(|_| format!("{}", temp_error_message))?;
+        let count = count_cursor.count().await;
 
         let mut res: Vec<Validator> = vec![];
         while let Some(result) = results.next().await {
@@ -225,7 +227,7 @@ impl DatabaseTR {
         let default_filter = doc! {"$match":{"operator_address":{"$exists":true}}};
         //default filter necessary when using aggregate
         let mut pipeline: Vec<Document> = vec![default_filter];
-
+        let temp_error_message = "Error happened on db request";
         let filter = pipe.clone();
         match filter {
             None => {}
@@ -233,11 +235,11 @@ impl DatabaseTR {
         };
 
 
-        let mut results = self.validators_collection().aggregate(pipeline, None).await.expect("Some error message");
+        let mut results = self.validators_collection().aggregate(pipeline, None).await.map_err(|_| format!("{}", temp_error_message))?;
 
         let mut res: Vec<Validator> = vec![];
         while let Some(result) = results.next().await {
-            res.push(from_document(result.expect("db conenction error")).expect("db conenction error"));
+            res.push(from_document(result.map_err(|_| format!("{}", temp_error_message))?).map_err(|_| format!("{}", temp_error_message))?);
         };
 
         Ok(res)
