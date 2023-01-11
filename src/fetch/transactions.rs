@@ -75,7 +75,6 @@ impl Chain {
         query.push(("pagination.limit", format!("{}", config.get_limit())));
         query.push(("pagination.count_total", "true".to_string()));
         query.push(("pagination.offset", format!("{}", config.get_offset())));
-        query.push(("order_by", "ORDER_BY_DESC".to_string()));
 
         let resp = self.rest_api_request::<TxsResp>("/cosmos/tx/v1beta1/txs", &query).await?;
 
@@ -112,7 +111,6 @@ impl Chain {
         query.push(("pagination.limit", format!("{}", config.get_limit())));
         query.push(("pagination.count_total", "true".to_string()));
         query.push(("pagination.offset", format!("{}", config.get_offset())));
-        query.push(("order_by", "ORDER_BY_DESC".to_string()));
 
         let resp = self.rest_api_request::<TxsResp>("/cosmos/tx/v1beta1/txs", &query).await?;
 
@@ -151,7 +149,6 @@ impl Chain {
         query.push(("pagination.limit", format!("{}", config.get_limit())));
         query.push(("pagination.count_total", "true".to_string()));
         query.push(("pagination.offset", format!("{}", config.get_offset())));
-        query.push(("order_by", "ORDER_BY_DESC".to_string()));
 
         let resp = self.rest_api_request::<TxsResp>("/cosmos/tx/v1beta1/txs", &query).await?;
 
@@ -192,7 +189,6 @@ impl Chain {
         query.push(("pagination.limit", format!("{}", config.get_limit())));
         query.push(("pagination.count_total", "true".to_string()));
         query.push(("pagination.offset", format!("{}", config.get_offset())));
-        query.push(("order_by", "ORDER_BY_DESC".to_string()));
 
         let resp = self.rest_api_request::<TxsResp>("/cosmos/tx/v1beta1/txs", &query).await?;
 
