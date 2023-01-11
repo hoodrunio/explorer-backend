@@ -449,16 +449,6 @@ impl Chain {
         Ok((1.0 - (val_signing_info.missed_blocks_counter as f64 / slashing_params.signed_blocks_window as f64)))
     }
 
-    pub async fn get_cumulative_bonded_token(&self, consensus_address: &str) -> Result<f64, String> {
-        let validator = self.database.find_validator(doc! {"consensus_address":consensus_address}).await?;
-        let validators = self.database.find_validators(Some(doc! {"$match":{"delegator_shares":{"$gte":validator.delegator_shares}}})).await?;
-        let mut result = 0.0;
-        for v in validators {
-            result = result + v.delegator_shares;
-        }
-        Ok(result)
-    }
-
     pub async fn get_validator_status(&self, validator: &ValidatorListValidator, consensus_address: &str) -> Result<ValidatorStatus, String> {
         let signing_info = self
             .get_validator_signing_info(&consensus_address)
@@ -686,8 +676,7 @@ impl ValidatorListResp {
             let voting_power = delegator_shares as u64;
             let voting_power_ratio = (delegator_shares / bonded_token as f64);
             let rank = i + 1;
-            // let cumulative_bonded_tokens = chain.get_cumulative_bonded_token(&v.consensus_address).await?;
-            let cumulative_bonded_tokens = 0.0;
+            let cumulative_bonded_tokens = v.cumulative_bonded_tokens.unwrap_or(0.0);
             let cumulative_share = cumulative_bonded_tokens / bonded_token as f64;
             let mut missed_29k = 0;
             if v.is_active {

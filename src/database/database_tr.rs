@@ -204,6 +204,27 @@ impl DatabaseTR {
         pipeline.push(skip_pipe);
         pipeline.push(limit_pipe);
 
+        let cumulative_bonded_tokens_pipe = doc! {
+                "$setWindowFields": {
+                    "sortBy": {
+                        "delegator_shares": -1
+                    },
+                    "output": {
+                        "cumulative_bonded_tokens": {
+                            "$sum": "$delegator_shares",
+                            "window":  {
+                            "documents": [
+                                "unbounded",
+                                "current"
+                                ]
+                            }
+                        }
+                    }
+                }
+            };
+
+        pipeline.push(cumulative_bonded_tokens_pipe);
+
 
         let mut results = self.validators_collection().aggregate(pipeline, None).await.map_err(|e| format!("{}", e.to_string()))?;
         let count_cursor = self.validators_collection().aggregate(pipe, None).await.map_err(|e| format!("{}", e.to_string()))?;

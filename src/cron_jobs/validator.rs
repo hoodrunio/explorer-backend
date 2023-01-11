@@ -55,6 +55,7 @@ impl Chain {
                     .ok_or_else(|| format!("Cannot parse self delegate address, {}.", validator.operator_address))?,
                 delegator_shares: val_delegator_shares,
                 validator_commissions: validator.commission,
+                cumulative_bonded_tokens: None,
             };
 
             self.database.upsert_validator(db_val).await?;

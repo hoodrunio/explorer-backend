@@ -15,4 +15,7 @@ pub struct Validator {
     pub operator_address: String,
     pub consensus_address: String,
     pub self_delegate_address: String,
+
+    //Calculating on query.
+    pub cumulative_bonded_tokens: Option<f64>,
 }
