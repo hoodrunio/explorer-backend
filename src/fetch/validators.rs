@@ -686,7 +686,8 @@ impl ValidatorListResp {
             let voting_power = delegator_shares as u64;
             let voting_power_ratio = (delegator_shares / bonded_token as f64);
             let rank = i + 1;
-            let cumulative_bonded_tokens = chain.get_cumulative_bonded_token(&v.consensus_address).await?;
+            // let cumulative_bonded_tokens = chain.get_cumulative_bonded_token(&v.consensus_address).await?;
+            let cumulative_bonded_tokens = 0.0;
             let cumulative_share = cumulative_bonded_tokens / bonded_token as f64;
             let mut missed_29k = 0;
             if v.is_active {
