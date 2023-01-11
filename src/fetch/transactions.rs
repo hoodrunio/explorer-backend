@@ -550,7 +550,6 @@ pub struct TxsResp {
     pub txs: Vec<Tx>,
     pub tx_responses: Vec<TxResponse>,
     pub pagination: Option<Pagination>,
-    pub total: String,
 }
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
