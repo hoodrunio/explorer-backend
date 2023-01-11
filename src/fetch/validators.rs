@@ -668,7 +668,7 @@ pub struct ValidatorListElement {
     pub voting_power: NumberValue,
     pub voting_power_ratio: NumberValue,
     pub cumulative_share: NumberValue,
-    pub validator_commissions: ValidatorListValidatorCommission,
+    pub validator_commissions: ValidatorListElementValidatorCommission,
     pub uptime: NumberValue,
     pub missed_29k: NumberValue,
     pub logo_url: String,
@@ -696,7 +696,7 @@ impl ValidatorListResp {
 
             validators.push(ValidatorListElement {
                 missed_29k: NumberValue::numeric(missed_29k as f64),
-                validator_commissions: v.validator_commissions.clone(),
+                validator_commissions: ValidatorListElementValidatorCommission::from_db(v.validator_commissions.clone()),
                 moniker: v.name.clone(),
                 rank: NumberValue::numeric(rank as f64),
                 cumulative_share: NumberValue::percentage(cumulative_share),
@@ -712,6 +712,43 @@ impl ValidatorListResp {
             validators,
             pagination: other.pagination,
         })
+    }
+}
+
+#[derive(Deserialize, Serialize, Debug)]
+pub struct ValidatorListElementValidatorCommission {
+    pub commission_rates: ValidatorListElementValidatorCommissionRates,
+    /// Validator commission update time. Eg: `"2022-03-02T19:00:00Z"`
+    pub update_time: String,
+}
+
+impl ValidatorListElementValidatorCommission {
+    pub fn from_db(validator_commission: ValidatorListValidatorCommission) -> Self {
+        Self {
+            commission_rates: ValidatorListElementValidatorCommissionRates::from_db(validator_commission.commission_rates),
+            update_time: validator_commission.update_time,
+        }
+    }
+}
+
+#[derive(Deserialize, Serialize, Debug)]
+pub struct ValidatorListElementValidatorCommissionRates {
+    pub rate: NumberValue,
+    pub max_rate: NumberValue,
+    pub max_change_rate: NumberValue,
+}
+
+impl ValidatorListElementValidatorCommissionRates {
+    pub fn from_db(validator_commission_rates: ValidatorListValidatorCommissionRates) -> Self {
+        let default_value = 0.0;
+        let rate = validator_commission_rates.rate.parse::<f64>().map(|rate| NumberValue::percentage(rate)).unwrap_or(NumberValue::percentage(default_value));
+        let max_rate = validator_commission_rates.max_rate.parse::<f64>().map(|rate| NumberValue::percentage(rate)).unwrap_or(NumberValue::percentage(default_value));
+        let max_change_rate = validator_commission_rates.max_change_rate.parse::<f64>().map(|rate| NumberValue::percentage(rate)).unwrap_or(NumberValue::percentage(default_value));
+        Self {
+            rate,
+            max_rate,
+            max_change_rate,
+        }
     }
 }
 
