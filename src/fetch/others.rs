@@ -383,27 +383,3 @@ impl<T> From<Result<T, String>> for Response<T> {
         }
     }
 }
-
-#[derive(Deserialize, Serialize, Debug)]
-pub enum NumberValueType {
-    #[serde(rename(serialize = "percentage"))]
-    Percentage,
-    #[serde(rename(serialize = "numeric"))]
-    Numeric,
-}
-
-#[derive(Deserialize, Serialize, Debug)]
-pub struct NumberValue {
-    pub value: f64,
-    pub value_type: NumberValueType,
-}
-
-impl NumberValue {
-    pub fn percentage(num: f64) -> NumberValue {
-        NumberValue { value: num * 100.0, value_type: NumberValueType::Percentage }
-    }
-
-    pub fn numeric(num: f64) -> NumberValue {
-        NumberValue { value: num, value_type: NumberValueType::Numeric }
-    }
-}

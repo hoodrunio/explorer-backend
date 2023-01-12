@@ -14,7 +14,7 @@ use crate::{
 };
 use crate::database::ValidatorForDb;
 use crate::utils::convert_consensus_pubkey_to_consensus_address;
-use crate::fetch::others::{NumberValue, PaginationDb, Response};
+use crate::fetch::others::{PaginationDb, Response};
 use crate::routes::TNRAppError;
 
 impl Chain {
@@ -653,14 +653,14 @@ pub struct ValidatorListResp {
 
 #[derive(Deserialize, Serialize, Debug)]
 pub struct ValidatorListElement {
-    pub rank: NumberValue,
+    pub rank: i16,
     pub moniker: String,
-    pub voting_power: NumberValue,
-    pub voting_power_ratio: NumberValue,
-    pub cumulative_share: NumberValue,
+    pub voting_power: u64,
+    pub voting_power_ratio: f64,
+    pub cumulative_share: f64,
     pub validator_commissions: ValidatorListElementValidatorCommission,
-    pub uptime: NumberValue,
-    pub missed_29k: NumberValue,
+    pub uptime: f64,
+    pub missed_29k: u16,
     pub logo_url: String,
 }
 
@@ -685,14 +685,14 @@ impl ValidatorListResp {
             };
 
             validators.push(ValidatorListElement {
-                missed_29k: NumberValue::numeric(missed_29k as f64),
+                missed_29k,
                 validator_commissions: ValidatorListElementValidatorCommission::from_db(v.validator_commissions.clone()),
                 moniker: v.name.clone(),
-                rank: NumberValue::numeric(rank as f64),
-                cumulative_share: NumberValue::percentage(cumulative_share),
-                voting_power: NumberValue::numeric(voting_power as f64),
-                voting_power_ratio: NumberValue::percentage(voting_power_ratio),
-                uptime: NumberValue::percentage(uptime),
+                rank: rank as i16,
+                cumulative_share,
+                voting_power,
+                voting_power_ratio,
+                uptime,
                 logo_url: v.logo_url.clone(),
             }
             )
@@ -723,17 +723,17 @@ impl ValidatorListElementValidatorCommission {
 
 #[derive(Deserialize, Serialize, Debug)]
 pub struct ValidatorListElementValidatorCommissionRates {
-    pub rate: NumberValue,
-    pub max_rate: NumberValue,
-    pub max_change_rate: NumberValue,
+    pub rate: f64,
+    pub max_rate: f64,
+    pub max_change_rate: f64,
 }
 
 impl ValidatorListElementValidatorCommissionRates {
     pub fn from_db(validator_commission_rates: ValidatorListValidatorCommissionRates) -> Self {
         let default_value = 0.0;
-        let rate = validator_commission_rates.rate.parse::<f64>().map(|rate| NumberValue::percentage(rate)).unwrap_or(NumberValue::percentage(default_value));
-        let max_rate = validator_commission_rates.max_rate.parse::<f64>().map(|rate| NumberValue::percentage(rate)).unwrap_or(NumberValue::percentage(default_value));
-        let max_change_rate = validator_commission_rates.max_change_rate.parse::<f64>().map(|rate| NumberValue::percentage(rate)).unwrap_or(NumberValue::percentage(default_value));
+        let rate = validator_commission_rates.rate.parse::<f64>().map(|rate| rate).unwrap_or(default_value);
+        let max_rate = validator_commission_rates.max_rate.parse::<f64>().map(|rate| rate).unwrap_or(default_value);
+        let max_change_rate = validator_commission_rates.max_change_rate.parse::<f64>().map(|rate| rate).unwrap_or(default_value);
         Self {
             rate,
             max_rate,
