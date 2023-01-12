@@ -1,4 +1,4 @@
-use crate::routes::{extract_chain, OutRestResponse, TNRAppError, TNRAppSuccessResponse};
+use crate::routes::{extract_chain, OutRestResponse, QueryParams, TNRAppError, TNRAppSuccessResponse};
 use crate::{
     fetch::others::{PaginationConfig, Response},
     state::State,
@@ -8,6 +8,7 @@ use actix_web::{
     web::{Data, Json, Path},
     Responder,
 };
+use actix_web::web::Query;
 
 // ======== Transaction Methods ========
 
@@ -21,39 +22,47 @@ pub async fn tx_by_hash(path: Path<(String, String)>, chains: Data<State>) -> Re
 }
 
 #[get("{chain}/txs-on-latest-block")]
-pub async fn txs_on_latest_block(path: Path<String>, chains: Data<State>) -> Result<impl Responder, TNRAppError> {
+pub async fn txs_on_latest_block(path: Path<String>, chains: Data<State>, query: Query<QueryParams>) -> Result<impl Responder, TNRAppError> {
     let chain = path.into_inner();
 
+    let config = PaginationConfig::new().limit(query.limit.unwrap_or(20)).page(query.page.unwrap_or(1));
+
     let chain = extract_chain(&chain, chains)?;
-    let data = chain.get_txs_by_height(None, PaginationConfig::new().limit(100)).await?;
+    let data = chain.get_txs_by_height(None, config).await?;
     Ok(TNRAppSuccessResponse::new(data))
 }
 
 #[get("{chain}/txs-by-height/{heigth}")]
-pub async fn txs_by_height(path: Path<(String, u64)>, chains: Data<State>) -> Result<impl Responder, TNRAppError> {
+pub async fn txs_by_height(path: Path<(String, u64)>, chains: Data<State>, query: Query<QueryParams>) -> Result<impl Responder, TNRAppError> {
     let (chain, height) = path.into_inner();
 
+    let config = PaginationConfig::new().limit(query.limit.unwrap_or(20)).page(query.page.unwrap_or(1));
+
     let chain = extract_chain(&chain, chains)?;
-    let data = chain.get_txs_by_height(Some(height), PaginationConfig::new().limit(100)).await?;
+    let data = chain.get_txs_by_height(Some(height), config).await?;
     Ok(TNRAppSuccessResponse::new(data))
 }
 
 #[get("{chain}/txs-of-sender/{address}")]
-pub async fn txs_of_sender(path: Path<(String, String)>, chains: Data<State>) -> Result<impl Responder, TNRAppError> {
+pub async fn txs_of_sender(path: Path<(String, String)>, chains: Data<State>, query: Query<QueryParams>) -> Result<impl Responder, TNRAppError> {
     let (chain, sender_addr) = path.into_inner();
 
+    let config = PaginationConfig::new().limit(query.limit.unwrap_or(20)).page(query.page.unwrap_or(1));
+
     let chain = extract_chain(&chain, chains)?;
-    let data = chain.get_txs_by_sender(&sender_addr, PaginationConfig::new().limit(100)).await?;
+    let data = chain.get_txs_by_sender(&sender_addr, config).await?;
     Ok(TNRAppSuccessResponse::new(data))
 }
 
 #[get("{chain}/txs-of-recipient/{address}")]
-pub async fn txs_of_recipient(path: Path<(String, String)>, chains: Data<State>) -> Result<impl Responder, TNRAppError> {
+pub async fn txs_of_recipient(path: Path<(String, String)>, chains: Data<State>, query: Query<QueryParams>) -> Result<impl Responder, TNRAppError> {
     let (chain, recipient_addr) = path.into_inner();
+
+    let config = PaginationConfig::new().limit(query.limit.unwrap_or(20)).page(query.page.unwrap_or(1));
 
     let chain = extract_chain(&chain, chains)?;
     let data = chain
-        .get_txs_by_recipient(&recipient_addr, PaginationConfig::new().limit(100))
+        .get_txs_by_recipient(&recipient_addr, config)
         .await?;
     Ok(TNRAppSuccessResponse::new(data))
 }
