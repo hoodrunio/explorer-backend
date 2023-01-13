@@ -1,7 +1,7 @@
+use futures::future::join_all;
 use std::str::FromStr;
 use std::time::Duration;
 use tendermint::PublicKey;
-use futures::future::join_all;
 
 use crate::database::{ValidatorForDb, VotingPowerForDb};
 use crate::utils::{convert_consensus_pubkey_to_consensus_address, convert_consensus_pubkey_to_hex_address, get_validator_logo};
@@ -23,19 +23,26 @@ impl Chain {
                             voting_power: delegator_shares,
                             voting_power_percentage: (delegator_shares / (staking_pool.bonded as f64)) * 100.0,
                             ..Default::default()
-                        }.init();
+                        }
+                        .init();
 
-                        self.database.upsert_voting_power_data(&validator.operator_address, voting_power_db).await?;
+                        self.database
+                            .upsert_voting_power_data(&validator.operator_address, voting_power_db)
+                            .await?;
                     }
-                    Err(err) => { tracing::error!("{}",err) }
+                    Err(err) => {
+                        tracing::error!("{}", err)
+                    }
                 }
-
 
                 // let pub_key = PublicKey::from(&validator.consensus_pubkey).ok();
                 Ok::<_, String>(ValidatorForDb {
-                    bonded_height: None,     // Find way to fetch and store.
-                    change_24h: None,        // Find way to fetch and store
-                    consensus_address: Some(convert_consensus_pubkey_to_consensus_address(&validator.consensus_pubkey.key, &format!("{}valcons", self.config.base_prefix))), // use it after it get's complete: `convert_consensus_pubkey_to_consensus_address()`
+                    bonded_height: None, // Find way to fetch and store.
+                    change_24h: None,    // Find way to fetch and store
+                    consensus_address: Some(convert_consensus_pubkey_to_consensus_address(
+                        &validator.consensus_pubkey.key,
+                        &format!("{}valcons", self.config.base_prefix),
+                    )), // use it after it get's complete: `convert_consensus_pubkey_to_consensus_address()`
                     hex_address: convert_consensus_pubkey_to_hex_address(&validator.consensus_pubkey.key)
                         .ok_or_else(|| format!("Cannot parse self delegate address, {}.", validator.operator_address))?,
                     logo_url: get_validator_logo(self.client.clone(), &validator.description.identity).await,

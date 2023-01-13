@@ -1,3 +1,3 @@
-mod validator;
 mod all;
 mod params;
+mod validator;

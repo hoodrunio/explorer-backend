@@ -1,5 +1,5 @@
-use serde::{Deserialize, Serialize};
 use crate::fetch::blocks::{BlockItem, BlockLastCommitSignatures};
+use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
 pub struct Block {
@@ -10,5 +10,5 @@ pub struct Block {
     pub hash: String,
     pub tx_count: u64,
     pub timestamp: i64,
-    pub signatures: Vec<BlockLastCommitSignatures>
+    pub signatures: Vec<BlockLastCommitSignatures>,
 }

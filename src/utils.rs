@@ -2,9 +2,9 @@ use base64::decode as from_base_64;
 use hex::encode as to_hex;
 use sha2::{Digest, Sha256};
 
-use std::collections::HashMap;
-use bech32::ToBase32;
 use bech32::FromBase32;
+use bech32::ToBase32;
+use std::collections::HashMap;
 
 use reqwest::Client;
 use serde::Deserialize;
@@ -109,5 +109,12 @@ pub fn get_msg_name(msg: &str) -> String {
 
 /// Converts consensus pubkey to consensus address.
 pub fn convert_consensus_pubkey_to_consensus_address(address: &str, prefix: &str) -> String {
-    bech32::encode(prefix, hex::decode(convert_consensus_pubkey_to_hex_address(address).unwrap()).unwrap().to_base32(), bech32::Variant::Bech32).unwrap()
+    bech32::encode(
+        prefix,
+        hex::decode(convert_consensus_pubkey_to_hex_address(address).unwrap())
+            .unwrap()
+            .to_base32(),
+        bech32::Variant::Bech32,
+    )
+    .unwrap()
 }

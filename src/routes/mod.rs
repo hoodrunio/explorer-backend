@@ -1,5 +1,6 @@
 mod blocks;
 mod calculations;
+mod chains;
 mod common;
 mod community_pool;
 mod delegations;
@@ -12,11 +13,11 @@ mod staking_pool;
 mod tokenomics;
 mod transactions;
 mod validators;
-mod chains;
 
 pub use blocks::*;
 pub use blocks::*;
 pub use calculations::*;
+pub use chains::*;
 pub use common::*;
 pub use community_pool::*;
 pub use delegations::*;
@@ -29,4 +30,3 @@ pub use staking_pool::*;
 pub use tokenomics::*;
 pub use transactions::*;
 pub use validators::*;
-pub use chains::*;

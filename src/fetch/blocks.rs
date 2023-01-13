@@ -1,9 +1,9 @@
 use chrono::DateTime;
 use serde::{Deserialize, Serialize};
 
-use crate::{chain::Chain, routes::OutRestResponse};
 use crate::database::ValidatorForDb;
 use crate::utils::convert_tx_to_hex;
+use crate::{chain::Chain, routes::OutRestResponse};
 
 impl Chain {
     /// Returns the block at given height. Returns the latest block, if no height is given.
