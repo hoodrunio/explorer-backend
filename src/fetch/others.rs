@@ -4,9 +4,9 @@ use std::num::ParseFloatError;
 use chrono::DateTime;
 use serde::{Deserialize, Serialize};
 
-use crate::{chain::Chain, routes::OutRestResponse};
 use crate::fetch::blocks::BlockResp;
 use crate::fetch::params::ParamsResp;
+use crate::{chain::Chain, routes::OutRestResponse};
 
 impl Chain {
     /// Returns staking pool information.
@@ -62,10 +62,9 @@ impl Chain {
                 Err("Chain Mint Params Not Implemented Yet".to_string())
             }
             _ => {
-                let mint_params = match self.rest_api_request::<ParamsResp<MintParams>>("/cosmos/mint/v1beta1/params", &[])
-                    .await {
+                let mint_params = match self.rest_api_request::<ParamsResp<MintParams>>("/cosmos/mint/v1beta1/params", &[]).await {
                     Ok(value) => value,
-                    Err(error) => return Err(error)
+                    Err(error) => return Err(error),
                 };
                 Ok(OutRestResponse::new(mint_params.params, 0))
             }
@@ -78,13 +77,15 @@ impl Chain {
                 Err("Chain Mint Params Not Implemented Yet".to_string())
             }
             _ => {
-                let annual_provisions = match self.rest_api_request::<AnnualProvisions>("/cosmos/mint/v1beta1/annual_provisions", &[])
-                    .await {
+                let annual_provisions = match self
+                    .rest_api_request::<AnnualProvisions>("/cosmos/mint/v1beta1/annual_provisions", &[])
+                    .await
+                {
                     Ok(value) => match value.annual_provisions.parse::<f64>() {
                         Ok(res) => res,
-                        Err(_) => return Err("Parsing Error".to_string())
+                        Err(_) => return Err("Parsing Error".to_string()),
                     },
-                    Err(error) => return Err(error)
+                    Err(error) => return Err(error),
                 };
                 Ok(OutRestResponse::new(annual_provisions, 0))
             }
@@ -95,24 +96,24 @@ impl Chain {
         let block_per_year = match self.get_mint_params().await {
             Ok(res) => match res.value.blocks_per_year.parse::<f64>() {
                 Ok(value) => value,
-                Err(_) => return Err("Parse Error".to_string())
+                Err(_) => return Err("Parse Error".to_string()),
             },
-            Err(error) => return Err(error)
+            Err(error) => return Err(error),
         };
         let latest_block = match self.get_latest_block().await {
             Ok(value) => value,
-            Err(err) => return Err(err)
+            Err(err) => return Err(err),
         };
         let block_window_size = 1000.0;
         let latest_block_date_time = latest_block.header.time;
         let lower_block_height = match latest_block.header.height.parse::<f64>() {
             Ok(value) => value - block_window_size,
-            Err(_) => return Err("Parse Error".to_string())
+            Err(_) => return Err("Parse Error".to_string()),
         };
         let mut query = vec![("height", lower_block_height.to_string())];
         let lower_block_date_time = match self.rpc_request::<BlockResp>("/block", &query).await {
-            Ok(res) => { res.block.header.time }
-            Err(error) => return Err(error)
+            Ok(res) => res.block.header.time,
+            Err(error) => return Err(error),
         };
         let latest_block_time_sec = DateTime::parse_from_rfc3339(&latest_block_date_time).unwrap().timestamp() as f64;
         let lower_block_time_sec = DateTime::parse_from_rfc3339(&lower_block_date_time).unwrap().timestamp() as f64;
@@ -125,7 +126,6 @@ impl Chain {
         Ok(Some(correction_annual_coefficient))
     }
 }
-
 
 #[derive(Deserialize, Serialize, Debug)]
 pub struct CommunityPoolResp {

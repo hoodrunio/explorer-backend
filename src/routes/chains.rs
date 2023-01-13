@@ -19,8 +19,11 @@ struct Chain {
 
 #[get("chains")]
 pub async fn chains(state: Data<State>) -> Result<impl Responder, TNRAppError> {
-    let mut chains = state.get_chains().clone().into_iter().map(|(name, chain)|
-        Chain {
+    let mut chains = state
+        .get_chains()
+        .clone()
+        .into_iter()
+        .map(|(name, chain)| Chain {
             name: name,
             logo: chain.config.logo,
             main_denom: chain.config.main_denom,

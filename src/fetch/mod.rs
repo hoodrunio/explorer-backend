@@ -1,3 +1,4 @@
+pub mod apr;
 pub mod blocks;
 pub mod delegations;
 pub mod delegators;
@@ -10,4 +11,3 @@ pub mod tokenomics;
 pub mod transactions;
 pub mod utils;
 pub mod validators;
-pub mod apr;

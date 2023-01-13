@@ -38,7 +38,10 @@ impl DatabaseTR {
 
     /// Changes the name of the database and returns a new one.
     pub fn change_name(self, db_name: &str) -> DatabaseTR {
-        DatabaseTR { db_name: db_name.to_string(), ..self }
+        DatabaseTR {
+            db_name: db_name.to_string(),
+            ..self
+        }
     }
 
     /// Returns the MongoDB database.
@@ -136,7 +139,7 @@ impl DatabaseTR {
     pub async fn upsert_validators(&self, validators: Vec<Validator>) -> Result<(), String> {
         for validator in validators {
             self.upsert_validator(validator).await?;
-        };
+        }
 
         Ok(())
     }
@@ -354,7 +357,7 @@ impl DatabaseTR {
                 Some(historical_data) => Ok(historical_data),
                 None => Err("No validator is found.".into()),
             },
-            Err(_) => Err("Cannot make request to DB.".into())
+            Err(_) => Err("Cannot make request to DB.".into()),
         }
     }
 

@@ -593,11 +593,7 @@ impl TxsTransactionMessage {
                         amount,
                     } => InternalTransactionContent::Known(InternalTransactionContentKnowns::Delegate {
                         delegator_address,
-                        validator_name: chain
-                            .database
-                            .find_validator_by_operator_addr(&validator_address.clone())
-                            .await?
-                            .name,
+                        validator_name: chain.database.find_validator_by_operator_addr(&validator_address.clone()).await?.name,
                         validator_address,
                         amount: chain.calc_amount_u128_to_f64(
                             amount
@@ -614,17 +610,9 @@ impl TxsTransactionMessage {
                         amount,
                     } => InternalTransactionContent::Known(InternalTransactionContentKnowns::Redelegate {
                         delegator_address,
-                        validator_from_name: chain
-                            .database
-                            .find_validator_by_operator_addr(&validator_src_address.clone())
-                            .await?
-                            .name,
+                        validator_from_name: chain.database.find_validator_by_operator_addr(&validator_src_address.clone()).await?.name,
                         validator_from_address: validator_src_address,
-                        validator_to_name: chain
-                            .database
-                            .find_validator_by_operator_addr(&validator_dst_address.clone())
-                            .await?
-                            .name,
+                        validator_to_name: chain.database.find_validator_by_operator_addr(&validator_dst_address.clone()).await?.name,
                         validator_to_address: validator_dst_address,
                         amount: chain.calc_amount_u128_to_f64(
                             amount
@@ -668,11 +656,7 @@ impl TxsTransactionMessage {
                         amount,
                     } => InternalTransactionContent::Known(InternalTransactionContentKnowns::Undelegate {
                         delegator_address,
-                        validator_name: chain
-                            .database
-                            .find_validator_by_operator_addr(&validator_address.clone())
-                            .await?
-                            .name,
+                        validator_name: chain.database.find_validator_by_operator_addr(&validator_address.clone()).await?.name,
                         validator_address,
                         amount: chain.calc_amount_u128_to_f64(
                             amount
@@ -705,11 +689,7 @@ impl TxsTransactionMessage {
                         validator_address,
                     } => InternalTransactionContent::Known(InternalTransactionContentKnowns::WithdrawDelegatorReward {
                         delegator_address,
-                        validator_name: chain
-                            .database
-                            .find_validator_by_operator_addr(&validator_address.clone())
-                            .await?
-                            .name,
+                        validator_name: chain.database.find_validator_by_operator_addr(&validator_address.clone()).await?.name,
                         validator_address,
                     }),
                     TxsTransactionMessageKnowns::EthereumTx { hash } => {

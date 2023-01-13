@@ -86,7 +86,13 @@ impl Chain {
     }
 
     // Makes a request to the External Resource
-    pub(super) async fn external_rest_api_req<T: DeserializeOwned>(&self, client: &reqwest::Client, method: Method, full_path: &str, query: &[(&'static str, String)]) -> Result<T, String> {
+    pub(super) async fn external_rest_api_req<T: DeserializeOwned>(
+        &self,
+        client: &reqwest::Client,
+        method: Method,
+        full_path: &str,
+        query: &[(&'static str, String)],
+    ) -> Result<T, String> {
         let request = client.request(method, full_path);
 
         match request.query(query).send().await {

@@ -2,15 +2,16 @@ use dotenvy::dotenv;
 use server::start_web_server;
 
 mod chain;
+mod cron_jobs;
+mod database;
 mod encoding;
+mod events;
 mod fetch;
 mod macros;
 mod routes;
 mod server;
 mod state;
 mod utils;
-mod database;
-mod cron_jobs;
 
 #[tokio::main]
 async fn main() {
