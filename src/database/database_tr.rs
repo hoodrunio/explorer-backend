@@ -1,10 +1,13 @@
+use futures::{StreamExt, TryStreamExt};
 use mongodb::{
     bson::{doc, Document},
     Client, Collection, Database,
 };
-use mongodb::bson::to_document;
+use mongodb::bson::{bson, from_document, to_document};
 use crate::database::blocks::Block;
 use crate::database::params::{HistoricalValidatorData, VotingPower};
+use crate::fetch::others::{PaginationConfig, PaginationDb};
+use crate::fetch::validators::ValidatorListDbResp;
 use super::{chains::Chain, params::Params, validators::Validator};
 
 // Testnetrun explorer database.
@@ -167,6 +170,99 @@ impl DatabaseTR {
         }
     }
 
+    /// Finds a sorted validator list by given document.
+    /// # Usage
+    /// ```rs
+    /// let validator = database.find_paginated_validators(doc!{"$match":{"operator_address":{"$exists":true}}}).await;
+    /// ```
+    pub async fn find_paginated_validators(&self, pipe: Option<Document>, config: PaginationConfig) -> Result<ValidatorListDbResp, String> {
+        let default_filter = doc! {"$match":{"operator_address":{"$exists":true}}};
+        //default filter necessary when using aggregate
+        let mut pipeline: Vec<Document> = vec![default_filter];
+
+        let filter = pipe.clone();
+        match filter {
+            None => {}
+            Some(val) => pipeline.push(val)
+        };
+
+        let sort = doc! {
+            "$sort": {
+                "delegator_shares": -1
+            }
+        };
+
+        let page = config.get_page() as f32;
+        let limit = config.get_limit() as f32;
+        let skip_count = config.get_offset() as f32;
+        let limit_pipe = doc! { "$limit": limit };
+        let skip_pipe = doc! {
+            "$skip": skip_count
+        };
+
+        pipeline.push(sort);
+        pipeline.push(skip_pipe);
+        pipeline.push(limit_pipe);
+
+        let cumulative_bonded_tokens_pipe = doc! {
+                "$setWindowFields": {
+                    "sortBy": {
+                        "delegator_shares": -1
+                    },
+                    "output": {
+                        "cumulative_bonded_tokens": {
+                            "$sum": "$delegator_shares",
+                            "window":  {
+                            "documents": [
+                                "unbounded",
+                                "current"
+                                ]
+                            }
+                        }
+                    }
+                }
+            };
+
+        pipeline.push(cumulative_bonded_tokens_pipe);
+
+
+        let mut results = self.validators_collection().aggregate(pipeline, None).await.map_err(|e| format!("{}", e.to_string()))?;
+        let count_cursor = self.validators_collection().aggregate(pipe, None).await.map_err(|e| format!("{}", e.to_string()))?;
+        let count = count_cursor.count().await;
+
+        let mut res: Vec<Validator> = vec![];
+        while let Some(result) = results.next().await {
+            res.push(from_document(result.expect("db conenction error")).expect("db conenction error"));
+        };
+
+        Ok(ValidatorListDbResp { validators: res, pagination: PaginationDb { page: page as u16, total: count as u16 } })
+    }
+
+    /// Finds a sorted validator list by given document.
+    /// # Usage
+    /// ```rs
+    /// let validator = database.find_validators(doc!{"$match":{"operator_address":{"$exists":true}}}).await;
+    /// ```
+    pub async fn find_validators(&self, pipe: Option<Document>) -> Result<Vec<Validator>, String> {
+        let default_filter = doc! {"$match":{"operator_address":{"$exists":true}}};
+        //default filter necessary when using aggregate
+        let mut pipeline: Vec<Document> = vec![default_filter];
+        let filter = pipe.clone();
+        match filter {
+            None => {}
+            Some(val) => pipeline.push(val)
+        };
+
+
+        let mut results = self.validators_collection().aggregate(pipeline, None).await.map_err(|e| format!("{}", e.to_string()))?;
+
+        let mut res: Vec<Validator> = vec![];
+        while let Some(result) = results.next().await {
+            res.push(from_document(result.map_err(|e| format!("{}", e.to_string()))?).map_err(|e| format!("{}", e.to_string()))?);
+        };
+
+        Ok(res)
+    }
     /// Finds a validator by operator address.
     /// # Usage
     /// ```rs

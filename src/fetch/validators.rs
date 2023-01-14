@@ -1,5 +1,6 @@
 use chrono::{DateTime, Duration, Utc};
 use futures::{future::join_all, FutureExt};
+use mongodb::bson::doc;
 use serde::{Deserialize, Serialize};
 use tokio::join;
 
@@ -11,7 +12,10 @@ use crate::{
     chain::Chain,
     routes::{calc_pages, OutRestResponse},
 };
+use crate::database::ValidatorForDb;
 use crate::utils::convert_consensus_pubkey_to_consensus_address;
+use crate::fetch::others::{PaginationDb, Response};
+use crate::routes::TNRAppError;
 
 impl Chain {
     /// Returns validator by given validator address.
@@ -144,7 +148,7 @@ impl Chain {
             redelegations.push(InternalRedelegation::new(tx, tx_response, self).await?)
         }
 
-        let pages = calc_pages(resp.pagination, config)?;
+        let pages = calc_pages(resp.pagination.unwrap_or(Pagination::default()), config)?;
 
         Ok(OutRestResponse::new(redelegations, pages))
     }
@@ -182,7 +186,7 @@ impl Chain {
 
         let consensus_address = convert_consensus_pubkey_to_consensus_address(&validator.consensus_pubkey.key, &format!("{}valcons", self.config.base_prefix));
         let val_status_enum = self.get_validator_status(&validator, &consensus_address).await?;
-        let uptime = self.get_validator_uptime(&consensus_address, &Some(&val_status_enum)).await?;
+        let uptime = self.get_validator_uptime(&consensus_address, Some(val_status_enum.clone())).await?;
         let status = val_status_enum.as_str().to_string();
         let validator = InternalValidator {
             logo_url: validator_metadata.logo_url,
@@ -246,7 +250,7 @@ impl Chain {
     }
 
     /// Returns the list of validators with bonded status.
-    pub async fn get_validators_bonded(&self, pagination_config: PaginationConfig) -> Result<ValidatorListResp, String> {
+    pub async fn get_validators_bonded(&self, pagination_config: PaginationConfig) -> Result<ValidatorListApiResp, String> {
         let mut query = vec![];
 
         query.push(("status", "BOND_STATUS_BONDED".to_string()));
@@ -259,7 +263,7 @@ impl Chain {
     }
 
     /// Returns the list of validators with unbonded status.
-    pub async fn get_validators_unbonded(&self, pagination_config: PaginationConfig) -> Result<ValidatorListResp, String> {
+    pub async fn get_validators_unbonded(&self, pagination_config: PaginationConfig) -> Result<ValidatorListApiResp, String> {
         let mut query = vec![];
 
         query.push(("status", "BOND_STATUS_UNBONDED".to_string()));
@@ -272,7 +276,7 @@ impl Chain {
     }
 
     /// Returns the list of validators with unbonding status.
-    pub async fn get_validators_unbonding(&self, pagination_config: PaginationConfig) -> Result<ValidatorListResp, String> {
+    pub async fn get_validators_unbonding(&self, pagination_config: PaginationConfig) -> Result<ValidatorListApiResp, String> {
         let mut query = vec![];
 
         query.push(("status", "BOND_STATUS_UNBONDING".to_string()));
@@ -285,7 +289,7 @@ impl Chain {
     }
 
     /// Returns the list of validators with unspecified status.
-    pub async fn get_validators_unspecified(&self, pagination_config: PaginationConfig) -> Result<ValidatorListResp, String> {
+    pub async fn get_validators_unspecified(&self, pagination_config: PaginationConfig) -> Result<ValidatorListApiResp, String> {
         let mut query = vec![];
 
         query.push(("pagination.reverse", format!("{}", pagination_config.is_reverse())));
@@ -430,19 +434,19 @@ impl Chain {
         Ok(bonded_height)
     }
 
-    pub async fn get_validator_uptime(&self, consensus_address: &str, val_status: &Option<&ValidatorStatus>) -> Result<f64, String> {
+    pub async fn get_validator_uptime(&self, consensus_address: &str, val_status: Option<ValidatorStatus>) -> Result<f64, String> {
         let default_uptime_value = 0.0;
 
-        if *val_status.unwrap() != ValidatorStatus::Active {
+        if val_status.unwrap() != ValidatorStatus::Active {
             return Ok(default_uptime_value);
         }
 
-        let (val_signing_info_resp, all_params_resp) = join!(self.get_validator_signing_info(&consensus_address),self.get_params_all());
+        let (val_signing_info_resp, slashing_params) = join!(self.get_validator_signing_info(&consensus_address),self.get_slashing_params());
 
         let val_signing_info = val_signing_info_resp?.value;
-        let all_params = all_params_resp?.value;
+        let slashing_params = slashing_params?.value;
 
-        Ok((1.0 - (val_signing_info.missed_blocks_counter as f64 / all_params.slashing.signed_blocks_window as f64)))
+        Ok((1.0 - (val_signing_info.missed_blocks_counter as f64 / slashing_params.signed_blocks_window as f64)))
     }
 
     pub async fn get_validator_status(&self, validator: &ValidatorListValidator, consensus_address: &str) -> Result<ValidatorStatus, String> {
@@ -626,11 +630,116 @@ pub struct ValidatorRewards {
 }
 
 #[derive(Deserialize, Serialize, Debug)]
-pub struct ValidatorListResp {
+pub struct ValidatorListApiResp {
     /// Array of validators.
     pub validators: Vec<ValidatorListValidator>,
     /// Pagination.
     pub pagination: Pagination,
+}
+
+#[derive(Deserialize, Serialize, Debug)]
+pub struct ValidatorListDbResp {
+    /// Array of validators.
+    pub validators: Vec<ValidatorForDb>,
+    /// Pagination.
+    pub pagination: PaginationDb,
+}
+
+#[derive(Deserialize, Serialize, Debug)]
+pub struct ValidatorListResp {
+    pub validators: Vec<ValidatorListElement>,
+    pub pagination: PaginationDb,
+}
+
+#[derive(Deserialize, Serialize, Debug)]
+pub struct ValidatorListElement {
+    pub rank: i16,
+    pub moniker: String,
+    pub voting_power: u64,
+    pub voting_power_ratio: f64,
+    pub cumulative_share: f64,
+    pub validator_commissions: ValidatorListElementValidatorCommission,
+    pub uptime: f64,
+    pub missed_29k: u16,
+    pub logo_url: String,
+}
+
+impl ValidatorListResp {
+    pub async fn from_db_list(mut other: ValidatorListDbResp, chain: &Chain) -> Result<Self, TNRAppError> {
+        let staking_pool_resp = chain.get_staking_pool().await?.value;
+        let bonded_token = staking_pool_resp.bonded;
+        let mut validators = vec![];
+
+        for (i, v) in (&other.validators).iter().enumerate() {
+            let delegator_shares = v.delegator_shares;
+            let uptime = v.uptime;
+            let voting_power = delegator_shares as u64;
+            let voting_power_ratio = (delegator_shares / bonded_token as f64);
+            let rank = i + 1;
+            let cumulative_bonded_tokens = v.cumulative_bonded_tokens.unwrap_or(0.0);
+            let cumulative_share = cumulative_bonded_tokens / bonded_token as f64;
+            let mut missed_29k = 0;
+            if v.is_active {
+                //WARNING This request takes too much time can turn to a cron job
+                // missed_29k = chain.get_validator_signing_info(&v.consensus_address).await?.value.missed_blocks_counter;
+            };
+
+            validators.push(ValidatorListElement {
+                missed_29k,
+                validator_commissions: ValidatorListElementValidatorCommission::from_db(v.validator_commissions.clone()),
+                moniker: v.name.clone(),
+                rank: rank as i16,
+                cumulative_share,
+                voting_power,
+                voting_power_ratio,
+                uptime,
+                logo_url: v.logo_url.clone(),
+            }
+            )
+        }
+
+        Ok(Self {
+            validators,
+            pagination: other.pagination,
+        })
+    }
+}
+
+#[derive(Deserialize, Serialize, Debug)]
+pub struct ValidatorListElementValidatorCommission {
+    pub commission_rates: ValidatorListElementValidatorCommissionRates,
+    /// Validator commission update time. Eg: `"2022-03-02T19:00:00Z"`
+    pub update_time: String,
+}
+
+impl ValidatorListElementValidatorCommission {
+    pub fn from_db(validator_commission: ValidatorListValidatorCommission) -> Self {
+        Self {
+            commission_rates: ValidatorListElementValidatorCommissionRates::from_db(validator_commission.commission_rates),
+            update_time: validator_commission.update_time,
+        }
+    }
+}
+
+#[derive(Deserialize, Serialize, Debug)]
+pub struct ValidatorListElementValidatorCommissionRates {
+    pub rate: f64,
+    pub max_rate: f64,
+    pub max_change_rate: f64,
+}
+
+impl ValidatorListElementValidatorCommissionRates {
+    pub fn from_db(validator_commission_rates: ValidatorListValidatorCommissionRates) -> Self {
+        let default_value = 0.0;
+        let rate = validator_commission_rates.rate.parse::<f64>().map(|rate| rate).unwrap_or(default_value);
+        let max_rate = validator_commission_rates.max_rate.parse::<f64>().map(|rate| rate).unwrap_or(default_value);
+        let max_change_rate = validator_commission_rates.max_change_rate.parse::<f64>().map(|rate| rate).unwrap_or(default_value);
+        Self {
+            rate,
+            max_rate,
+            max_change_rate,
+        }
+    }
 }
 
 #[derive(Deserialize, Serialize, Debug)]
@@ -687,7 +796,7 @@ pub struct InternalValidator {
     status: String,
 }
 
-#[derive(Deserialize, Serialize, Debug)]
+#[derive(Deserialize, Serialize, Debug, PartialEq, Clone)]
 pub struct ValidatorListValidatorCommission {
     /// Validator commission rates.
     pub commission_rates: ValidatorListValidatorCommissionRates,
@@ -695,7 +804,7 @@ pub struct ValidatorListValidatorCommission {
     pub update_time: String,
 }
 
-#[derive(Deserialize, Serialize, Debug)]
+#[derive(Deserialize, Serialize, Debug, Clone, PartialEq)]
 pub struct ValidatorListValidatorCommissionRates {
     /// Validator commission rate. Eg: `"0.050000000000000000"`
     pub rate: String,

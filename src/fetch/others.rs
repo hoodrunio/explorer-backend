@@ -134,11 +134,23 @@ pub struct CommunityPoolResp {
 }
 
 #[derive(Deserialize, Serialize, Debug)]
+pub struct PaginationDb {
+    pub page: u16,
+    pub total: u16,
+}
+
+#[derive(Deserialize, Serialize, Debug)]
 pub struct Pagination {
     /// Pagination next key. Might be `None`. Eg: `"FGxWOxzuw4bZozVHta3qYgdKOuRC"`
     pub next_key: Option<String>,
     /// Total. Eg: `"0"`
     pub total: String,
+}
+
+impl Default for Pagination {
+    fn default() -> Self {
+        Self { next_key: None, total: "0".to_string() }
+    }
 }
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
@@ -291,6 +303,8 @@ pub struct PaginationConfig {
     offset: u32,
     /// It is the total number of results to be returned in the result page
     limit: u16,
+    /// It is the current page count which will include with target result
+    page: u8,
 }
 
 impl PaginationConfig {
@@ -301,6 +315,7 @@ impl PaginationConfig {
     ///     reverse: false,
     ///     offset: 0,
     ///     limit: 10,
+    ///     page: 1
     /// }
     /// ```
     pub const fn new() -> Self {
@@ -308,6 +323,7 @@ impl PaginationConfig {
             reverse: false,
             offset: 0,
             limit: 10,
+            page: 1,
         }
     }
 
@@ -326,6 +342,11 @@ impl PaginationConfig {
         self.offset
     }
 
+    /// Returns the value `offset` property holds.
+    pub const fn get_page(&self) -> u8 {
+        self.page
+    }
+
     /// Makes the response reversed.
     pub const fn reverse(self) -> Self {
         Self { reverse: true, ..self }
@@ -341,6 +362,7 @@ impl PaginationConfig {
     pub fn page(self, page: u8) -> Self {
         Self {
             offset: if page < 2 { 0 } else { (self.limit * (page as u16 - 1)).into() },
+            page,
             ..self
         }
     }
