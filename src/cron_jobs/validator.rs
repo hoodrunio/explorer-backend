@@ -39,6 +39,12 @@ impl Chain {
                 Err(_) => 0.0
             };
 
+            let voter_address = match self.get_validator_voter_address(&validator.operator_address).await {
+                Ok(res) => res,
+                Err(_) => None
+            };
+
+
             let db_val = ValidatorForDb {
                 bonded_height: None,     // Find way to fetch and store.
                 change_24h: None,        // Find way to fetch and store
@@ -56,7 +62,7 @@ impl Chain {
                 delegator_shares: val_delegator_shares,
                 validator_commissions: validator.commission,
                 cumulative_bonded_tokens: None,
-                voter_address: None,
+                voter_address,
             };
 
             self.database.upsert_validator(db_val).await?;
