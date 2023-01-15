@@ -15,6 +15,7 @@ use crate::{
 use crate::database::ValidatorForDb;
 use crate::utils::convert_consensus_pubkey_to_consensus_address;
 use crate::fetch::others::{PaginationDb, Response};
+use crate::fetch::transactions::{InternalTransactionContent, InternalTransactionContentKnowns};
 use crate::routes::TNRAppError;
 
 impl Chain {
@@ -499,6 +500,46 @@ impl Chain {
             }
             None => Err("Could not calculate voting power change".to_string())
         }
+    }
+
+    pub async fn get_validator_voter_address(&self, operator_address: &String) -> Result<Option<String>, TNRAppError> {
+        let mut result = None;
+        if self.config.name != "axelar" {
+            return Ok(result);
+        };
+
+        match self.database.find_validator(doc! {"operator_address": &operator_address}).await {
+            Ok(res) => {
+                match res.voter_address {
+                    Some(res) => return Ok(Some(res)),
+                    None => {}
+                }
+            }
+            Err(_) => {}
+        };
+
+        let mut query = vec![];
+        query.push(("events", format!("message.sender='{}'", operator_address)));
+        query.push(("events", format!("message.action='{}'", "RegisterProxy")));
+        let resp = self.archive_api_request::<TxsResp>("/cosmos/tx/v1beta1/txs", &query).await?;
+
+        for tx in resp.txs.iter() {
+            for message in &tx.body.messages {
+                let res = message.clone().to_internal(&self).await?;
+                match res {
+                    InternalTransactionContent::Known(
+                        InternalTransactionContentKnowns::RegisterProxy {
+                            sender: _,
+                            proxy_addr
+                        }) => {
+                        result = Some(proxy_addr);
+                    }
+                    _ => {}
+                }
+            }
+        };
+
+        Ok(result)
     }
 }
 
