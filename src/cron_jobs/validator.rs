@@ -56,6 +56,7 @@ impl Chain {
                 delegator_shares: val_delegator_shares,
                 validator_commissions: validator.commission,
                 cumulative_bonded_tokens: None,
+                voter_address: None,
             };
 
             self.database.upsert_validator(db_val).await?;

@@ -18,4 +18,7 @@ pub struct Validator {
 
     //Calculating on query.
     pub cumulative_bonded_tokens: Option<f64>,
+
+    //Proxy/Voter/Broadcaster address for Axelar EVM Pool participants addresses
+    pub voter_address: Option<String>,
 }
