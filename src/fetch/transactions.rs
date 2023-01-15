@@ -458,6 +458,10 @@ pub enum InternalTransactionContentKnowns {
     EthereumTx {
         hash: String,
     },
+    RegisterProxy {
+        sender: String,
+        proxy_addr: String,
+    }
 }
 
 impl From<InternalTransaction> for TransactionItem {
@@ -754,6 +758,12 @@ impl TxsTransactionMessage {
                             },
                         })
                     }
+                    TxsTransactionMessageKnowns::RegisterProxy { sender, proxy_addr } => {
+                        InternalTransactionContent::Known(InternalTransactionContentKnowns::RegisterProxy { sender, proxy_addr })
+                    }
+                    TxsTransactionMessageKnowns::AxelarRegisterProxy { sender, proxy_addr } => {
+                        InternalTransactionContent::Known(InternalTransactionContentKnowns::RegisterProxy { sender, proxy_addr })
+                    }
                 },
                 TxsTransactionMessage::Unknown(mut keys_values) => {
                     let r#type = keys_values.remove("@type").map(|t| t.to_string()).unwrap_or("Unknown".to_string());
@@ -812,6 +822,8 @@ impl TxsTransactionMessage {
                     grant: _,
                 } => "Grant",
                 TxsTransactionMessageKnowns::Exec { grantee: _, msgs: _ } => "Exec",
+                TxsTransactionMessageKnowns::RegisterProxy { sender: _, proxy_addr: _ } => "RegisterProxy",
+                TxsTransactionMessageKnowns::AxelarRegisterProxy { sender: _, proxy_addr: _ } => "RegisterProxy"
             }
                 .to_string(),
             TxsTransactionMessage::Unknown(keys_values) => keys_values
@@ -911,6 +923,16 @@ pub enum TxsTransactionMessageKnowns {
         // There are multiple types of this property.
         // Creating an enum for it is necessary if we need to show the data in the explorer.
         // data: UNKNOWN,
+    },
+    #[serde(rename = "/snapshot.v1beta1.RegisterProxyRequest")]
+    RegisterProxy {
+        sender: String,
+        proxy_addr: String,
+    },
+    #[serde(rename = "/axelar.snapshot.v1beta1.RegisterProxyRequest")]
+    AxelarRegisterProxy {
+        sender: String,
+        proxy_addr: String,
     },
 }
 
