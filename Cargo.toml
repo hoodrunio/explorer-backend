@@ -36,6 +36,7 @@ dotenvy = "0.15.6"
 versions = { version = "4.1.0", features = ["serde"] }
 bech32 = "0.9.1"
 dashmap = "5.4.0"
+serde-querystring = "0.1.0"
 
 [build-dependencies]
 serde = { version = "1.0.147", features = ["derive"] }
