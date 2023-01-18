@@ -1,25 +1,59 @@
+use std::collections::HashSet;
 use crate::database::BlockForDb;
 use crate::fetch::transactions::TransactionItem;
 use actix::{Actor, AsyncContext, StreamHandler};
 use actix_web::web::Data;
 use actix_web::{web, HttpRequest, HttpResponse, Responder};
 use actix_web_actors::ws;
-use futures::{SinkExt, StreamExt};
+use futures::{SinkExt, StreamExt, TryStreamExt};
 use serde::de::Error;
 use serde::{Deserialize, Serialize};
 use std::fmt::{Display, Formatter};
 use std::net::SocketAddr;
+use tokio::sync::oneshot;
+use cosmrs::bip32::secp256k1::elliptic_curve::weierstrass::add;
+use dashmap::{DashMap, DashSet};
+use serde_json::to_string;
 use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::broadcast::{Receiver, Sender};
 use tokio_tungstenite::tungstenite::Message;
 use tracing_subscriber::fmt::format;
+use tokio_tungstenite::tungstenite::handshake::server::{Callback, ErrorResponse, Request, Response};
+use tokio_tungstenite::tungstenite::http::header::SEC_WEBSOCKET_PROTOCOL;
+use tokio_tungstenite::tungstenite::http::StatusCode;
 
-pub async fn handle_connection(tx: Sender<WsEvent>, raw_stream: TcpStream, addr: SocketAddr) -> Result<(), String> {
+pub type PeerMap = DashMap<SocketAddr, DashSet<String>>;
+
+pub async fn handle_connection(tx: Sender<(String, WsEvent)>, raw_stream: TcpStream, addr: SocketAddr, chains: HashSet<String>) -> Result<(), String> {
     tracing::info!("Incoming TCP connection from: {addr}");
 
-    let ws_stream = tokio_tungstenite::accept_async(raw_stream)
+    let (tx_config, rx_config) =  oneshot::channel();
+    let callback = |request: &Request, mut response: Response| -> Result<Response, ErrorResponse> {
+       let uri = request.uri();
+        let url = url::Url::parse(&uri.to_string()).unwrap();
+
+        let Some(chain) = url.path_segments().map(|mut u| u.next()).flatten() else {
+            return Err(ErrorResponse::new(Some("No chain specified".to_string())));
+        };
+
+        if !chains.contains(chain) {
+            return Err(ErrorResponse::new(Some("Chain is not found".to_string())));
+        }
+        tx_config.send(chain.to_string()).ok();
+
+        // let protocol = request.headers().get(SEC_WEBSOCKET_PROTOCOL).expect("the client should specify a protocol").to_owned(); //save the protocol to use outside the closure
+        // let response_protocol = request.headers().get(SEC_WEBSOCKET_PROTOCOL).expect("the client should specify a protocol").to_owned();
+        // response.headers_mut().insert(SEC_WEBSOCKET_PROTOCOL, response_protocol);
+
+        Ok(response)
+    };
+
+    let ws_stream = tokio_tungstenite::accept_hdr_async(raw_stream, callback)
         .await
         .map_err(|e| format!("Error creating websocket connection: {e}"))?;
+
+
+    let wanted_chain = rx_config.await.map_err(|e| format!("Error getting the subjects: {e}"))?;
 
     tracing::info!("WebSocket connection established: {addr}");
 
@@ -44,10 +78,12 @@ pub async fn handle_connection(tx: Sender<WsEvent>, raw_stream: TcpStream, addr:
                     _ => {}
                 };
             },
-            Ok(msg) = rx.recv() => {
+            Ok((chain, msg)) = rx.recv() => {
+                tracing::debug!("Got message from channel for chain {chain}: {msg}");
 
-                tracing::debug!("Got message from channel: {msg}");
-                outgoing.send(Message::Text(serde_json::to_string(&msg).unwrap())).await;
+                if chain == wanted_chain {
+                    outgoing.send(Message::Text(serde_json::to_string(&msg).unwrap())).await;
+                }
             }
         }
     }
@@ -55,12 +91,11 @@ pub async fn handle_connection(tx: Sender<WsEvent>, raw_stream: TcpStream, addr:
     Ok(())
 }
 
-pub async fn run_ws(tx: Sender<WsEvent>) -> Result<(), String> {
+pub async fn run_ws(tx: Sender<(String, WsEvent)>, chains: HashSet<String>) -> Result<(), String> {
     let listener = TcpListener::bind("127.0.0.1:8081").await.map_err(|e| format!("Error binding: {e}"))?;
 
-    tracing::info!("BOUND");
     while let Ok((stream, addr)) = listener.accept().await {
-        tokio::spawn(handle_connection(tx.clone(), stream, addr));
+        tokio::spawn(handle_connection(tx.clone(), stream, addr, chains.clone()));
     }
 
     Ok(())

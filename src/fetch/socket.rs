@@ -23,7 +23,7 @@ const SUBSCRIBE_TX: &str = r#"{ "jsonrpc": "2.0", "method": "subscribe", "params
 
 impl Chain {
     /// Subscribes to all the events.
-    pub async fn subscribe_to_events(&self, tx: Sender<WsEvent>) -> Result<(), String> {
+    pub async fn subscribe_to_events(&self, tx: Sender<(String, WsEvent)>) -> Result<(), String> {
         // Define the URL.
         let clone = self.clone();
         let url = &clone.config.wss_url;
@@ -76,7 +76,7 @@ impl Chain {
                                     .to_string(),
                             };
 
-                            tx.send(WsEvent::NewTX(tx_item.clone())).ok();
+                            tx.send((self.config.name.clone(), WsEvent::NewTX(tx_item.clone()))).ok();
                             // STORE TXS TO MONGO_DB HERE
                             // clone.store_new_tx(tx_item);
                         }
@@ -114,9 +114,11 @@ impl Chain {
                                         signatures: current_block_data.last_commit.signatures.clone(),
                                     };
 
-                                    tx.send(WsEvent::NewBLock(block_item.clone())).ok();
+                                    tx.send((self.config.name.clone(), WsEvent::NewBLock(block_item.clone()))).ok();
 
-                                    self.database.upsert_block(block_item).await.unwrap();
+                                    if let Err(e) = self.database.upsert_block(block_item).await {
+                                        tracing::error!("Error saving block to the database: {e} ")
+                                    }
 
                                     *mutex_previous_resp = Some(current_resp);
                                 }

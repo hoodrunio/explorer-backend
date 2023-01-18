@@ -67,7 +67,7 @@ impl State {
     }
 
     /// Subscribes to all the events for all the chains.
-    pub async fn subscribe_to_events(&self, tx: Sender<WsEvent>) {
+    pub async fn subscribe_to_events(&self, tx: Sender<(String, WsEvent)>) {
         self.chains.clone().into_iter().for_each(|(name, chain)| {
             let tx = tx.clone();
 

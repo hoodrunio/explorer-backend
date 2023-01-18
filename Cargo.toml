@@ -35,6 +35,8 @@ tracing-actix-web = "0.7.0"
 dotenvy = "0.15.6"
 versions = { version = "4.1.0", features = ["serde"] }
 bech32 = "0.9.1"
+dashmap = "5.4.0"
+url = "2.3.1"
 
 [build-dependencies]
 serde = { version = "1.0.147", features = ["derive"] }
