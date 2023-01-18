@@ -29,14 +29,11 @@ pub async fn handle_connection(tx: Sender<(String, WsEvent)>, raw_stream: TcpStr
 
     let (tx_config, rx_config) =  oneshot::channel();
     let callback = |request: &Request, mut response: Response| -> Result<Response, ErrorResponse> {
-       let uri = request.uri();
-        let url = url::Url::parse(&uri.to_string()).unwrap();
-
-        let Some(chain) = url.path_segments().map(|mut u| u.next()).flatten() else {
+        let Some(chain) = request.uri().to_string()[1..].split("/" ).next().map(|s| s.to_string()) else {
             return Err(ErrorResponse::new(Some("No chain specified".to_string())));
         };
 
-        if !chains.contains(chain) {
+        if !chains.contains(&chain) {
             return Err(ErrorResponse::new(Some("Chain is not found".to_string())));
         }
         tx_config.send(chain.to_string()).ok();
