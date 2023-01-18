@@ -154,7 +154,7 @@ impl DatabaseTR {
         let command = doc! {"update":"blocks","updates":[{"q":{"hash":&block.hash},"u":doc,"upsert":true}]};
         match self.db().run_command(command, None).await {
             Ok(_) => Ok(()),
-            Err(_) => Err("Cannot save the block to db.".into()),
+            Err(e) => Err(format!("Cannot save the block to db: {e}")),
         }
     }
 
@@ -307,7 +307,7 @@ impl DatabaseTR {
                 Some(chain) => Ok(chain),
                 None => Err("No chain is found.".into()),
             },
-            Err(_) => Err("Cannot make request to DB.".into()),
+            Err(e) => Err(format!("Cannot make request to DB: {e}")),
         }
     }
 
@@ -321,7 +321,7 @@ impl DatabaseTR {
         let command = doc! {"update":"params","updates":[{"q":{"staking":{"$exists":true}},"u":doc,"upsert":true}]};
         match self.db().run_command(command, None).await {
             Ok(_) => Ok(()),
-            Err(_) => Err("Cannot save the params.".into()),
+            Err(e) => Err(format!("Cannot save the params: {e}")),
         }
     }
 
@@ -341,7 +341,7 @@ impl DatabaseTR {
         };
         match self.db().run_command(command, None).await {
             Ok(_) => Ok(()),
-            Err(_) => Err("Cannot save the params.".into()),
+            Err(e) => Err(format!("Cannot save the params: {e}")),
         }
     }
 
