@@ -65,10 +65,10 @@ secret:
   rest_url: https://secretnetwork-lcd.stakely.io
   wss_url: wss://scrt-rpc.agoranodes.com/websocket
 
-quikcsilver:
-  name: quikcsilver
+quicksilver:
+  name: quicksilver
   epoch: false
-  gecko: quikcsilver
+  gecko: quicksilver
   denom: uqck
   # prefix: secret
   logo: https://raw.githubusercontent.com/testnetrunn/explorer-assets/main/mainnet/quicksilver/black-quicksilver.png
