@@ -3,6 +3,7 @@ mod database_tr;
 mod validators;
 mod params;
 mod blocks;
+mod evm_polls;
 
 pub use database_tr::DatabaseTR;
 
@@ -15,3 +16,4 @@ pub use params::SlashingParams as SlashingParamsForDb;
 pub use params::GovParams as GovParamsForDb;
 pub use params::DistributionParams as DistributionParamsForDb;
 pub use params::VotingPower as VotingPowerForDb;
+pub use evm_polls::EvmPoll as EvmPollForDb;
