@@ -64,3 +64,16 @@ secret:
   rpc_url: https://secret-4.api.trivium.network:26657/
   rest_url: https://secretnetwork-lcd.stakely.io
   wss_url: wss://scrt-rpc.agoranodes.com/websocket
+
+quikcsilver:
+  name: quikcsilver
+  epoch: false
+  gecko: quikcsilver
+  denom: uqck
+  # prefix: secret
+  logo: https://raw.githubusercontent.com/testnetrunn/explorer-assets/main/mainnet/quicksilver/black-quicksilver.png
+  # decimals: 6
+  # version: 0.45
+  rpc_url: https://quicksilver-rpc.theamsolutions.info
+  rest_url: https://quicksilver-api.theamsolutions.info
+  wss_url: wss://rpc-quicksilver-ia.cosmosia.notional.ventures/websocket
