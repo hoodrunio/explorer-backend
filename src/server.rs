@@ -1,6 +1,9 @@
+use std::collections::HashSet;
+use crate::events::{run_ws, WsEvent};
 use actix_cors::Cors;
-use actix_web::{App, get, HttpResponse, HttpServer, Responder, web};
 use actix_web::web::Json;
+use actix_web::{get, web, App, HttpResponse, HttpServer, Responder};
+use tokio::sync::broadcast::channel;
 use tracing_actix_web::TracingLogger;
 use web::Data;
 
@@ -26,8 +29,18 @@ pub async fn start_web_server() -> std::io::Result<()> {
     // After connecting to MongoDB, there are so many thread safety & ownership errors.
     // You have to rewrite `src/fetch/socket.rs` to fix them.
 
+    let (tx, mut rx) = channel::<(String, WsEvent)>(100);
+
+    let tx_clone = tx.clone();
     tokio::spawn(async move {
-         state_clone.subscribe_to_events().await;
+        state_clone.subscribe_to_events(tx_clone).await;
+    });
+
+    let chains = HashSet::from_iter(state.get_chains().keys().cloned());
+    tokio::spawn(async move {
+        if let Err(e) = run_ws(tx, chains).await {
+            tracing::error!("Error spawning the websocket task {e}");
+        }
     });
 
     HttpServer::new(move || {
@@ -100,8 +113,8 @@ pub async fn start_web_server() -> std::io::Result<()> {
             .service(routes::validators_unbonding)
             .service(routes::validators_unspecified)
     })
-        .bind(("127.0.0.1", 8080))
-        .unwrap()
-        .run()
-        .await
+    .bind(("127.0.0.1", 8080))
+    .unwrap()
+    .run()
+    .await
 }

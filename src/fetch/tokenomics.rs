@@ -6,7 +6,6 @@ use crate::{
     routes::{calc_pages, OutRestResponse},
 };
 
-
 impl Chain {
     /// Returns the total supply of all tokens.
     pub async fn get_supply_of_all_tokens(&self, config: PaginationConfig) -> Result<OutRestResponse<Vec<InternalDenomAmount>>, String> {
@@ -64,18 +63,24 @@ impl Chain {
                 .await
                 .map(|res| res.inflation.parse::<f64>().unwrap_or(default_return_value))
         }
-            .unwrap_or(default_return_value);
+        .unwrap_or(default_return_value);
 
         //Axelar calculation different than others. That is why we are overriding inflation variable here.
         if self.config.name == "axelar" {
-            let external_chain_voting_inflation_rate = self.rest_api_request::<AxelarExternalChainVotingInflationRateResponse>(
-                "/cosmos/params/v1beta1/params?subspace=reward&key=ExternalChainVotingInflationRate",
-                &[]).await.map(|res| res.param.get_parsed_value().unwrap_or(default_return_value)).unwrap_or(default_return_value);
+            let external_chain_voting_inflation_rate = self
+                .rest_api_request::<AxelarExternalChainVotingInflationRateResponse>(
+                    "/cosmos/params/v1beta1/params?subspace=reward&key=ExternalChainVotingInflationRate",
+                    &[],
+                )
+                .await
+                .map(|res| res.param.get_parsed_value().unwrap_or(default_return_value))
+                .unwrap_or(default_return_value);
 
-            let external_chain_inflation =
-                self.rest_api_request::<AxelarSupportedEvmChainsResponse>(
-                    "/axelar/evm/v1beta1/chains",
-                    &[]).await.map(|res| res.get_supported_evm_chains_length() * external_chain_voting_inflation_rate).unwrap_or(default_return_value);
+            let external_chain_inflation = self
+                .rest_api_request::<AxelarSupportedEvmChainsResponse>("/axelar/evm/v1beta1/chains", &[])
+                .await
+                .map(|res| res.get_supported_evm_chains_length() * external_chain_voting_inflation_rate)
+                .unwrap_or(default_return_value);
 
             inflation = external_chain_inflation + (inflation * 2.0);
         }
@@ -126,7 +131,7 @@ impl AxelarExternalChainVotingInflationRateParam {
     pub fn get_parsed_value(&self) -> Result<f64, String> {
         match self.value.replace("\"", "").parse::<f64>() {
             Ok(parsed_value) => Ok(parsed_value),
-            Err(_) => Err(format!("Parsed value error on AxelarExternalChainVotingInflationRateParam"))
+            Err(_) => Err(format!("Parsed value error on AxelarExternalChainVotingInflationRateParam")),
         }
     }
 }
@@ -135,7 +140,6 @@ impl AxelarExternalChainVotingInflationRateParam {
 pub struct AxelarSupportedEvmChainsResponse {
     chains: Vec<String>,
 }
-
 
 impl AxelarSupportedEvmChainsResponse {
     pub fn get_supported_evm_chains_length(&self) -> f64 {
