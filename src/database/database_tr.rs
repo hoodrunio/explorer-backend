@@ -6,6 +6,7 @@ use mongodb::{
 use mongodb::bson::{bson, from_document, to_document};
 use crate::database::blocks::Block;
 use crate::database::params::{HistoricalValidatorData, VotingPower};
+use crate::database::evm_polls::{EvmPoll};
 use crate::fetch::others::{PaginationConfig, PaginationDb};
 use crate::fetch::validators::ValidatorListDbResp;
 use super::{chains::Chain, params::Params, validators::Validator};
@@ -93,6 +94,15 @@ impl DatabaseTR {
     /// ```
     fn blocks_collection(&self) -> Collection<HistoricalValidatorData> {
         self.db().collection("blocks")
+    }
+
+    /// Returns the evm poll collection.
+    /// # Usage
+    /// ```rs
+    /// let collection = database.evm_poll_collection();
+    /// ```
+    fn evm_poll_collection(&self) -> Collection<EvmPoll> {
+        self.db().collection("evm_polls")
     }
 
     /// Adds a new validator to the validators collection of the database.
@@ -279,6 +289,20 @@ impl DatabaseTR {
     /// ```
     pub async fn find_validator_by_hex_addr(&self, hex_address: &str) -> Result<Validator, String> {
         self.find_validator(doc! {"hex_address": hex_address}).await
+    }
+
+    /// Add new evm_poll item to the evm_polls collection
+    /// # Usage
+    /// ```rs
+    /// database.upsert_block(evm_poll).await;
+    /// ```
+    pub async fn upsert_evm_poll(&self, poll: EvmPoll) -> Result<(), String> {
+        let doc = to_document(&poll).unwrap();
+        let command = doc! {"update":"evm_polls","updates":[{"q":{"poll_id":&poll.poll_id},"u":doc,"upsert":true}]};
+        match self.db().run_command(command, None).await {
+            Ok(_) => Ok(()),
+            Err(_) => Err("Cannot save the poll id to db.".into()),
+        }
     }
 
     /// Adds a new chain to the chains collection of the database.
