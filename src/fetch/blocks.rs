@@ -149,15 +149,15 @@ pub struct BlockItem {
 
 #[derive(Serialize, Debug)]
 pub struct InternalBlock {
-    height: u64,
-    hash: String,
-    proposer_name: String,
-    proposer_logo_url: String,
-    proposer_address: String,
-    time: i64,
-    txs: Vec<String>,
-    tx_count: u32,
-    signatures: Vec<InternalBlockSignature>,
+    pub height: u64,
+    pub hash: String,
+    pub proposer_name: String,
+    pub proposer_logo_url: String,
+    pub proposer_address: String,
+    pub time: i64,
+    pub txs: Vec<String>,
+    pub tx_count: u32,
+    pub signatures: Vec<InternalBlockSignature>,
 }
 
 impl InternalBlock {
@@ -279,21 +279,21 @@ pub struct BlockResp {
     pub block: Block,
 }
 
-#[derive(Deserialize, Serialize, Debug)]
+#[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct BlockId {
     /// HEX encoded hash.
     pub hash: String,
     pub parts: BlockIdParts,
 }
 
-#[derive(Deserialize, Serialize, Debug)]
+#[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct Block {
     pub header: BlockHeader,
     pub data: BlockData,
     pub last_commit: BlockLastCommit,
 }
 
-#[derive(Deserialize, Serialize, Debug)]
+#[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct BlockIdParts {
     /// Unknown. Eg: `1`
     pub total: u32,
@@ -333,7 +333,7 @@ pub struct InternalBlockHeader {
     pub proposer_address: String,
 }
 
-#[derive(Deserialize, Serialize, Debug)]
+#[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct BlockHeader {
     /// Block header version.
     pub version: BlockHeaderVersion,
@@ -365,13 +365,13 @@ pub struct BlockHeader {
     pub proposer_address: String,
 }
 
-#[derive(Deserialize, Serialize, Debug)]
+#[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct BlockData {
     /// Array of very long Base64 encoded transactions. Eg: `["CoYBCoMBCiUvYXhlbGFyLmF4ZWxhcm5ldC52MWJldGExLkxpbmtSZXF1ZXN0EloKFAfFBMRZ8AeNGGkWVAcX+idm5UutEioweDM1NzkyNTRmNTgwNWQxNjZiNjhhNTg3MzIwNzA0NDQ4MjBmYTRiZjEaCGV0aGVyZXVtIgx3YnRjLXNhdG9zaGkSlQEKUQpGCh8vY29zbW9zLmNyeXB0by5zZWNwMjU2azEuUHViS2V5EiMKIQPUmMSQ2WoB0eD589u7pruIZt2gbHT2DO3QSIPX0z8WXBIECgIIARiuCBJACgsKBHVheGwSAzY3NRDh8AUiLWF4ZWxhcjFwdTJzd2MwbjB0cmZ0bGRoejU3cHlxa3c2ZDg3aGFobjdnNjk3YxpANmM1rQE1P3hbVtuFoaQEpGpnBnlygbotxEA0qR/rmAwVRB+acJ6idoF1V0Qul5eSCpi1Z0TLLwQEMya4nMdl3g=="]`
     pub txs: Vec<String>,
 }
 
-#[derive(Deserialize, Serialize, Debug)]
+#[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct BlockHeaderVersion {
     /// Unknown. Eg: `"11"`
     pub block: String,
@@ -389,7 +389,7 @@ pub struct BlockLastCommitSignatures {
     pub signature: Option<String>,
 }
 
-#[derive(Deserialize, Serialize, Debug)]
+#[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct BlockLastCommit {
     /// The block height of the latest commit. Eg: `"4611327"`
     pub height: String,
