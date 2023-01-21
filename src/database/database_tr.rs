@@ -308,6 +308,18 @@ impl DatabaseTR {
         }
     }
 
+    /// Add new evm_poll item to the evm_polls collection
+    /// # Usage
+    /// ```rs
+    /// database.upsert_block(evm_poll).await;
+    /// ```
+    pub async fn update_evm_poll(&self, query: Document, update: Document) -> Result<(), String> {
+        match self.evm_poll_collection().update_one(query, update, None).await {
+            Ok(_) => Ok(()),
+            Err(_) => Err("Cannot update the poll.".into()),
+        }
+    }
+
     /// Adds a new chain to the chains collection of the database.
     /// # Usage
     /// ```rs
