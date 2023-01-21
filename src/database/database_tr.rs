@@ -7,7 +7,9 @@ use mongodb::bson::{bson, from_document, to_document};
 use crate::database::blocks::Block;
 use crate::database::params::{HistoricalValidatorData, VotingPower};
 use crate::database::evm_polls::{EvmPoll};
+use crate::database::EvmPollParticipantForDb;
 use crate::fetch::others::{PaginationConfig, PaginationDb};
+use crate::fetch::socket::EVM_POLL_VOTE;
 use crate::fetch::validators::ValidatorListDbResp;
 use super::{chains::Chain, params::Params, validators::Validator};
 
@@ -317,6 +319,20 @@ impl DatabaseTR {
         match self.evm_poll_collection().update_one(query, update, None).await {
             Ok(_) => Ok(()),
             Err(_) => Err("Cannot update the poll.".into()),
+        }
+    }
+
+    /// Updates evm_poll item participant vote on to the evm_polls collection
+    /// # Usage
+    /// ```rs
+    /// database.update_evm_poll_participant_vote(3890,EVM_POLL_VOTE::YES).await;
+    /// ```
+    pub async fn update_evm_poll_participant_vote(&self, pool_id: &String, vote: EvmPollParticipantForDb) -> Result<(), String> {
+        let query = doc! {"poll_id":pool_id,"participants.operator_address": &vote.operator_address};
+        let update_doc = doc! {"$set":{"participants.$.vote": vote.vote.to_db_str()}};
+        match self.update_evm_poll(query, update_doc).await {
+            Ok(_) => { Ok(()) }
+            Err(_) => Err("Cannot update poll vote.".into()),
         }
     }
 
