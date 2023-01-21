@@ -75,5 +75,5 @@ quicksilver:
   # decimals: 6
   # version: 0.45
   rpc_url: https://quicksilver-rpc.theamsolutions.info
-  rest_url: https://quicksilver-api.theamsolutions.info
+  rest_url: https://quicksilver-mainnet-api.itrocket.net
   wss_url: wss://rpc-quicksilver-ia.cosmosia.notional.ventures/websocket
