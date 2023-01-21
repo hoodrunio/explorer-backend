@@ -17,3 +17,4 @@ pub use params::StakingParams as StakingParamsForDb;
 pub use params::VotingPower as VotingPowerForDb;
 pub use validators::Validator as ValidatorForDb;
 pub use evm_polls::EvmPoll as EvmPollForDb;
+pub use evm_polls::EvmPollParticipant as EvmPollParticipantForDb;
