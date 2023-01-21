@@ -451,9 +451,7 @@ impl Chain {
     }
 
     pub async fn get_validator_status(&self, validator: &ValidatorListValidator, consensus_address: &str) -> Result<ValidatorStatus, String> {
-        let signing_info = self
-            .get_validator_signing_info(&consensus_address)
-            .await?;
+        let signing_info = self.get_validator_signing_info(&consensus_address).await?;
 
         let status = if validator.jailed {
             ValidatorStatus::Jailed
@@ -472,7 +470,8 @@ impl Chain {
         &self,
         validator_operator_address: &str,
         period: Duration,
-        current_voting_power_percentage: f64) -> Result<f64, String> {
+        current_voting_power_percentage: f64,
+    ) -> Result<f64, String> {
         let voting_powers_history = match self.database.find_historical_data_by_operator_address(&validator_operator_address).await {
             Ok(voting_power_db) => {
                 voting_power_db.voting_power_data
@@ -491,14 +490,14 @@ impl Chain {
             } else {
                 break;
             };
-        };
+        }
 
         match potential_voting_power {
             Some(value) => {
                 let bonded_tokens = self.get_staking_pool().await?.value.bonded as f64;
                 Ok((((value / bonded_tokens) * 100.0) - current_voting_power_percentage))
             }
-            None => Err("Could not calculate voting power change".to_string())
+            None => Err("Could not calculate voting power change".to_string()),
         }
     }
 

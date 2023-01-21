@@ -73,11 +73,9 @@ impl Chain {
 
         for redelegation_response in resp.redelegation_responses {
             if let (Ok(validator_from), Ok(validator_to)) = join!(
-                self
-                    .database
+                self.database
                     .find_validator_by_operator_addr(&redelegation_response.redelegation.validator_src_address),
-                self
-                    .database
+                self.database
                     .find_validator_by_operator_addr(&redelegation_response.redelegation.validator_dst_address),
             ) {
                 redelegations.push({
@@ -142,11 +140,7 @@ impl Chain {
         let mut unbondings = vec![];
 
         for unbonding_response in resp.unbonding_responses {
-            if let Ok(validator_metadata) = self
-                .database
-                .find_validator_by_operator_addr(&unbonding_response.validator_address)
-                .await
-            {
+            if let Ok(validator_metadata) = self.database.find_validator_by_operator_addr(&unbonding_response.validator_address).await {
                 unbondings.push({
                     let unbonding_entry = unbonding_response
                         .entries

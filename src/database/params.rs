@@ -48,7 +48,6 @@ pub struct DistributionParams {
     pub withdraw_addr_enabled: bool,
 }
 
-
 //Historical data db struct
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct HistoricalValidatorData {

@@ -1,7 +1,7 @@
-use std::sync::Arc;
 use mongodb::Client;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use std::sync::Arc;
 use versions::SemVer;
 
 use crate::database::DatabaseTR;
@@ -44,7 +44,10 @@ async fn get_main_denom(rest_url: &str, client: reqwest::Client) -> Result<Strin
         .await
         .map_err(|e| format!("Failed to fetch the node_info {e}"))?;
 
-    value["params"]["bond_denom"].as_str().ok_or(format!("bond_demon not found")).map(str::to_string)
+    value["params"]["bond_denom"]
+        .as_str()
+        .ok_or(format!("bond_demon not found"))
+        .map(str::to_string)
 }
 
 impl Chain {
@@ -62,7 +65,6 @@ impl Chain {
             Some(denom) => denom.to_string(),
             None => get_main_denom(&ic.rest_url, client.clone()).await?,
         };
-
 
         let chain_config = ChainConfig {
             name: ic.name.clone(),
@@ -90,7 +92,11 @@ impl Chain {
     }
 
     pub fn new(chain_config: ChainConfig, client: reqwest::Client, database: DatabaseTR) -> Chain {
-        Chain { config: chain_config, client, database }
+        Chain {
+            config: chain_config,
+            client,
+            database,
+        }
     }
 }
 /// The configuration of a chain.
@@ -130,7 +136,6 @@ pub struct ChainConfig {
     pub decimals: u8,
     /// The decimals of the native coin of the chain.
     pub decimals_pow: u64,
-
 }
 
 #[derive(Serialize, Deserialize, Clone)]

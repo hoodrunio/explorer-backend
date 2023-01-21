@@ -3,12 +3,13 @@ use std::sync::Arc;
 use chrono::DateTime;
 use futures::{SinkExt, StreamExt};
 use serde::Deserialize;
+use tokio::sync::broadcast::Sender;
 use tokio::sync::Mutex;
 use tokio_tungstenite::{connect_async, tungstenite::Message};
-use tracing_subscriber::fmt::format;
 
 use crate::chain::Chain;
 use crate::database::BlockForDb;
+use crate::events::WsEvent;
 use crate::fetch::blocks::Block;
 
 use super::{
@@ -22,27 +23,31 @@ const SUBSCRIBE_TX: &str = r#"{ "jsonrpc": "2.0", "method": "subscribe", "params
 
 impl Chain {
     /// Subscribes to all the events.
-    pub async fn subscribe_to_events(&self) -> Result<(), String> {
+    pub async fn subscribe_to_events(&self, tx: Sender<(String, WsEvent)>) -> Result<(), String> {
         // Define the URL.
         let clone = self.clone();
         let url = &clone.config.wss_url;
 
         // Connect to the `wss://` URL.
-        let (ws_stream, _) = connect_async(url)
-            .await
-            .map_err(|e| format!("Failed to connect to {url}: {e}"))?;
+        let (ws_stream, _) = connect_async(url).await.map_err(|e| format!("Failed to connect to {url}: {e}"))?;
 
         // Split the connection into two parts.
         let (mut write, mut read) = ws_stream.split();
 
         // Subscribe to blocks.
-        write.send(SUBSCRIBE_BLOCK.into()).await.map_err(|e| format!("Can't subscribe to blocks for {}: {e}", clone.config.name))?;
+        write
+            .send(SUBSCRIBE_BLOCK.into())
+            .await
+            .map_err(|e| format!("Can't subscribe to blocks for {}: {e}", clone.config.name))?;
 
         // Subscribe to block headers.
         // write.send(SUBSCRIBE_HEADER.into()).await.map_err(|e| format!("Can't subscribe to block headers for {}: {e}", clone.config.name))?;
 
         // Subscribe to block txs.
-        write.send(SUBSCRIBE_TX.into()).await.map_err(|e| format!("Can't subscribe to txs for {}: {e}", clone.config.name))?;
+        write
+            .send(SUBSCRIBE_TX.into())
+            .await
+            .map_err(|e| format!("Can't subscribe to txs for {}: {e}", clone.config.name))?;
 
         // The variable to hold the previous block header response to have block hash value.
         let previous_block_header_resp: Arc<Mutex<Option<NewBlockValue>>> = Arc::new(Mutex::new(None));
@@ -59,7 +64,9 @@ impl Chain {
                                 amount: events.transfer_amount.get(0).map(|amount| clone._get_amount(amount)).unwrap_or(0.00),
                                 fee: clone._get_amount(&events.tx_fee[0]),
                                 hash: events.tx_hash[0].clone(),
-                                height: events.tx_height[0].parse::<u64>().map_err(|e| format!("Cannot parse tx height {}: {e}", events.tx_height[0]))?,
+                                height: events.tx_height[0]
+                                    .parse::<u64>()
+                                    .map_err(|e| format!("Cannot parse tx height {}: {e}", events.tx_height[0]))?,
                                 time: std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_millis() as i64,
                                 result: "Success".to_string(),
                                 r#type: events.message_action[0]
@@ -69,6 +76,7 @@ impl Chain {
                                     .to_string(),
                             };
 
+                            tx.send((self.config.name.clone(), WsEvent::NewTX(tx_item.clone()))).ok();
                             // STORE TXS TO MONGO_DB HERE
                             // clone.store_new_tx(tx_item);
                         }
@@ -91,8 +99,14 @@ impl Chain {
 
                                     let block_item = BlockForDb {
                                         hash: current_block_data.header.last_block_id.hash.clone(),
-                                        height: prev_block_data.header.height.parse::<u64>().map_err(|e| format!("Cannot parse block height, {}: {e}", prev_block_data.header.height))?,
-                                        timestamp: DateTime::parse_from_rfc3339(&prev_block_data.header.time).map(|d| d.timestamp_millis()).map_err(|e| format!("Cannot parse datetime, {}: e", prev_block_data.header.time))?,
+                                        height: prev_block_data
+                                            .header
+                                            .height
+                                            .parse::<u64>()
+                                            .map_err(|e| format!("Cannot parse block height, {}: {e}", prev_block_data.header.height))?,
+                                        timestamp: DateTime::parse_from_rfc3339(&prev_block_data.header.time)
+                                            .map(|d| d.timestamp_millis())
+                                            .map_err(|e| format!("Cannot parse datetime, {}: e", prev_block_data.header.time))?,
                                         tx_count: prev_block_data.data.txs.len() as u64,
                                         proposer_logo_url: proposer_metadata.logo_url,
                                         proposer_name: proposer_metadata.name,
@@ -100,7 +114,11 @@ impl Chain {
                                         signatures: current_block_data.last_commit.signatures.clone(),
                                     };
 
-                                    self.database.upsert_block(block_item).await.unwrap();
+                                    tx.send((self.config.name.clone(), WsEvent::NewBLock(block_item.clone()))).ok();
+
+                                    if let Err(e) = self.database.upsert_block(block_item).await {
+                                        tracing::error!("Error saving block to the database: {e} ")
+                                    }
 
                                     *mutex_previous_resp = Some(current_resp);
                                 }
