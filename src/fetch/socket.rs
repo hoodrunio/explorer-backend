@@ -254,3 +254,211 @@ pub struct TxEvents {
     #[serde(rename = "transfer.amount")]
     pub transfer_amount: Vec<String>,
 }
+
+#[derive(Deserialize, Debug, Clone)]
+pub struct ConfirmDepositStartedEvents {
+    #[serde(rename = "tx.height")]
+    pub tx_height: [String; 1],
+    #[serde(rename = "axelar.evm.v1beta1.ConfirmDepositStarted.chain")]
+    pub chain: [String; 1],
+    #[serde(rename = "axelar.evm.v1beta1.ConfirmDepositStarted.participants")]
+    pub participants: [String; 1],
+    #[serde(rename = "axelar.evm.v1beta1.ConfirmDepositStarted.tx_id")]
+    pub tx_id: [String; 1],
+    #[serde(rename = "message.action")]
+    pub message_action: [String; 1],
+}
+
+#[derive(Deserialize, Debug, Clone)]
+pub struct ConfirmGatewayTxStartedEvents {
+    #[serde(rename = "tx.height")]
+    pub tx_height: [String; 1],
+    #[serde(rename = "axelar.evm.v1beta1.ConfirmGatewayTxStarted.chain")]
+    pub chain: [String; 1],
+    #[serde(rename = "axelar.evm.v1beta1.ConfirmGatewayTxStarted.participants")]
+    pub participants: [String; 1],
+    #[serde(rename = "axelar.evm.v1beta1.ConfirmGatewayTxStarted.tx_id")]
+    pub tx_id: [String; 1],
+    #[serde(rename = "message.action")]
+    pub message_action: [String; 1],
+}
+
+#[derive(Deserialize, Debug, Clone)]
+pub struct ConfirmKeyTransferStartedEvents {
+    #[serde(rename = "tx.height")]
+    pub tx_height: [String; 1],
+    #[serde(rename = "axelar.evm.v1beta1.ConfirmKeyTransferStarted.chain")]
+    pub chain: [String; 1],
+    #[serde(rename = "axelar.evm.v1beta1.ConfirmKeyTransferStarted.participants")]
+    pub participants: [String; 1],
+    #[serde(rename = "axelar.evm.v1beta1.ConfirmKeyTransferStarted.tx_id")]
+    pub tx_id: [String; 1],
+    #[serde(rename = "message.action")]
+    pub message_action: [String; 1],
+}
+
+impl SocketResultNonEmpty {
+    pub async fn get_evm_poll_item(&self, chain: &Chain) -> Result<EvmPollItem, TNRAppError> {
+        let tx_height = self.get_tx_height();
+        let chain_name = self.get_chain_name();
+        let action_name = self.get_action_name();
+        let participants_raw = self.get_participants_raw();
+        let tx_id = self.get_tx_id();
+
+        Ok(EvmPollItem::new(&EvmPollItemEventParams {
+            chain: chain_name,
+            tx_height,
+            action_name,
+            participants_raw,
+            tx_id,
+        }, &chain).await.unwrap()
+        )
+    }
+
+    fn get_tx_height(&self) -> u64 {
+        match self {
+            SocketResultNonEmpty::ConfirmERC20DepositStartedTx { events } => { events.tx_height.get(0).unwrap().parse::<u64>().unwrap() }
+            SocketResultNonEmpty::ConfirmDepositStartedTx { events } => { events.tx_height.get(0).unwrap().parse::<u64>().unwrap() }
+            SocketResultNonEmpty::ConfirmGatewayTxStartedTx { events } => { events.tx_height.get(0).unwrap().parse::<u64>().unwrap() }
+            SocketResultNonEmpty::ConfirmKeyTransferStartedTx { events } => { events.tx_height.get(0).unwrap().parse::<u64>().unwrap() }
+            _ => 0,
+        }
+    }
+    fn get_chain_name(&self) -> String {
+        match self {
+            SocketResultNonEmpty::ConfirmERC20DepositStartedTx { events } => { events.chain.get(0).unwrap().to_string() }
+            SocketResultNonEmpty::ConfirmDepositStartedTx { events } => { events.chain.get(0).unwrap().to_string() }
+            SocketResultNonEmpty::ConfirmGatewayTxStartedTx { events } => { events.chain.get(0).unwrap().to_string() }
+            SocketResultNonEmpty::ConfirmKeyTransferStartedTx { events } => { events.chain.get(0).unwrap().to_string() }
+            _ => String::from(""),
+        }
+    }
+    fn get_action_name(&self) -> String {
+        match self {
+            SocketResultNonEmpty::ConfirmERC20DepositStartedTx { events } => { events.message_action.get(0).unwrap().to_string() }
+            SocketResultNonEmpty::ConfirmDepositStartedTx { events } => { events.message_action.get(0).unwrap().to_string() }
+            SocketResultNonEmpty::ConfirmGatewayTxStartedTx { events } => { events.message_action.get(0).unwrap().to_string() }
+            SocketResultNonEmpty::ConfirmKeyTransferStartedTx { events } => { events.message_action.get(0).unwrap().to_string() }
+            _ => String::from(""),
+        }
+    }
+    fn get_participants_raw(&self) -> String {
+        match self {
+            SocketResultNonEmpty::ConfirmERC20DepositStartedTx { events } => { events.participants.get(0).unwrap().to_string() }
+            SocketResultNonEmpty::ConfirmDepositStartedTx { events } => { events.participants.get(0).unwrap().to_string() }
+            SocketResultNonEmpty::ConfirmGatewayTxStartedTx { events } => { events.participants.get(0).unwrap().to_string() }
+            SocketResultNonEmpty::ConfirmKeyTransferStartedTx { events } => { events.participants.get(0).unwrap().to_string() }
+            _ => String::from(""),
+        }
+    }
+    fn get_tx_id(&self) -> String {
+        match self {
+            SocketResultNonEmpty::ConfirmERC20DepositStartedTx { events } => { events.tx_id.get(0).unwrap().to_string() }
+            SocketResultNonEmpty::ConfirmDepositStartedTx { events } => { events.tx_id.get(0).unwrap().to_string() }
+            SocketResultNonEmpty::ConfirmGatewayTxStartedTx { events } => { events.tx_id.get(0).unwrap().to_string() }
+            SocketResultNonEmpty::ConfirmKeyTransferStartedTx { events } => { events.tx_id.get(0).unwrap().to_string() }
+            _ => String::from(""),
+        }
+    }
+}
+
+#[derive(Deserialize, Debug, Clone)]
+pub struct VotedTxEvents {
+    #[serde(rename = "tx.height")]
+    pub tx_height: [String; 1],
+    #[serde(rename = "tx.hash")]
+    pub tx_hash: [String; 1],
+}
+
+#[derive(Deserialize, Debug, Clone)]
+pub struct PoolParticipants {
+    pub poll_id: String,
+
+    #[serde(rename = "participants")]
+    pub participants_operator_address: Vec<String>,
+}
+
+#[derive(Deserialize, Debug, Clone)]
+pub struct EvmPollItem {
+    pub tx_height: u64,
+    pub action: String,
+    pub poll_id: String,
+    pub chain_name: String,
+    pub status: String,
+    pub evm_tx_id: String,
+    pub participants_operator_address: Vec<String>,
+    pub time: u64,
+}
+
+impl EvmPollItem {
+    async fn new(params: &EvmPollItemEventParams, chain: &Chain) -> Result<Self, TNRAppError> {
+        let rmv_backslash_participants = str::replace(&params.participants_raw, r#"\"#, "");
+        let poll_info = match serde_json::from_str::<PoolParticipants>(&rmv_backslash_participants) {
+            Ok(res) => res,
+            Err(e) => { return Err(TNRAppError::from(format!("error {}", e))); }
+        };
+
+        let tx_height = params.tx_height;
+        let time = match chain.get_block_by_height(Some(tx_height)).await {
+            Ok(res) => res.value.time as u64,
+            Err(_) => { 0 }
+        };
+
+        let chain_name = str::replace(&params.chain, r#"\"#, "");
+        let evm_tx_id = chain.convert_to_evm_hex(&params.tx_id).unwrap();
+        let action = String::from(&params.action_name);
+
+        Ok(Self {
+            poll_id: poll_info.poll_id.clone(),
+            status: String::from("Pending"),
+            participants_operator_address: poll_info.participants_operator_address.clone(),
+            action,
+            evm_tx_id,
+            chain_name,
+            time,
+            tx_height,
+        })
+    }
+}
+
+struct EvmPollItemEventParams {
+    pub tx_height: u64,
+    pub chain: String,
+    pub action_name: String,
+    pub participants_raw: String,
+    pub tx_id: String,
+}
+
+impl From<EvmPollItem> for EvmPollForDb {
+    fn from(value: EvmPollItem) -> Self {
+        let participants: Vec<EvmPollParticipantForDb> = value.participants_operator_address.into_iter().map(|address| { EvmPollParticipantForDb::from(address) }).collect();
+
+        EvmPollForDb {
+            timestamp: value.time.clone(),
+            tx_height: value.tx_height.clone(),
+            poll_id: value.poll_id.clone(),
+            action: value.action.clone(),
+            status: value.status.clone(),
+            evm_tx_id: value.evm_tx_id.clone(),
+            chain_name: value.chain_name.clone(),
+            participants,
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
+pub enum EVM_POLL_VOTE {
+    UN_SUBMIT,
+    YES,
+    NO,
+}
+
+impl EVM_POLL_VOTE {
+    pub fn to_db_str(&self) -> String {
+        match self {
+            EVM_POLL_VOTE::UN_SUBMIT => format!("UN_SUBMIT"),
+            EVM_POLL_VOTE::YES => format!("YES"),
+            EVM_POLL_VOTE::NO => format!("NO")
+        }
+    }
+}
