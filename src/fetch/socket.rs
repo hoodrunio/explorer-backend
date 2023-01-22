@@ -21,6 +21,48 @@ const SUBSCRIBE_BLOCK: &str = r#"{ "jsonrpc": "2.0", "method": "subscribe", "par
 const SUBSCRIBE_HEADER: &str = r#"{ "jsonrpc": "2.0", "method": "subscribe", "params": ["tm.event='NewBlockHeader'"], "id": 1 }"#;
 const SUBSCRIBE_TX: &str = r#"{ "jsonrpc": "2.0", "method": "subscribe", "params": ["tm.event='Tx'"], "id": 2 }"#;
 
+const AXELAR_SUB_CONFIRM_DEPOSIT_TX: &str = r#"{
+    "jsonrpc": "2.0",
+    "method": "subscribe",
+    "id": "0",
+    "params": {
+        "query": "tm.event='Tx' AND message.action='ConfirmDeposit' AND axelar.evm.v1beta1.ConfirmDepositStarted.participants CONTAINS 'participants'"
+    }
+}"#;
+const AXELAR_SUB_CONFIRM_ERC20_DEPOSIT_TX: &str = r#"{
+    "jsonrpc": "2.0",
+    "method": "subscribe",
+    "id": "0",
+    "params": {
+        "query": "tm.event='Tx' AND message.action='ConfirmERC20Deposit' AND axelar.evm.v1beta1.ConfirmDepositStarted.participants CONTAINS 'participants'"
+    }
+}"#;
+const AXELAR_SUB_CONFIRM_TRANSFER_KEY_TX: &str = r#"{
+    "jsonrpc": "2.0",
+    "method": "subscribe",
+    "id": "0",
+    "params": {
+        "query": "tm.event='Tx' AND message.action='ConfirmTransferKey' AND axelar.evm.v1beta1.ConfirmKeyTransferStarted.participants CONTAINS 'participants'"
+    }
+}"#;
+const AXELAR_SUB_CONFIRM_GATEWAY_TX: &str = r#"{
+    "jsonrpc": "2.0",
+    "method": "subscribe",
+    "id": "0",
+    "params": {
+        "query": "tm.event='Tx' AND message.action='ConfirmGatewayTx' AND axelar.evm.v1beta1.ConfirmGatewayTxStarted.participants CONTAINS 'participants'"
+    }
+}"#;
+
+const AXELAR_SUB_VOTE_TX: &str = r#"{
+    "jsonrpc": "2.0",
+    "method": "subscribe",
+    "id": "0",
+    "params": {
+        "query": "tm.event='Tx' AND axelar.vote.v1beta1.Voted.action CONTAINS 'vote'"
+    }
+}"#;
+
 impl Chain {
     /// Subscribes to all the events.
     pub async fn subscribe_to_events(&self, tx: Sender<(String, WsEvent)>) -> Result<(), String> {
