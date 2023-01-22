@@ -216,17 +216,22 @@ impl Chain {
                                 let tx_content = tx_content_res.value.content.get(0);
 
                                 match tx_content.unwrap() {
-                                    InternalTransactionContent::Known(InternalTransactionContentKnowns::AxelarRefundRequest { sender:_, inner_message }) => {
+                                    InternalTransactionContent::Known(InternalTransactionContentKnowns::AxelarRefundRequest { sender: _, inner_message }) => {
                                         match inner_message {
                                             InnerMessage::Known(InnerMessageKnown::VoteRequest { sender, vote, poll_id }) => {
                                                 match vote {
                                                     AxelarVote::Known(axelar_known_vote) => {
                                                         let vote = axelar_known_vote.evm_vote();
-                                                        let validator = self.database.find_validator(doc! {"voter_address":sender}).await?;
-                                                        self.database.update_evm_poll_participant_vote(&poll_id, EvmPollParticipantForDb {
-                                                            operator_address: validator.operator_address,
-                                                            vote,
-                                                        }).await?;
+                                                        let validator = self.database.find_validator(doc! {"voter_address":sender}).await;
+                                                        if let Ok(validator) = validator {
+                                                            match self.database.update_evm_poll_participant_vote(&poll_id, EvmPollParticipantForDb {
+                                                                operator_address: validator.operator_address,
+                                                                vote,
+                                                            }).await {
+                                                                Ok(_) => {}
+                                                                Err(e) => { TNRAppError::from(format!("Can not get axelar vote info.to_string() {}", e)); }
+                                                            };
+                                                        }
                                                     }
                                                     AxelarVote::Unknown(_) => { TNRAppError::from("Can not get axelar vote info".to_string()); }
                                                 }
@@ -258,6 +263,7 @@ impl Chain {
                 }
             }
         }
+
         Ok(())
     }
 
