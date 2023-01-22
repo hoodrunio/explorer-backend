@@ -448,17 +448,17 @@ impl From<EvmPollItem> for EvmPollForDb {
 
 #[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
 pub enum EvmPollVote {
-    UN_SUBMIT,
-    YES,
-    NO,
+    UnSubmit,
+    Yes,
+    No,
 }
 
 impl EvmPollVote {
     pub fn to_db_str(&self) -> String {
         match self {
-            EvmPollVote::UN_SUBMIT => format!("UN_SUBMIT"),
-            EvmPollVote::YES => format!("YES"),
-            EvmPollVote::NO => format!("NO")
+            EvmPollVote::UnSubmit => format!("UnSubmit"),
+            EvmPollVote::Yes => format!("Yes"),
+            EvmPollVote::No => format!("No")
         }
     }
 }

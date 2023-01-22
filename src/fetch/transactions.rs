@@ -972,11 +972,11 @@ pub enum AxelarKnownVote {
 impl AxelarKnownVote {
     pub fn evm_vote(&self) -> EvmPollVote {
         match self {
-            AxelarKnownVote::VoteEvent { chain, events } => {
+            AxelarKnownVote::VoteEvent { chain: _, events } => {
                 let vote = if !events.is_empty() {
-                    EvmPollVote::YES
+                    EvmPollVote::Yes
                 } else {
-                    EvmPollVote::NO
+                    EvmPollVote::No
                 };
                 vote
             }

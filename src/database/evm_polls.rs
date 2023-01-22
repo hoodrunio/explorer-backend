@@ -24,7 +24,7 @@ impl From<String> for EvmPollParticipant {
     fn from(operator_address: String) -> Self {
         Self{
             operator_address,
-            vote: EvmPollVote::UN_SUBMIT,
+            vote: EvmPollVote::UnSubmit,
         }
     }
 }
