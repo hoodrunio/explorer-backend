@@ -9,7 +9,7 @@ use crate::database::params::{HistoricalValidatorData, VotingPower};
 use crate::database::evm_polls::{EvmPoll};
 use crate::database::EvmPollParticipantForDb;
 use crate::fetch::others::{PaginationConfig, PaginationDb};
-use crate::fetch::socket::EVM_POLL_VOTE;
+use crate::fetch::socket::EvmPollVote;
 use crate::fetch::validators::ValidatorListDbResp;
 use super::{chains::Chain, params::Params, validators::Validator};
 
@@ -325,7 +325,7 @@ impl DatabaseTR {
     /// Updates evm_poll item participant vote on to the evm_polls collection
     /// # Usage
     /// ```rs
-    /// database.update_evm_poll_participant_vote(3890,EVM_POLL_VOTE::YES).await;
+    /// database.update_evm_poll_participant_vote(3890,EvmPollVote::YES).await;
     /// ```
     pub async fn update_evm_poll_participant_vote(&self, pool_id: &String, vote: EvmPollParticipantForDb) -> Result<(), String> {
         let query = doc! {"poll_id":pool_id,"participants.operator_address": &vote.operator_address};
