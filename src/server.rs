@@ -8,6 +8,7 @@ use tracing_actix_web::TracingLogger;
 use web::Data;
 
 use crate::routes;
+use crate::routes::TNRAppError;
 use crate::state::State;
 
 #[get("/")]
@@ -34,6 +35,14 @@ pub async fn start_web_server() -> std::io::Result<()> {
     let tx_clone = tx.clone();
     tokio::spawn(async move {
         state_clone.subscribe_to_events(tx_clone).await;
+    });
+
+    let axelar_chain = state.get("axelar").unwrap().clone();
+    tokio::spawn(async move {
+        match axelar_chain.sub_for_axelar_evm_pools().await {
+            Ok(_) => tracing::info!("Stopped listening axelar evm poll events for"),
+            Err(e) => tracing::error!("Failed listening axelar evm poll events {}",e),
+        }
     });
 
     let chains = HashSet::from_iter(state.get_chains().keys().cloned());
