@@ -178,19 +178,19 @@ impl Chain {
     }
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug, Clone)]
 pub struct SocketMessage {
     pub result: SocketResult,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Clone, Debug)]
 #[serde(untagged)]
 pub enum SocketResult {
     NonEmpty(SocketResultNonEmpty),
     Empty {},
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug, Clone)]
 #[serde(tag = "query")]
 pub enum SocketResultNonEmpty {
     #[serde(rename = "tm.event='Tx'")]
@@ -206,23 +206,23 @@ pub struct NewBlockHeaderMessage {
     pub data: Option<NewBlockHeaderData>,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug, Clone)]
 pub struct NewBlockHeaderData {
     pub value: NewBlockHeaderValue,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug, Clone)]
 pub struct NewBlockData {
     pub value: NewBlockValue,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug, Clone)]
 pub struct NewBlockHeaderValue {
     pub header: BlockHeader,
     pub num_txs: String,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug, Clone)]
 pub struct NewBlockValue {
     pub block: Block,
 }
@@ -232,7 +232,7 @@ pub struct TxMessage {
     pub events: Option<TxEvents>,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug, Clone)]
 pub struct TxEvents {
     /// `[ "F0E26D70191E27C8AB6249DE9C088B8C2812443CDF0DF04D7C83AE76A117C083" ]`
     #[serde(rename = "tx.hash")]
