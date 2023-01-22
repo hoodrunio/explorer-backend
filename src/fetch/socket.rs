@@ -199,6 +199,20 @@ pub enum SocketResultNonEmpty {
     Header { data: NewBlockHeaderData },
     #[serde(rename = "tm.event='NewBlock'")]
     Block { data: NewBlockData },
+    #[serde(rename = "tm.event='Tx' AND message.action='ConfirmERC20Deposit' AND axelar.evm.v1beta1.ConfirmDepositStarted.participants CONTAINS 'participants'")]
+    ConfirmERC20DepositStartedTx { events: ConfirmDepositStartedEvents },
+
+    #[serde(rename = "tm.event='Tx' AND message.action='ConfirmDeposit' AND axelar.evm.v1beta1.ConfirmDepositStarted.participants CONTAINS 'participants'")]
+    ConfirmDepositStartedTx { events: ConfirmDepositStartedEvents },
+
+    #[serde(rename = "tm.event='Tx' AND message.action='ConfirmGatewayTx' AND axelar.evm.v1beta1.ConfirmGatewayTxStarted.participants CONTAINS 'participants'")]
+    ConfirmGatewayTxStartedTx { events: ConfirmGatewayTxStartedEvents },
+
+    #[serde(rename = "tm.event='Tx' AND message.action='ConfirmTransferKey' AND axelar.evm.v1beta1.ConfirmKeyTransferStarted.participants CONTAINS 'participants'")]
+    ConfirmKeyTransferStartedTx { events: ConfirmKeyTransferStartedEvents },
+
+    #[serde(rename = "tm.event='Tx' AND axelar.vote.v1beta1.Voted.action CONTAINS 'vote'")]
+    VotedTx { events: VotedTxEvents },
 }
 
 #[derive(Deserialize)]
