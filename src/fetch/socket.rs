@@ -2,15 +2,19 @@ use std::sync::Arc;
 
 use chrono::DateTime;
 use futures::{SinkExt, StreamExt};
-use serde::Deserialize;
 use tokio::sync::broadcast::Sender;
+use mongodb::bson::doc;
+use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use tokio::sync::Mutex;
 use tokio_tungstenite::{connect_async, tungstenite::Message};
 
 use crate::chain::Chain;
-use crate::database::BlockForDb;
+use crate::database::{BlockForDb, EvmPollForDb, EvmPollParticipantForDb};
+use crate::fetch::blocks::{Block};
+use crate::fetch::transactions::{AxelarVote, InnerMessage, InnerMessageKnown, InternalTransaction, InternalTransactionContent, InternalTransactionContentKnowns};
+use crate::routes::{OutRestResponse, TNRAppError};
 use crate::events::WsEvent;
-use crate::fetch::blocks::Block;
 
 use super::{
     blocks::{BlockHeader, BlockItem},
@@ -175,6 +179,101 @@ impl Chain {
             }
         }
         Ok(())
+    }
+
+    pub async fn sub_for_axelar_evm_pools(&self) -> Result<(), TNRAppError> {
+        let ws_url = "wss://axelar-rpc.chainode.tech/websocket";
+        let chain_name = "axelar";
+
+        let (ws_stream, _) = connect_async(ws_url).await.map_err(|_| TNRAppError::from("Can not connect".to_string()))?;
+
+        // Split the connection into two parts.
+        let (mut write, mut read) = ws_stream.split();
+
+        // Subscribe to txs which are related evm polls.
+        write.send(AXELAR_SUB_CONFIRM_DEPOSIT_TX.into()).await.map_err(|e| format!("Can't subscribe to confirm AXELAR CONFIRM DEPOSIT TX for {}: {e}", chain_name))?;
+        write.send(AXELAR_SUB_CONFIRM_ERC20_DEPOSIT_TX.into()).await.map_err(|e| format!("Can't subscribe to AXELAR CONFIRM ERC20_DEPOSIT TX for {}: {e}", chain_name))?;
+        write.send(AXELAR_SUB_CONFIRM_TRANSFER_KEY_TX.into()).await.map_err(|e| format!("Can't subscribe to AXELAR CONFIRM TRANSFER_KEY TX for {}: {e}", chain_name))?;
+        write.send(AXELAR_SUB_CONFIRM_GATEWAY_TX.into()).await.map_err(|e| format!("Can't subscribe to AXELAR CONFIRM GATEWAY TX for {}: {e}", chain_name))?;
+        write.send(AXELAR_SUB_VOTE_TX.into()).await.map_err(|e| format!("Can't subscribe to AXELAR_SUB_VOTE_TX for {}: {e}", chain_name))?;
+
+        while let Some(msg) = read.next().await {
+            if let Ok(Message::Text(text_msg)) = msg {
+                match serde_json::from_str::<SocketMessage>(&text_msg) {
+                    Ok(socket_msg) => {
+                        match socket_msg.result {
+                            SocketResult::NonEmpty(SocketResultNonEmpty::VotedTx { events }) => {
+                                let tx_hash = events.tx_hash.get(0).unwrap();
+
+                                let tx_content_res = match self.get_tx_by_hash(&tx_hash).await {
+                                    Ok(res) => res,
+                                    Err(e) => {
+                                        tracing::error!("tx could not fetched {}",e);
+                                        return Err(TNRAppError::from(e));
+                                    }
+                                };
+
+                                let tx_content = tx_content_res.value.content.get(0);
+
+                                match tx_content.unwrap() {
+                                    InternalTransactionContent::Known(InternalTransactionContentKnowns::AxelarRefundRequest { sender:_, inner_message }) => {
+                                        match inner_message {
+                                            InnerMessage::Known(InnerMessageKnown::VoteRequest { sender, vote, poll_id }) => {
+                                                match vote {
+                                                    AxelarVote::Known(axelar_known_vote) => {
+                                                        let vote = axelar_known_vote.evm_vote();
+                                                        let validator = self.database.find_validator(doc! {"voter_address":sender}).await?;
+                                                        self.database.update_evm_poll_participant_vote(&poll_id, EvmPollParticipantForDb {
+                                                            operator_address: validator.operator_address,
+                                                            vote,
+                                                        }).await?;
+                                                    }
+                                                    AxelarVote::Unknown(_) => { TNRAppError::from("Can not get axelar vote info".to_string()); }
+                                                }
+                                            }
+                                            InnerMessage::Unknown(_) => { TNRAppError::from("Can not get inner message info".to_string()); }
+                                        }
+                                    }
+                                    _ => { TNRAppError::from("Unknown vote type".to_string()); }
+                                };
+                            }
+                            SocketResult::NonEmpty(evm_poll_msg) => {
+                                let evm_poll_item = evm_poll_msg.get_evm_poll_item(&self).await.unwrap();
+                                let participants: Vec<EvmPollParticipantForDb> = evm_poll_item.participants_operator_address.clone().into_iter().map(|address| { EvmPollParticipantForDb::from(address) }).collect();
+                                self.database.upsert_evm_poll(EvmPollForDb {
+                                    timestamp: evm_poll_item.time.clone(),
+                                    tx_height: evm_poll_item.tx_height.clone(),
+                                    poll_id: evm_poll_item.poll_id.clone(),
+                                    action: evm_poll_item.action.clone(),
+                                    status: evm_poll_item.status.clone(),
+                                    evm_tx_id: evm_poll_item.evm_tx_id.clone(),
+                                    chain_name: evm_poll_item.chain_name.clone(),
+                                    participants,
+                                }).await?;
+                            }
+                            SocketResult::Empty { .. } => { dbg!("Socket result empty"); }
+                        };
+                    }
+                    Err(error) => tracing::info!("Websocket JSON parse error for {}: {error}", chain_name),
+                }
+            }
+        }
+        Ok(())
+    }
+
+    pub fn convert_to_evm_hex(&self, string_byte_array: &String) -> Option<String> {
+        let mut result: Option<String> = None;
+        let mut prefix = String::from("0x").to_owned();
+        match serde_json::from_str::<Vec<u8>>(string_byte_array) {
+            Ok(res) => {
+                let hex_res = hex::encode(res).clone();
+                prefix.push_str(hex_res.as_str());
+                result = Some(prefix);
+            }
+            Err(_) => { tracing::error!("Error while evm tx id byte array converting to hex"); }
+        }
+
+        result
     }
 }
 
