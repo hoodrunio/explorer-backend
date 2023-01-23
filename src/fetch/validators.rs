@@ -8,14 +8,15 @@ use super::{
     others::{DenomAmount, Pagination, PaginationConfig},
     transactions::{Tx, TxResponse, TxsResp, TxsTransactionMessage, TxsTransactionMessageKnowns},
 };
+use crate::database::ValidatorForDb;
+use crate::fetch::others::{PaginationDb, Response};
+use crate::fetch::transactions::{InternalTransactionContent, InternalTransactionContentKnowns};
+use crate::routes::TNRAppError;
+use crate::utils::convert_consensus_pubkey_to_consensus_address;
 use crate::{
     chain::Chain,
     routes::{calc_pages, OutRestResponse},
 };
-use crate::database::ValidatorForDb;
-use crate::utils::convert_consensus_pubkey_to_consensus_address;
-use crate::fetch::others::{PaginationDb, Response};
-use crate::routes::TNRAppError;
 
 impl Chain {
     /// Returns validator by given validator address.
@@ -167,24 +168,21 @@ impl Chain {
         let validator = resp?.validator;
         let bonded_tokens = staking_pool_resp?.value.bonded as f64;
 
-        let validator_metadata = self
-            .database
-            .find_validator_by_operator_addr(&validator.operator_address.clone())
-            .await?;
+        let validator_metadata = self.database.find_validator_by_operator_addr(&validator.operator_address.clone()).await?;
 
         let delegator_shares = match self.format_delegator_share(&validator.delegator_shares) {
             Ok(val) => val,
-            Err(err) => return Err(err)
+            Err(err) => return Err(err),
         };
 
         let voting_power_percentage = (delegator_shares / bonded_tokens) * 100.0;
-        let voting_power_change_24h = self.get_validator_voting_power_percentage_change(
-            &validator.operator_address,
-            Duration::hours(24),
-            voting_power_percentage)
-            .await.unwrap_or(0.0);
+        let voting_power_change_24h = self
+            .get_validator_voting_power_percentage_change(&validator.operator_address, Duration::hours(24), voting_power_percentage)
+            .await
+            .unwrap_or(0.0);
 
-        let consensus_address = convert_consensus_pubkey_to_consensus_address(&validator.consensus_pubkey.key, &format!("{}valcons", self.config.base_prefix));
+        let consensus_address =
+            convert_consensus_pubkey_to_consensus_address(&validator.consensus_pubkey.key, &format!("{}valcons", self.config.base_prefix));
         let val_status_enum = self.get_validator_status(&validator, &consensus_address).await?;
         let uptime = self.get_validator_uptime(&consensus_address, Some(val_status_enum.clone())).await?;
         let status = val_status_enum.as_str().to_string();
@@ -441,7 +439,7 @@ impl Chain {
             return Ok(default_uptime_value);
         }
 
-        let (val_signing_info_resp, slashing_params) = join!(self.get_validator_signing_info(&consensus_address),self.get_slashing_params());
+        let (val_signing_info_resp, slashing_params) = join!(self.get_validator_signing_info(&consensus_address), self.get_slashing_params());
 
         let val_signing_info = val_signing_info_resp?.value;
         let slashing_params = slashing_params?.value;
@@ -472,10 +470,8 @@ impl Chain {
         current_voting_power_percentage: f64,
     ) -> Result<f64, String> {
         let voting_powers_history = match self.database.find_historical_data_by_operator_address(&validator_operator_address).await {
-            Ok(voting_power_db) => {
-                voting_power_db.voting_power_data
-            }
-            Err(err) => return Err(err)
+            Ok(voting_power_db) => voting_power_db.voting_power_data,
+            Err(err) => return Err(err),
         };
 
         let period_millis = period.num_milliseconds();
@@ -498,6 +494,40 @@ impl Chain {
             }
             None => Err("Could not calculate voting power change".to_string()),
         }
+    }
+
+    pub async fn get_validator_voter_address(&self, operator_address: &String) -> Result<Option<String>, TNRAppError> {
+        let mut result = None;
+        if self.config.name != "axelar" {
+            return Ok(result);
+        };
+
+        match self.database.find_validator(doc! {"operator_address": &operator_address}).await {
+            Ok(res) => match res.voter_address {
+                Some(res) => return Ok(Some(res)),
+                None => {}
+            },
+            Err(_) => {}
+        };
+
+        let mut query = vec![];
+        query.push(("events", format!("message.sender='{}'", operator_address)));
+        query.push(("events", format!("message.action='{}'", "RegisterProxy")));
+        let resp = self.archive_api_request::<TxsResp>("/cosmos/tx/v1beta1/txs", &query).await?;
+
+        for tx in resp.txs.iter() {
+            for message in &tx.body.messages {
+                let res = message.clone().to_internal(&self).await?;
+                match res {
+                    InternalTransactionContent::Known(InternalTransactionContentKnowns::RegisterProxy { sender: _, proxy_addr }) => {
+                        result = Some(proxy_addr);
+                    }
+                    _ => {}
+                }
+            }
+        }
+
+        Ok(result)
     }
 }
 
@@ -693,8 +723,7 @@ impl ValidatorListResp {
                 voting_power_ratio,
                 uptime,
                 logo_url: v.logo_url.clone(),
-            }
-            )
+            })
         }
 
         Ok(Self {
@@ -731,8 +760,16 @@ impl ValidatorListElementValidatorCommissionRates {
     pub fn from_db(validator_commission_rates: ValidatorListValidatorCommissionRates) -> Self {
         let default_value = 0.0;
         let rate = validator_commission_rates.rate.parse::<f64>().map(|rate| rate).unwrap_or(default_value);
-        let max_rate = validator_commission_rates.max_rate.parse::<f64>().map(|rate| rate).unwrap_or(default_value);
-        let max_change_rate = validator_commission_rates.max_change_rate.parse::<f64>().map(|rate| rate).unwrap_or(default_value);
+        let max_rate = validator_commission_rates
+            .max_rate
+            .parse::<f64>()
+            .map(|rate| rate)
+            .unwrap_or(default_value);
+        let max_change_rate = validator_commission_rates
+            .max_change_rate
+            .parse::<f64>()
+            .map(|rate| rate)
+            .unwrap_or(default_value);
         Self {
             rate,
             max_rate,
@@ -841,11 +878,11 @@ impl InternalRedelegation {
     pub async fn new(tx: &Tx, tx_response: &TxResponse, chain: &Chain) -> Result<Self, String> {
         let (delegator_address, validator_dst_address, amount) = match tx.body.messages.get(0) {
             Some(TxsTransactionMessage::Known(TxsTransactionMessageKnowns::Redelegate {
-                                                  delegator_address,
-                                                  validator_src_address: _,
-                                                  validator_dst_address,
-                                                  amount,
-                                              })) => (delegator_address.clone(), validator_dst_address.clone(), amount),
+                delegator_address,
+                validator_src_address: _,
+                validator_dst_address,
+                amount,
+            })) => (delegator_address.clone(), validator_dst_address.clone(), amount),
             _ => return Err(format!("Tx doesn't have a redelegation message, {}.", tx_response.txhash)),
         };
 
@@ -969,7 +1006,7 @@ impl ValidatorStatus {
             ValidatorStatus::Inactive => "Inactive",
             ValidatorStatus::Jailed => "Jailed",
             ValidatorStatus::Tombstoned => "Tombstoned",
-            ValidatorStatus::Unknown(unknown_string) => unknown_string
+            ValidatorStatus::Unknown(unknown_string) => unknown_string,
         }
     }
 }

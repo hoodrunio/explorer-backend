@@ -1,10 +1,10 @@
+use crate::routes::{extract_chain, TNRAppError, TNRAppSuccessResponse};
 use crate::{fetch::others::Response, state::State};
 use actix_web::{
     get,
     web::{Data, Json, Path},
     Responder,
 };
-use crate::routes::{extract_chain, TNRAppError, TNRAppSuccessResponse};
 
 // ======== 'axelar' Delegator Methods ========
 

@@ -5,8 +5,8 @@ use actix_web::{
     web::{Data, Json, Path},
     Responder,
 };
-use serde_json::json;
 use serde::{Deserialize, Serialize};
+use serde_json::json;
 
 // ======== Chains Methods ========
 
@@ -27,8 +27,8 @@ pub async fn chains(state: Data<State>) -> Result<impl Responder, TNRAppError> {
             name: name,
             logo: chain.config.logo,
             main_denom: chain.config.main_denom,
-        }
-    ).collect::<Vec<Chain>>();
+        })
+        .collect::<Vec<Chain>>();
 
     Ok(TNRAppSuccessResponse::new(chains))
 }
