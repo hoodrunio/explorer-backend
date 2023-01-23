@@ -1,6 +1,6 @@
-use serde::{Deserialize, Serialize};
 use crate::fetch::socket::EvmPollVote;
 use crate::fetch::validators::{ValidatorListValidatorCommission, ValidatorStatus};
+use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
 pub struct EvmPoll {
@@ -16,13 +16,13 @@ pub struct EvmPoll {
 
 #[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
 pub struct EvmPollParticipant {
-    pub operator_address:String,
+    pub operator_address: String,
     pub vote: EvmPollVote,
 }
 
 impl From<String> for EvmPollParticipant {
     fn from(operator_address: String) -> Self {
-        Self{
+        Self {
             operator_address,
             vote: EvmPollVote::UnSubmit,
         }

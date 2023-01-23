@@ -1,4 +1,5 @@
 use super::QueryParams;
+use crate::routes::{extract_chain, TNRAppError, TNRAppSuccessResponse};
 use crate::{
     fetch::others::{PaginationConfig, Response},
     state::State,
@@ -8,7 +9,6 @@ use actix_web::{
     web::{Data, Json, Path, Query},
     Responder,
 };
-use crate::routes::{extract_chain, TNRAppError, TNRAppSuccessResponse};
 
 // ======== Delegation Methods ========
 
@@ -24,7 +24,11 @@ pub async fn delegations(path: Path<(String, String)>, chains: Data<State>, quer
 }
 
 #[get("{chain}/unbonding-delegations/{delegator_address}")]
-pub async fn unbonding_delegations(path: Path<(String, String)>, chains: Data<State>, query: Query<QueryParams>) -> Result<impl Responder, TNRAppError> {
+pub async fn unbonding_delegations(
+    path: Path<(String, String)>,
+    chains: Data<State>,
+    query: Query<QueryParams>,
+) -> Result<impl Responder, TNRAppError> {
     let (chain, delegator_addr) = path.into_inner();
 
     let config = PaginationConfig::new().limit(5).page(query.page.unwrap_or(1));

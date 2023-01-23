@@ -1,27 +1,27 @@
-use std::collections::{HashMap, HashSet};
 use crate::database::BlockForDb;
 use crate::fetch::transactions::TransactionItem;
 use actix::{Actor, AsyncContext, StreamHandler};
 use actix_web::web::Data;
 use actix_web::{web, HttpRequest, HttpResponse, Responder};
 use actix_web_actors::ws;
+use cosmrs::bip32::secp256k1::elliptic_curve::weierstrass::add;
+use dashmap::{DashMap, DashSet};
 use futures::{SinkExt, StreamExt, TryStreamExt};
 use serde::de::Error;
 use serde::{Deserialize, Serialize};
-use std::fmt::{Display, Formatter};
-use std::net::SocketAddr;
-use tokio::sync::oneshot;
-use cosmrs::bip32::secp256k1::elliptic_curve::weierstrass::add;
-use dashmap::{DashMap, DashSet};
 use serde_json::to_string;
 use serde_querystring::de::ParseMode;
+use std::collections::{HashMap, HashSet};
+use std::fmt::{Display, Formatter};
+use std::net::SocketAddr;
 use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::broadcast::{Receiver, Sender};
-use tokio_tungstenite::tungstenite::Message;
-use tracing_subscriber::fmt::format;
+use tokio::sync::oneshot;
 use tokio_tungstenite::tungstenite::handshake::server::{Callback, ErrorResponse, Request, Response};
 use tokio_tungstenite::tungstenite::http::header::SEC_WEBSOCKET_PROTOCOL;
 use tokio_tungstenite::tungstenite::http::StatusCode;
+use tokio_tungstenite::tungstenite::Message;
+use tracing_subscriber::fmt::format;
 
 pub type PeerMap = DashMap<SocketAddr, DashSet<String>>;
 
@@ -33,10 +33,15 @@ struct SubscriptionMode {
     block: bool,
 }
 
-pub async fn handle_connection(tx: Sender<(String, WsEvent)>, raw_stream: TcpStream, addr: SocketAddr, chains: HashSet<String>) -> Result<(), String> {
+pub async fn handle_connection(
+    tx: Sender<(String, WsEvent)>,
+    raw_stream: TcpStream,
+    addr: SocketAddr,
+    chains: HashSet<String>,
+) -> Result<(), String> {
     tracing::info!("Incoming TCP connection from: {addr}");
 
-    let (tx_config, rx_config) =  oneshot::channel();
+    let (tx_config, rx_config) = oneshot::channel();
     let callback = |request: &Request, mut response: Response| -> Result<Response, ErrorResponse> {
         let Some(chain) = request.uri().path().to_string()[1..].split("/" ).next().map(|s| s.to_string()) else {
             return Err(ErrorResponse::new(Some("No chain specified".to_string())));
@@ -72,7 +77,6 @@ pub async fn handle_connection(tx: Sender<(String, WsEvent)>, raw_stream: TcpStr
     let ws_stream = tokio_tungstenite::accept_hdr_async(raw_stream, callback)
         .await
         .map_err(|e| format!("Error creating websocket connection: {e}"))?;
-
 
     let (wanted_chain, mode) = rx_config.await.map_err(|e| format!("Error getting the subjects: {e}"))?;
 

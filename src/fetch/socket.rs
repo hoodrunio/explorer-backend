@@ -1,20 +1,27 @@
 use std::sync::Arc;
 
 use chrono::DateTime;
+use cosmrs::tendermint::error::DurationOutOfRangeSubdetail;
 use futures::{SinkExt, StreamExt};
-use tokio::sync::broadcast::Sender;
 use mongodb::bson::doc;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use tokio::sync::broadcast::Sender;
 use tokio::sync::Mutex;
+use tokio::{
+    select,
+    time::{self, Duration},
+};
 use tokio_tungstenite::{connect_async, tungstenite::Message};
 
 use crate::chain::Chain;
 use crate::database::{BlockForDb, EvmPollForDb, EvmPollParticipantForDb};
-use crate::fetch::blocks::{Block};
-use crate::fetch::transactions::{AxelarVote, InnerMessage, InnerMessageKnown, InternalTransaction, InternalTransactionContent, InternalTransactionContentKnowns};
-use crate::routes::{OutRestResponse, TNRAppError};
 use crate::events::WsEvent;
+use crate::fetch::blocks::Block;
+use crate::fetch::transactions::{
+    AxelarVote, InnerMessage, InnerMessageKnown, InternalTransaction, InternalTransactionContent, InternalTransactionContentKnowns,
+};
+use crate::routes::{OutRestResponse, TNRAppError};
 
 use super::{
     blocks::{BlockHeader, BlockItem},
@@ -98,83 +105,102 @@ impl Chain {
         // The variable to hold the previous block header response to have block hash value.
         let previous_block_header_resp: Arc<Mutex<Option<NewBlockValue>>> = Arc::new(Mutex::new(None));
 
-        while let Some(msg) = read.next().await {
-            // Run the function below for each message received.
-            if let Ok(Message::Text(msg)) = msg {
-                match serde_json::from_str::<SocketMessage>(&msg) {
-                    Ok(msg) => match msg.result {
-                        SocketResult::NonEmpty(SocketResultNonEmpty::Tx { events }) => {
-                            tracing::info!("wss: new tx on {}", clone.config.name);
+        let mut interval = time::interval(Duration::from_secs(30));
 
-                            let tx_item = TransactionItem {
-                                amount: events.transfer_amount.get(0).map(|amount| clone._get_amount(amount)).unwrap_or(0.00),
-                                fee: clone._get_amount(&events.tx_fee[0]),
-                                hash: events.tx_hash[0].clone(),
-                                height: events.tx_height[0]
-                                    .parse::<u64>()
-                                    .map_err(|e| format!("Cannot parse tx height {}: {e}", events.tx_height[0]))?,
-                                time: std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_millis() as i64,
-                                result: "Success".to_string(),
-                                r#type: events.message_action[0]
-                                    .split_once("Msg")
-                                    .map(|(_, r)| r)
-                                    .unwrap_or(events.message_action[0].split('.').last().unwrap_or("Unknown"))
-                                    .to_string(),
-                            };
+        loop {
+            select! {
+                Some(msg) = read.next() => {
+                    let msg = msg.map_err(|e| format!("Error reading the message: {e}"))?;
 
-                            tx.send((self.config.name.clone(), WsEvent::NewTX(tx_item.clone()))).ok();
-                            // STORE TXS TO MONGO_DB HERE
-                            // clone.store_new_tx(tx_item);
-                        }
-                        SocketResult::NonEmpty(SocketResultNonEmpty::Block { data }) => {
-                            tracing::info!("wss: new block on {}", clone.config.name);
-                            let data = data;
-                            let current_resp = data.value;
+                    match msg {
+                        Message::Text(msg) => {
+                            match serde_json::from_str::<SocketMessage>(&msg) {
+                                Ok(msg) => match msg.result {
+                                    SocketResult::NonEmpty(SocketResultNonEmpty::Tx { events }) => {
+                                        tracing::info!("wss: new tx on {}", clone.config.name);
 
-                            let mut mutex_previous_resp = previous_block_header_resp.lock().await;
-                            match mutex_previous_resp.as_ref() {
-                                Some(mut previous_resp) => {
-                                    let proposer_metadata = self
-                                        .database
-                                        .find_validator_by_hex_addr(&previous_resp.block.header.proposer_address.clone())
-                                        .await
-                                        .map_err(|e| format!("block+ error: {e}"))?;
+                                         let tx_item = TransactionItem {
+                                            amount: events.transfer_amount.get(0).map(|amount| clone._get_amount(amount)).unwrap_or(0.00),
+                                            fee: clone._get_amount(&events.tx_fee[0]),
+                                            hash: events.tx_hash[0].clone(),
+                                            height: events.tx_height[0]
+                                                .parse::<u64>()
+                                                .map_err(|e| format!("Cannot parse tx height {}: {e}", events.tx_height[0]))?,
+                                            time: std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_millis() as i64,
+                                            result: "Success".to_string(),
+                                            r#type: events.message_action[0]
+                                                .split_once("Msg")
+                                                .map(|(_, r)| r)
+                                                .unwrap_or(events.message_action[0].split('.').last().unwrap_or("Unknown"))
+                                                .to_string(),
+                                         };
 
-                                    let prev_block_data = &previous_resp.block;
-                                    let current_block_data = &current_resp.block;
-
-                                    let block_item = BlockForDb {
-                                        hash: current_block_data.header.last_block_id.hash.clone(),
-                                        height: prev_block_data
-                                            .header
-                                            .height
-                                            .parse::<u64>()
-                                            .map_err(|e| format!("Cannot parse block height, {}: {e}", prev_block_data.header.height))?,
-                                        timestamp: DateTime::parse_from_rfc3339(&prev_block_data.header.time)
-                                            .map(|d| d.timestamp_millis())
-                                            .map_err(|e| format!("Cannot parse datetime, {}: e", prev_block_data.header.time))?,
-                                        tx_count: prev_block_data.data.txs.len() as u64,
-                                        proposer_logo_url: proposer_metadata.logo_url,
-                                        proposer_name: proposer_metadata.name,
-                                        proposer_address: proposer_metadata.operator_address,
-                                        signatures: current_block_data.last_commit.signatures.clone(),
-                                    };
-
-                                    tx.send((self.config.name.clone(), WsEvent::NewBLock(block_item.clone()))).ok();
-
-                                    if let Err(e) = self.database.upsert_block(block_item).await {
-                                        tracing::error!("Error saving block to the database: {e} ")
+                                        tx.send((self.config.name.clone(), WsEvent::NewTX(tx_item.clone()))).ok();
+                                        // STORE TXS TO MONGO_DB HERE
+                                    // clone.store_new_tx(tx_item);
                                     }
+                                    SocketResult::NonEmpty(SocketResultNonEmpty::Block { data }) => {
+                                        tracing::info!("wss: new block on {}", clone.config.name);
+                                        let data = data;
+                                        let current_resp = data.value;
 
-                                    *mutex_previous_resp = Some(current_resp);
+                                        let mut mutex_previous_resp = previous_block_header_resp.lock().await;
+                                        match mutex_previous_resp.as_ref() {
+                                            Some(mut previous_resp) => {
+                                                let proposer_metadata = self
+                                                    .database
+                                                    .find_validator_by_hex_addr(&previous_resp.block.header.proposer_address.clone())
+                                                    .await
+                                                    .map_err(|e| format!("block+ error: {e}"))?;
+
+                                                let prev_block_data = &previous_resp.block;
+                                                let current_block_data = &current_resp.block;
+
+                                                let block_item = BlockForDb {
+                                                    hash: current_block_data.header.last_block_id.hash.clone(),
+                                                    height: prev_block_data
+                                                        .header
+                                                        .height
+                                                            .parse::<u64>()
+                                                            .map_err(|e| format!("Cannot parse block height, {}: {e}", prev_block_data.header.height))?,
+                                                    timestamp: DateTime::parse_from_rfc3339(&prev_block_data.header.time)
+                                                        .map(|d| d.timestamp_millis())
+                                                        .map_err(|e| format!("Cannot parse datetime, {}: e", prev_block_data.header.time))?,
+                                                    tx_count: prev_block_data.data.txs.len() as u64,
+                                                    proposer_logo_url: proposer_metadata.logo_url,
+                                                    proposer_name: proposer_metadata.name,
+                                                    proposer_address: proposer_metadata.operator_address,
+                                                    signatures: current_block_data.last_commit.signatures.clone(),
+                                                };
+
+                                                tx.send((self.config.name.clone(), WsEvent::NewBLock(block_item.clone()))).ok();
+
+                                                 if let Err(e) = self.database.upsert_block(block_item).await {
+                                                    tracing::error!("Error saving block to the database: {e} ")
+                                                 }
+
+                                                *mutex_previous_resp = Some(current_resp);
+                                            }
+                                            None => *mutex_previous_resp = Some(current_resp),
+                                        }
+                                    }
+                                    SocketResult::Empty {} => (),
+                                    _ => {}
                                 }
-                                None => *mutex_previous_resp = Some(current_resp),
+                                Err(error) => tracing::info!("Websocket JSON parse error for {}: {error}", clone.config.name),
+                            }
+                        },
+                        Message::Pong(bytes) => {
+                            if bytes != &[3, 4, 2, 1] {
+                              break;
                             }
                         }
-                        SocketResult::Empty {} => (),
-                        _ => {}
-                    },
-                    Err(error) => tracing::info!("Websocket JSON parse error for {}: {error}", clone.config.name),
+                        _ => {}}
+                },
+                _ = interval.tick() => {
+                    if let Err(e) = write.send(Message::Ping(vec![3, 4, 2, 1])).await {
+                        tracing::error!("Error sending ping message: {e}");
+                    }
                 }
             }
         }
@@ -185,17 +211,34 @@ impl Chain {
         let ws_url = "wss://axelar-rpc.chainode.tech/websocket";
         let chain_name = "axelar";
 
-        let (ws_stream, _) = connect_async(ws_url).await.map_err(|_| TNRAppError::from("Can not connect".to_string()))?;
+        let (ws_stream, _) = connect_async(ws_url)
+            .await
+            .map_err(|_| TNRAppError::from("Can not connect".to_string()))?;
 
         // Split the connection into two parts.
         let (mut write, mut read) = ws_stream.split();
 
         // Subscribe to txs which are related evm polls.
-        write.send(AXELAR_SUB_CONFIRM_DEPOSIT_TX.into()).await.map_err(|e| format!("Can't subscribe to confirm AXELAR CONFIRM DEPOSIT TX for {}: {e}", chain_name))?;
-        write.send(AXELAR_SUB_CONFIRM_ERC20_DEPOSIT_TX.into()).await.map_err(|e| format!("Can't subscribe to AXELAR CONFIRM ERC20_DEPOSIT TX for {}: {e}", chain_name))?;
-        write.send(AXELAR_SUB_CONFIRM_TRANSFER_KEY_TX.into()).await.map_err(|e| format!("Can't subscribe to AXELAR CONFIRM TRANSFER_KEY TX for {}: {e}", chain_name))?;
-        write.send(AXELAR_SUB_CONFIRM_GATEWAY_TX.into()).await.map_err(|e| format!("Can't subscribe to AXELAR CONFIRM GATEWAY TX for {}: {e}", chain_name))?;
-        write.send(AXELAR_SUB_VOTE_TX.into()).await.map_err(|e| format!("Can't subscribe to AXELAR_SUB_VOTE_TX for {}: {e}", chain_name))?;
+        write
+            .send(AXELAR_SUB_CONFIRM_DEPOSIT_TX.into())
+            .await
+            .map_err(|e| format!("Can't subscribe to confirm AXELAR CONFIRM DEPOSIT TX for {}: {e}", chain_name))?;
+        write
+            .send(AXELAR_SUB_CONFIRM_ERC20_DEPOSIT_TX.into())
+            .await
+            .map_err(|e| format!("Can't subscribe to AXELAR CONFIRM ERC20_DEPOSIT TX for {}: {e}", chain_name))?;
+        write
+            .send(AXELAR_SUB_CONFIRM_TRANSFER_KEY_TX.into())
+            .await
+            .map_err(|e| format!("Can't subscribe to AXELAR CONFIRM TRANSFER_KEY TX for {}: {e}", chain_name))?;
+        write
+            .send(AXELAR_SUB_CONFIRM_GATEWAY_TX.into())
+            .await
+            .map_err(|e| format!("Can't subscribe to AXELAR CONFIRM GATEWAY TX for {}: {e}", chain_name))?;
+        write
+            .send(AXELAR_SUB_VOTE_TX.into())
+            .await
+            .map_err(|e| format!("Can't subscribe to AXELAR_SUB_VOTE_TX for {}: {e}", chain_name))?;
 
         while let Some(msg) = read.next().await {
             if let Ok(Message::Text(text_msg)) = msg {
@@ -208,7 +251,7 @@ impl Chain {
                                 let tx_content_res = match self.get_tx_by_hash(&tx_hash).await {
                                     Ok(res) => res,
                                     Err(e) => {
-                                        tracing::error!("tx could not fetched {}",e);
+                                        tracing::error!("tx could not fetched {}", e);
                                         return Err(TNRAppError::from(e));
                                     }
                                 };
@@ -216,47 +259,70 @@ impl Chain {
                                 let tx_content = tx_content_res.value.content.get(0);
 
                                 match tx_content.unwrap() {
-                                    InternalTransactionContent::Known(InternalTransactionContentKnowns::AxelarRefundRequest { sender: _, inner_message }) => {
-                                        match inner_message {
-                                            InnerMessage::Known(InnerMessageKnown::VoteRequest { sender, vote, poll_id }) => {
-                                                match vote {
-                                                    AxelarVote::Known(axelar_known_vote) => {
-                                                        let vote = axelar_known_vote.evm_vote();
-                                                        let validator = self.database.find_validator(doc! {"voter_address":sender}).await;
-                                                        if let Ok(validator) = validator {
-                                                            match self.database.update_evm_poll_participant_vote(&poll_id, EvmPollParticipantForDb {
+                                    InternalTransactionContent::Known(InternalTransactionContentKnowns::AxelarRefundRequest {
+                                        sender: _,
+                                        inner_message,
+                                    }) => match inner_message {
+                                        InnerMessage::Known(InnerMessageKnown::VoteRequest { sender, vote, poll_id }) => match vote {
+                                            AxelarVote::Known(axelar_known_vote) => {
+                                                let vote = axelar_known_vote.evm_vote();
+                                                let validator = self.database.find_validator(doc! {"voter_address":sender}).await;
+                                                if let Ok(validator) = validator {
+                                                    match self
+                                                        .database
+                                                        .update_evm_poll_participant_vote(
+                                                            &poll_id,
+                                                            EvmPollParticipantForDb {
                                                                 operator_address: validator.operator_address,
                                                                 vote,
-                                                            }).await {
-                                                                Ok(_) => {}
-                                                                Err(e) => { TNRAppError::from(format!("Can not get axelar vote info.to_string() {}", e)); }
-                                                            };
+                                                            },
+                                                        )
+                                                        .await
+                                                    {
+                                                        Ok(_) => {}
+                                                        Err(e) => {
+                                                            TNRAppError::from(format!("Can not get axelar vote info.to_string() {}", e));
                                                         }
-                                                    }
-                                                    AxelarVote::Unknown(_) => { TNRAppError::from("Can not get axelar vote info".to_string()); }
+                                                    };
                                                 }
                                             }
-                                            InnerMessage::Unknown(_) => { TNRAppError::from("Can not get inner message info".to_string()); }
+                                            AxelarVote::Unknown(_) => {
+                                                TNRAppError::from("Can not get axelar vote info".to_string());
+                                            }
+                                        },
+                                        InnerMessage::Unknown(_) => {
+                                            TNRAppError::from("Can not get inner message info".to_string());
                                         }
+                                    },
+                                    _ => {
+                                        TNRAppError::from("Unknown vote type".to_string());
                                     }
-                                    _ => { TNRAppError::from("Unknown vote type".to_string()); }
                                 };
                             }
                             SocketResult::NonEmpty(evm_poll_msg) => {
                                 let evm_poll_item = evm_poll_msg.get_evm_poll_item(&self).await.unwrap();
-                                let participants: Vec<EvmPollParticipantForDb> = evm_poll_item.participants_operator_address.clone().into_iter().map(|address| { EvmPollParticipantForDb::from(address) }).collect();
-                                self.database.upsert_evm_poll(EvmPollForDb {
-                                    timestamp: evm_poll_item.time.clone(),
-                                    tx_height: evm_poll_item.tx_height.clone(),
-                                    poll_id: evm_poll_item.poll_id.clone(),
-                                    action: evm_poll_item.action.clone(),
-                                    status: evm_poll_item.status.clone(),
-                                    evm_tx_id: evm_poll_item.evm_tx_id.clone(),
-                                    chain_name: evm_poll_item.chain_name.clone(),
-                                    participants,
-                                }).await?;
+                                let participants: Vec<EvmPollParticipantForDb> = evm_poll_item
+                                    .participants_operator_address
+                                    .clone()
+                                    .into_iter()
+                                    .map(|address| EvmPollParticipantForDb::from(address))
+                                    .collect();
+                                self.database
+                                    .upsert_evm_poll(EvmPollForDb {
+                                        timestamp: evm_poll_item.time.clone(),
+                                        tx_height: evm_poll_item.tx_height.clone(),
+                                        poll_id: evm_poll_item.poll_id.clone(),
+                                        action: evm_poll_item.action.clone(),
+                                        status: evm_poll_item.status.clone(),
+                                        evm_tx_id: evm_poll_item.evm_tx_id.clone(),
+                                        chain_name: evm_poll_item.chain_name.clone(),
+                                        participants,
+                                    })
+                                    .await?;
                             }
-                            SocketResult::Empty { .. } => { dbg!("Socket result empty"); }
+                            SocketResult::Empty { .. } => {
+                                dbg!("Socket result empty");
+                            }
                         };
                     }
                     Err(error) => tracing::info!("Websocket JSON parse error for {}: {error}", chain_name),
@@ -276,7 +342,9 @@ impl Chain {
                 prefix.push_str(hex_res.as_str());
                 result = Some(prefix);
             }
-            Err(_) => { tracing::error!("Error while evm tx id byte array converting to hex"); }
+            Err(_) => {
+                tracing::error!("Error while evm tx id byte array converting to hex");
+            }
         }
 
         result
@@ -304,16 +372,24 @@ pub enum SocketResultNonEmpty {
     Header { data: NewBlockHeaderData },
     #[serde(rename = "tm.event='NewBlock'")]
     Block { data: NewBlockData },
-    #[serde(rename = "tm.event='Tx' AND message.action='ConfirmERC20Deposit' AND axelar.evm.v1beta1.ConfirmDepositStarted.participants CONTAINS 'participants'")]
+    #[serde(
+        rename = "tm.event='Tx' AND message.action='ConfirmERC20Deposit' AND axelar.evm.v1beta1.ConfirmDepositStarted.participants CONTAINS 'participants'"
+    )]
     ConfirmERC20DepositStartedTx { events: ConfirmDepositStartedEvents },
 
-    #[serde(rename = "tm.event='Tx' AND message.action='ConfirmDeposit' AND axelar.evm.v1beta1.ConfirmDepositStarted.participants CONTAINS 'participants'")]
+    #[serde(
+        rename = "tm.event='Tx' AND message.action='ConfirmDeposit' AND axelar.evm.v1beta1.ConfirmDepositStarted.participants CONTAINS 'participants'"
+    )]
     ConfirmDepositStartedTx { events: ConfirmDepositStartedEvents },
 
-    #[serde(rename = "tm.event='Tx' AND message.action='ConfirmGatewayTx' AND axelar.evm.v1beta1.ConfirmGatewayTxStarted.participants CONTAINS 'participants'")]
+    #[serde(
+        rename = "tm.event='Tx' AND message.action='ConfirmGatewayTx' AND axelar.evm.v1beta1.ConfirmGatewayTxStarted.participants CONTAINS 'participants'"
+    )]
     ConfirmGatewayTxStartedTx { events: ConfirmGatewayTxStartedEvents },
 
-    #[serde(rename = "tm.event='Tx' AND message.action='ConfirmTransferKey' AND axelar.evm.v1beta1.ConfirmKeyTransferStarted.participants CONTAINS 'participants'")]
+    #[serde(
+        rename = "tm.event='Tx' AND message.action='ConfirmTransferKey' AND axelar.evm.v1beta1.ConfirmKeyTransferStarted.participants CONTAINS 'participants'"
+    )]
     ConfirmKeyTransferStartedTx { events: ConfirmKeyTransferStartedEvents },
 
     #[serde(rename = "tm.event='Tx' AND axelar.vote.v1beta1.Voted.action CONTAINS 'vote'")]
@@ -424,58 +500,62 @@ impl SocketResultNonEmpty {
         let participants_raw = self.get_participants_raw();
         let tx_id = self.get_tx_id();
 
-        Ok(EvmPollItem::new(&EvmPollItemEventParams {
-            chain: chain_name,
-            tx_height,
-            action_name,
-            participants_raw,
-            tx_id,
-        }, &chain).await.unwrap()
+        Ok(EvmPollItem::new(
+            &EvmPollItemEventParams {
+                chain: chain_name,
+                tx_height,
+                action_name,
+                participants_raw,
+                tx_id,
+            },
+            &chain,
         )
+        .await
+        .unwrap())
     }
 
     fn get_tx_height(&self) -> u64 {
         match self {
-            SocketResultNonEmpty::ConfirmERC20DepositStartedTx { events } => { events.tx_height.get(0).unwrap().parse::<u64>().unwrap() }
-            SocketResultNonEmpty::ConfirmDepositStartedTx { events } => { events.tx_height.get(0).unwrap().parse::<u64>().unwrap() }
-            SocketResultNonEmpty::ConfirmGatewayTxStartedTx { events } => { events.tx_height.get(0).unwrap().parse::<u64>().unwrap() }
-            SocketResultNonEmpty::ConfirmKeyTransferStartedTx { events } => { events.tx_height.get(0).unwrap().parse::<u64>().unwrap() }
+            SocketResultNonEmpty::ConfirmERC20DepositStartedTx { events } => events.tx_height.get(0).unwrap().parse::<u64>().unwrap(),
+            SocketResultNonEmpty::ConfirmDepositStartedTx { events } => events.tx_height.get(0).unwrap().parse::<u64>().unwrap(),
+            SocketResultNonEmpty::ConfirmGatewayTxStartedTx { events } => events.tx_height.get(0).unwrap().parse::<u64>().unwrap(),
+            SocketResultNonEmpty::ConfirmKeyTransferStartedTx { events } => events.tx_height.get(0).unwrap().parse::<u64>().unwrap(),
             _ => 0,
         }
     }
     fn get_chain_name(&self) -> String {
         match self {
-            SocketResultNonEmpty::ConfirmERC20DepositStartedTx { events } => { events.chain.get(0).unwrap().to_string() }
-            SocketResultNonEmpty::ConfirmDepositStartedTx { events } => { events.chain.get(0).unwrap().to_string() }
-            SocketResultNonEmpty::ConfirmGatewayTxStartedTx { events } => { events.chain.get(0).unwrap().to_string() }
-            SocketResultNonEmpty::ConfirmKeyTransferStartedTx { events } => { events.chain.get(0).unwrap().to_string() }
+            SocketResultNonEmpty::ConfirmERC20DepositStartedTx { events } => events.chain.get(0).unwrap().to_string(),
+            SocketResultNonEmpty::ConfirmDepositStartedTx { events } => events.chain.get(0).unwrap().to_string(),
+            SocketResultNonEmpty::ConfirmGatewayTxStartedTx { events } => events.chain.get(0).unwrap().to_string(),
+            SocketResultNonEmpty::ConfirmKeyTransferStartedTx { events } => events.chain.get(0).unwrap().to_string(),
             _ => String::from(""),
         }
     }
     fn get_action_name(&self) -> String {
         match self {
-            SocketResultNonEmpty::ConfirmERC20DepositStartedTx { events } => { events.message_action.get(0).unwrap().to_string() }
-            SocketResultNonEmpty::ConfirmDepositStartedTx { events } => { events.message_action.get(0).unwrap().to_string() }
-            SocketResultNonEmpty::ConfirmGatewayTxStartedTx { events } => { events.message_action.get(0).unwrap().to_string() }
-            SocketResultNonEmpty::ConfirmKeyTransferStartedTx { events } => { events.message_action.get(0).unwrap().to_string() }
+            SocketResultNonEmpty::ConfirmERC20DepositStartedTx { events } => events.message_action.get(0).unwrap().to_string(),
+            SocketResultNonEmpty::ConfirmDepositStartedTx { events } => events.message_action.get(0).unwrap().to_string(),
+            SocketResultNonEmpty::ConfirmGatewayTxStartedTx { events } => events.message_action.get(0).unwrap().to_string(),
+            SocketResultNonEmpty::ConfirmKeyTransferStartedTx { events } => events.message_action.get(0).unwrap().to_string(),
             _ => String::from(""),
         }
     }
     fn get_participants_raw(&self) -> String {
         match self {
-            SocketResultNonEmpty::ConfirmERC20DepositStartedTx { events } => { events.participants.get(0).unwrap().to_string() }
-            SocketResultNonEmpty::ConfirmDepositStartedTx { events } => { events.participants.get(0).unwrap().to_string() }
-            SocketResultNonEmpty::ConfirmGatewayTxStartedTx { events } => { events.participants.get(0).unwrap().to_string() }
-            SocketResultNonEmpty::ConfirmKeyTransferStartedTx { events } => { events.participants.get(0).unwrap().to_string() }
+            SocketResultNonEmpty::ConfirmERC20DepositStartedTx { events } => events.participants.get(0).unwrap().to_string(),
+            SocketResultNonEmpty::ConfirmDepositStartedTx { events } => events.participants.get(0).unwrap().to_string(),
+            SocketResultNonEmpty::ConfirmGatewayTxStartedTx { events } => events.participants.get(0).unwrap().to_string(),
+            SocketResultNonEmpty::ConfirmKeyTransferStartedTx { events } => events.participants.get(0).unwrap().to_string(),
             _ => String::from(""),
         }
     }
     fn get_tx_id(&self) -> String {
         match self {
-            SocketResultNonEmpty::ConfirmERC20DepositStartedTx { events } => { events.tx_id.get(0).unwrap().to_string() }
-            SocketResultNonEmpty::ConfirmDepositStartedTx { events } => { events.tx_id.get(0).unwrap().to_string() }
-            SocketResultNonEmpty::ConfirmGatewayTxStartedTx { events } => { events.tx_id.get(0).unwrap().to_string() }
-            SocketResultNonEmpty::ConfirmKeyTransferStartedTx { events } => { events.tx_id.get(0).unwrap().to_string() }
+            SocketResultNonEmpty::ConfirmERC20DepositStartedTx { events } => events.tx_id.get(0).unwrap().to_string(),
+            SocketResultNonEmpty::ConfirmDepositStartedTx { events } => events.tx_id.get(0).unwrap().to_string(),
+            SocketResultNonEmpty::ConfirmGatewayTxStartedTx { events } => events.tx_id.get(0).unwrap().to_string(),
+            SocketResultNonEmpty::ConfirmKeyTransferStartedTx { events } => events.tx_id.get(0).unwrap().to_string(),
             _ => String::from(""),
         }
     }
@@ -514,13 +594,15 @@ impl EvmPollItem {
         let rmv_backslash_participants = str::replace(&params.participants_raw, r#"\"#, "");
         let poll_info = match serde_json::from_str::<PoolParticipants>(&rmv_backslash_participants) {
             Ok(res) => res,
-            Err(e) => { return Err(TNRAppError::from(format!("error {}", e))); }
+            Err(e) => {
+                return Err(TNRAppError::from(format!("error {}", e)));
+            }
         };
 
         let tx_height = params.tx_height;
         let time = match chain.get_block_by_height(Some(tx_height)).await {
             Ok(res) => res.value.time as u64,
-            Err(_) => { 0 }
+            Err(_) => 0,
         };
 
         let chain_name = str::replace(&params.chain, r#"\"#, "");
@@ -550,7 +632,11 @@ struct EvmPollItemEventParams {
 
 impl From<EvmPollItem> for EvmPollForDb {
     fn from(value: EvmPollItem) -> Self {
-        let participants: Vec<EvmPollParticipantForDb> = value.participants_operator_address.into_iter().map(|address| { EvmPollParticipantForDb::from(address) }).collect();
+        let participants: Vec<EvmPollParticipantForDb> = value
+            .participants_operator_address
+            .into_iter()
+            .map(|address| EvmPollParticipantForDb::from(address))
+            .collect();
 
         EvmPollForDb {
             timestamp: value.time.clone(),
@@ -577,7 +663,7 @@ impl EvmPollVote {
         match self {
             EvmPollVote::UnSubmit => format!("UnSubmit"),
             EvmPollVote::Yes => format!("Yes"),
-            EvmPollVote::No => format!("No")
+            EvmPollVote::No => format!("No"),
         }
     }
 }

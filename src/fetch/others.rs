@@ -149,7 +149,10 @@ pub struct Pagination {
 
 impl Default for Pagination {
     fn default() -> Self {
-        Self { next_key: None, total: "0".to_string() }
+        Self {
+            next_key: None,
+            total: "0".to_string(),
+        }
     }
 }
 

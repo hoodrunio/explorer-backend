@@ -9,12 +9,12 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use super::others::{DenomAmount, InternalDenomAmount, Pagination, PaginationConfig, PublicKey};
+use crate::fetch::socket::EvmPollVote;
 use crate::{
     chain::Chain,
     routes::{calc_pages, OutRestResponse},
     utils::get_msg_name,
 };
-use crate::fetch::socket::EvmPollVote;
 
 impl Chain {
     /// Returns transaction by given hash.
@@ -220,8 +220,8 @@ impl Chain {
         self.jsonrpc_request::<EvmTxResp>(format!(
             r#"{{"method":"eth_getTransactionByHash","params":["{hash}"],"id":1,"jsonrpc":"2.0"}}"#
         ))
-            .await?
-            .try_into()
+        .await?
+        .try_into()
     }
 }
 
@@ -689,7 +689,7 @@ impl TxsTransactionMessage {
                                 "VOTE_OPTION_NO_WITH_VETO" => "Veto",
                                 _ => "Unknown",
                             }
-                                .to_string(),
+                            .to_string(),
                         })
                     }
 
@@ -750,10 +750,7 @@ impl TxsTransactionMessage {
                         InternalTransactionContent::Known(InternalTransactionContentKnowns::RegisterProxy { sender, proxy_addr })
                     }
                     TxsTransactionMessageKnowns::AxelarRefundRequest { sender, inner_message } => {
-                        InternalTransactionContent::Known(InternalTransactionContentKnowns::AxelarRefundRequest {
-                            sender,
-                            inner_message,
-                        })
+                        InternalTransactionContent::Known(InternalTransactionContentKnowns::AxelarRefundRequest { sender, inner_message })
                     }
                 },
                 TxsTransactionMessage::Unknown(mut keys_values) => {
@@ -765,7 +762,7 @@ impl TxsTransactionMessage {
                 }
             })
         }
-            .boxed()
+        .boxed()
     }
 
     /// Return the type of message.
@@ -815,9 +812,9 @@ impl TxsTransactionMessage {
                 TxsTransactionMessageKnowns::Exec { grantee: _, msgs: _ } => "Exec",
                 TxsTransactionMessageKnowns::RegisterProxy { sender: _, proxy_addr: _ } => "RegisterProxy",
                 TxsTransactionMessageKnowns::AxelarRegisterProxy { sender: _, proxy_addr: _ } => "RegisterProxy",
-                TxsTransactionMessageKnowns::AxelarRefundRequest { sender: _, inner_message: _ } => "AxelarRefundRequest"
+                TxsTransactionMessageKnowns::AxelarRefundRequest { sender: _, inner_message: _ } => "AxelarRefundRequest",
             }
-                .to_string(),
+            .to_string(),
             TxsTransactionMessage::Unknown(keys_values) => keys_values
                 .get("@type")
                 .cloned()
@@ -917,22 +914,12 @@ pub enum TxsTransactionMessageKnowns {
         // data: UNKNOWN,
     },
     #[serde(rename = "/snapshot.v1beta1.RegisterProxyRequest")]
-    RegisterProxy {
-        sender: String,
-        proxy_addr: String,
-    },
+    RegisterProxy { sender: String, proxy_addr: String },
     #[serde(rename = "/axelar.snapshot.v1beta1.RegisterProxyRequest")]
-    AxelarRegisterProxy {
-        sender: String,
-        proxy_addr: String,
-    },
+    AxelarRegisterProxy { sender: String, proxy_addr: String },
     #[serde(rename = "/axelar.reward.v1beta1.RefundMsgRequest")]
-    AxelarRefundRequest {
-        sender: String,
-        inner_message: InnerMessage,
-    },
+    AxelarRefundRequest { sender: String, inner_message: InnerMessage },
 }
-
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
 #[serde(untagged)]
@@ -945,11 +932,7 @@ pub enum InnerMessage {
 #[serde(tag = "@type")]
 pub enum InnerMessageKnown {
     #[serde(rename = "/axelar.vote.v1beta1.VoteRequest")]
-    VoteRequest {
-        sender: String,
-        poll_id: String,
-        vote: AxelarVote,
-    }
+    VoteRequest { sender: String, poll_id: String, vote: AxelarVote },
 }
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
@@ -963,21 +946,14 @@ pub enum AxelarVote {
 #[serde(tag = "@type")]
 pub enum AxelarKnownVote {
     #[serde(rename = "/axelar.evm.v1beta1.VoteEvents")]
-    VoteEvent {
-        chain: String,
-        events: Vec<HashMap<String, Value>>,
-    }
+    VoteEvent { chain: String, events: Vec<HashMap<String, Value>> },
 }
 
 impl AxelarKnownVote {
     pub fn evm_vote(&self) -> EvmPollVote {
         match self {
             AxelarKnownVote::VoteEvent { chain: _, events } => {
-                let vote = if !events.is_empty() {
-                    EvmPollVote::Yes
-                } else {
-                    EvmPollVote::No
-                };
+                let vote = if !events.is_empty() { EvmPollVote::Yes } else { EvmPollVote::No };
                 vote
             }
         }

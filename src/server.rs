@@ -1,8 +1,8 @@
-use std::collections::HashSet;
 use crate::events::{run_ws, WsEvent};
 use actix_cors::Cors;
 use actix_web::web::Json;
 use actix_web::{get, web, App, HttpResponse, HttpServer, Responder};
+use std::collections::HashSet;
 use tokio::sync::broadcast::channel;
 use tracing_actix_web::TracingLogger;
 use web::Data;
@@ -41,7 +41,7 @@ pub async fn start_web_server() -> std::io::Result<()> {
     tokio::spawn(async move {
         match axelar_chain.sub_for_axelar_evm_pools().await {
             Ok(_) => tracing::info!("Stopped listening axelar evm poll events for"),
-            Err(e) => tracing::error!("Failed listening axelar evm poll events {}",e),
+            Err(e) => tracing::error!("Failed listening axelar evm poll events {}", e),
         }
     });
 
