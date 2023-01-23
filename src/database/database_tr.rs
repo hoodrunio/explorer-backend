@@ -1,14 +1,17 @@
+use super::{chains::Chain, params::Params, validators::Validator};
+use crate::database::blocks::Block;
+use crate::database::evm_polls::EvmPoll;
+use crate::database::params::{HistoricalValidatorData, VotingPower};
+use crate::database::EvmPollParticipantForDb;
+use crate::fetch::others::{PaginationConfig, PaginationDb};
+use crate::fetch::socket::EvmPollVote;
+use crate::fetch::validators::ValidatorListDbResp;
 use futures::{StreamExt, TryStreamExt};
+use mongodb::bson::{bson, from_document, to_document};
 use mongodb::{
     bson::{doc, Document},
     Client, Collection, Database,
 };
-use mongodb::bson::{bson, from_document, to_document};
-use crate::database::blocks::Block;
-use crate::database::params::{HistoricalValidatorData, VotingPower};
-use crate::fetch::others::{PaginationConfig, PaginationDb};
-use crate::fetch::validators::ValidatorListDbResp;
-use super::{chains::Chain, params::Params, validators::Validator};
 
 // Testnetrun explorer database.
 #[derive(Clone)]
@@ -96,6 +99,15 @@ impl DatabaseTR {
     /// ```
     fn blocks_collection(&self) -> Collection<HistoricalValidatorData> {
         self.db().collection("blocks")
+    }
+
+    /// Returns the evm poll collection.
+    /// # Usage
+    /// ```rs
+    /// let collection = database.evm_poll_collection();
+    /// ```
+    fn evm_poll_collection(&self) -> Collection<EvmPoll> {
+        self.db().collection("evm_polls")
     }
 
     /// Adds a new validator to the validators collection of the database.
@@ -186,7 +198,7 @@ impl DatabaseTR {
         let filter = pipe.clone();
         match filter {
             None => {}
-            Some(val) => pipeline.push(val)
+            Some(val) => pipeline.push(val),
         };
 
         let sort = doc! {
@@ -208,37 +220,50 @@ impl DatabaseTR {
         pipeline.push(limit_pipe);
 
         let cumulative_bonded_tokens_pipe = doc! {
-                "$setWindowFields": {
-                    "sortBy": {
-                        "delegator_shares": -1
-                    },
-                    "output": {
-                        "cumulative_bonded_tokens": {
-                            "$sum": "$delegator_shares",
-                            "window":  {
-                            "documents": [
-                                "unbounded",
-                                "current"
-                                ]
-                            }
+            "$setWindowFields": {
+                "sortBy": {
+                    "delegator_shares": -1
+                },
+                "output": {
+                    "cumulative_bonded_tokens": {
+                        "$sum": "$delegator_shares",
+                        "window":  {
+                        "documents": [
+                            "unbounded",
+                            "current"
+                            ]
                         }
                     }
                 }
-            };
+            }
+        };
 
         pipeline.push(cumulative_bonded_tokens_pipe);
 
-
-        let mut results = self.validators_collection().aggregate(pipeline, None).await.map_err(|e| format!("{}", e.to_string()))?;
-        let count_cursor = self.validators_collection().aggregate(pipe, None).await.map_err(|e| format!("{}", e.to_string()))?;
+        let mut results = self
+            .validators_collection()
+            .aggregate(pipeline, None)
+            .await
+            .map_err(|e| format!("{}", e.to_string()))?;
+        let count_cursor = self
+            .validators_collection()
+            .aggregate(pipe, None)
+            .await
+            .map_err(|e| format!("{}", e.to_string()))?;
         let count = count_cursor.count().await;
 
         let mut res: Vec<Validator> = vec![];
         while let Some(result) = results.next().await {
             res.push(from_document(result.expect("db conenction error")).expect("db conenction error"));
-        };
+        }
 
-        Ok(ValidatorListDbResp { validators: res, pagination: PaginationDb { page: page as u16, total: count as u16 } })
+        Ok(ValidatorListDbResp {
+            validators: res,
+            pagination: PaginationDb {
+                page: page as u16,
+                total: count as u16,
+            },
+        })
     }
 
     /// Finds a sorted validator list by given document.
@@ -253,16 +278,19 @@ impl DatabaseTR {
         let filter = pipe.clone();
         match filter {
             None => {}
-            Some(val) => pipeline.push(val)
+            Some(val) => pipeline.push(val),
         };
 
-
-        let mut results = self.validators_collection().aggregate(pipeline, None).await.map_err(|e| format!("{}", e.to_string()))?;
+        let mut results = self
+            .validators_collection()
+            .aggregate(pipeline, None)
+            .await
+            .map_err(|e| format!("{}", e.to_string()))?;
 
         let mut res: Vec<Validator> = vec![];
         while let Some(result) = results.next().await {
             res.push(from_document(result.map_err(|e| format!("{}", e.to_string()))?).map_err(|e| format!("{}", e.to_string()))?);
-        };
+        }
 
         Ok(res)
     }
@@ -282,6 +310,46 @@ impl DatabaseTR {
     /// ```
     pub async fn find_validator_by_hex_addr(&self, hex_address: &str) -> Result<Validator, String> {
         self.find_validator(doc! {"hex_address": hex_address}).await
+    }
+
+    /// Add new evm_poll item to the evm_polls collection
+    /// # Usage
+    /// ```rs
+    /// database.upsert_block(evm_poll).await;
+    /// ```
+    pub async fn upsert_evm_poll(&self, poll: EvmPoll) -> Result<(), String> {
+        let doc = to_document(&poll).unwrap();
+        let command = doc! {"update":"evm_polls","updates":[{"q":{"poll_id":&poll.poll_id},"u":doc,"upsert":true}]};
+        match self.db().run_command(command, None).await {
+            Ok(_) => Ok(()),
+            Err(_) => Err("Cannot save the poll id to db.".into()),
+        }
+    }
+
+    /// Add new evm_poll item to the evm_polls collection
+    /// # Usage
+    /// ```rs
+    /// database.upsert_block(evm_poll).await;
+    /// ```
+    pub async fn update_evm_poll(&self, query: Document, update: Document) -> Result<(), String> {
+        match self.evm_poll_collection().update_one(query, update, None).await {
+            Ok(_) => Ok(()),
+            Err(_) => Err("Cannot update the poll.".into()),
+        }
+    }
+
+    /// Updates evm_poll item participant vote on to the evm_polls collection
+    /// # Usage
+    /// ```rs
+    /// database.update_evm_poll_participant_vote(3890,EvmPollVote::YES).await;
+    /// ```
+    pub async fn update_evm_poll_participant_vote(&self, pool_id: &String, vote: EvmPollParticipantForDb) -> Result<(), String> {
+        let query = doc! {"poll_id":pool_id,"participants.operator_address": &vote.operator_address};
+        let update_doc = doc! {"$set":{"participants.$.vote": vote.vote.to_db_str()}};
+        match self.update_evm_poll(query, update_doc).await {
+            Ok(_) => Ok(()),
+            Err(_) => Err("Cannot update poll vote.".into()),
+        }
     }
 
     /// Adds a new chain to the chains collection of the database.
@@ -344,7 +412,6 @@ impl DatabaseTR {
             Err(e) => Err(format!("Cannot save the params: {e}")),
         }
     }
-
 
     /// Finds a historical data by given document.
     /// # Usage

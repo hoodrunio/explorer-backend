@@ -1,4 +1,4 @@
-use reqwest::Method;
+use reqwest::{Client, Method};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
 use crate::chain::Chain;
@@ -64,6 +64,23 @@ impl Chain {
         }
     }
 
+    /// Makes a request to the ARCHIVE REST API node.
+    pub(super) async fn archive_api_request<T: DeserializeOwned>(&self, path: &str, query: &[(&'static str, String)]) -> Result<T, String> {
+        // Create the URL request to.
+        let url = format!("{}{}", self.config.archive_url, path);
+
+        match self.client.get(&url).query(query).send().await {
+            Ok(res) => match res.json::<RestResponse<T>>().await {
+                Ok(res_json) => match res_json {
+                    RestResponse::Success(res_json) => Ok(res_json),
+                    RestResponse::Error { message, details: _ } => Err(message),
+                },
+                Err(error) => Err(format!("Cannot parse JSON.\nURL requested: {url}\nError Message:\n{error}")),
+            },
+            Err(_) => Err(format!("Cannot make a request to `{url}`.")),
+        }
+    }
+
     /// Makes a post request to the JSON RPC node.
     pub(super) async fn jsonrpc_request<T: DeserializeOwned>(&self, body: String) -> Result<T, String> {
         // Create the URL request to.
@@ -88,7 +105,7 @@ impl Chain {
     // Makes a request to the External Resource
     pub(super) async fn external_rest_api_req<T: DeserializeOwned>(
         &self,
-        client: &reqwest::Client,
+        client: &Client,
         method: Method,
         full_path: &str,
         query: &[(&'static str, String)],

@@ -1,4 +1,5 @@
 use super::QueryParams;
+use crate::routes::{extract_chain, TNRAppError, TNRAppSuccessResponse};
 use crate::{
     fetch::others::{PaginationConfig, Response},
     state::State,
@@ -8,7 +9,6 @@ use actix_web::{
     web::{Data, Json, Path, Query},
     Responder,
 };
-use crate::routes::{extract_chain, TNRAppError, TNRAppSuccessResponse};
 
 // ======== 'axelar' Propsals Methods ========
 

@@ -10,7 +10,7 @@ use actix_web::{
 };
 use mongodb::bson::doc;
 
-use crate::fetch::validators::{ValidatorListResp};
+use crate::fetch::validators::ValidatorListResp;
 use crate::routes::{extract_chain, TNRAppError, TNRAppSuccessResponse};
 
 // ======== Validator Methods ========
@@ -25,7 +25,11 @@ pub async fn validator(path: Path<(String, String)>, chains: Data<State>) -> Res
 }
 
 #[get("{chain}/validator-delegations/{address}")]
-pub async fn validator_delegations(path: Path<(String, String)>, chains: Data<State>, query: Query<QueryParams>) -> Result<impl Responder, TNRAppError> {
+pub async fn validator_delegations(
+    path: Path<(String, String)>,
+    chains: Data<State>,
+    query: Query<QueryParams>,
+) -> Result<impl Responder, TNRAppError> {
     let (chain, validator_addr) = path.into_inner();
 
     let config = PaginationConfig::new().limit(6).page(query.page.unwrap_or(1));
@@ -36,7 +40,11 @@ pub async fn validator_delegations(path: Path<(String, String)>, chains: Data<St
 }
 
 #[get("{chain}/validator-unbondings/{address}")]
-pub async fn validator_unbondings(path: Path<(String, String)>, chains: Data<State>, query: Query<QueryParams>) -> Result<impl Responder, TNRAppError> {
+pub async fn validator_unbondings(
+    path: Path<(String, String)>,
+    chains: Data<State>,
+    query: Query<QueryParams>,
+) -> Result<impl Responder, TNRAppError> {
     let (chain, validator_addr) = path.into_inner();
 
     let config = PaginationConfig::new().limit(6).page(query.page.unwrap_or(1));
@@ -47,7 +55,11 @@ pub async fn validator_unbondings(path: Path<(String, String)>, chains: Data<Sta
 }
 
 #[get("{chain}/validator-redelegations/{address}")]
-pub async fn validator_redelegations(path: Path<(String, String)>, chains: Data<State>, query: Query<QueryParams>) -> Result<impl Responder, TNRAppError> {
+pub async fn validator_redelegations(
+    path: Path<(String, String)>,
+    chains: Data<State>,
+    query: Query<QueryParams>,
+) -> Result<impl Responder, TNRAppError> {
     let (chain, validator_addr) = path.into_inner();
 
     let config = PaginationConfig::new().limit(6).page(query.page.unwrap_or(1));
@@ -82,7 +94,10 @@ pub async fn validators_bonded(path: Path<String>, chains: Data<State>, query: Q
     let config = PaginationConfig::new().limit(query.limit.unwrap_or(20)).page(query.page.unwrap_or(1));
 
     let chain = extract_chain(&chain, chains)?;
-    let validator_db_resp = chain.database.find_paginated_validators(Some(doc! {"$match":{"is_active":true}}), config).await?;
+    let validator_db_resp = chain
+        .database
+        .find_paginated_validators(Some(doc! {"$match":{"is_active":true}}), config)
+        .await?;
     let data = ValidatorListResp::from_db_list(validator_db_resp, &chain).await?;
     Ok(TNRAppSuccessResponse::new(data))
 }
@@ -94,7 +109,10 @@ pub async fn validators_unbonded(path: Path<String>, chains: Data<State>, query:
     let config = PaginationConfig::new().limit(query.limit.unwrap_or(20)).page(query.page.unwrap_or(1));
 
     let chain = extract_chain(&chain, chains)?;
-    let validator_db_resp = chain.database.find_paginated_validators(Some(doc! {"$match":{"is_active":false}}), config).await?;
+    let validator_db_resp = chain
+        .database
+        .find_paginated_validators(Some(doc! {"$match":{"is_active":false}}), config)
+        .await?;
     let data = ValidatorListResp::from_db_list(validator_db_resp, &chain).await?;
     Ok(TNRAppSuccessResponse::new(data))
 }
