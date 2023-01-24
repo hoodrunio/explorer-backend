@@ -202,54 +202,24 @@ impl Chain {
                 match serde_json::from_str::<SocketMessage>(&text_msg) {
                     Ok(socket_msg) => {
                         match socket_msg.result {
-                            SocketResult::NonEmpty(SocketResultNonEmpty::VotedTx { events }) => {
-                                let tx_hash = events.tx_hash.get(0).unwrap();
-                                let poll_state = events.poll_state.get(0).unwrap().replace("\"", "");
+                            SocketResult::NonEmpty(SocketResultNonEmpty::VotedTx { events: voted_tx }) => {
+                                let tx_hash = voted_tx.get_tx_hash();
+                                let tx = voted_tx.fetch_tx(&self).await?;
+                                let tx_content = tx.content.get(0).unwrap();
 
-                                let tx_content_res = match self.get_tx_by_hash(&tx_hash).await {
-                                    Ok(res) => res,
-                                    Err(e) => {
-                                        tracing::error!("tx could not fetched retrying {}",e);
-                                        match self.get_tx_by_hash(&tx_hash).await {
-                                            Ok(res) => res,
-                                            Err(e) => {
-                                                tracing::error!("tx could not fetched  {}",e);
-                                                return Err(TNRAppError::from(e));
-                                            }
-                                        }
-                                    }
-                                };
-
-                                let tx_content = tx_content_res.value.content.get(0);
-
-                                match tx_content.unwrap() {
+                                match tx_content {
                                     InternalTransactionContent::Known(InternalTransactionContentKnowns::AxelarRefundRequest { sender: _, inner_message }) => {
                                         match inner_message {
                                             InnerMessage::Known(InnerMessageKnown::VoteRequest { sender, vote, poll_id }) => {
                                                 match vote {
                                                     AxelarVote::Known(axelar_known_vote) => {
                                                         let vote = axelar_known_vote.evm_vote();
-                                                        let time = tx_content_res.value.time as u64;
-                                                        let tx_height = tx_content_res.value.height;
+                                                        let time = tx.time as u64;
+                                                        let tx_height = tx.height;
 
-                                                        if poll_state == "POLL_STATE_COMPLETED" {
-                                                            match self.database.find_evm_poll(doc! {"poll_id": poll_id.clone()}).await {
-                                                                Ok(res) => {
-                                                                    if res.status != "Completed" {
-                                                                        match self.database.update_evm_poll(
-                                                                            doc! {"poll_id": poll_id.clone()},
-                                                                            doc! {"$set":{"status":"Completed"}}).await {
-                                                                            Ok(_) => {
-                                                                                tracing::info!("Successfully updated evm poll");
-                                                                            }
-                                                                            Err(e) => {
-                                                                                tracing::error!("{}",e);
-                                                                            }
-                                                                        };
-                                                                    }
-                                                                }
-                                                                Err(_) => {}
-                                                            }
+                                                        match voted_tx.update_poll_status(&self, &poll_id).await {
+                                                            Ok(_) => {}
+                                                            Err(e) => return Err(e)
                                                         }
 
                                                         let validator = self.database.find_validator(doc! {"voter_address":sender.clone()}).await;
@@ -525,6 +495,73 @@ pub struct VotedTxEvents {
     pub tx_hash: [String; 1],
     #[serde(rename = "axelar.vote.v1beta1.Voted.state")]
     pub poll_state: [String; 1],
+}
+
+impl VotedTxEvents {
+    pub async fn fetch_tx(&self, chain: &Chain) -> Result<InternalTransaction, TNRAppError> {
+        let tx_hash = self.get_tx_hash();
+
+        let internal_tx = match chain.get_tx_by_hash(&tx_hash).await {
+            Ok(res) => res.value,
+            Err(e) => {
+                tracing::error!("tx could not fetched retrying {}",e);
+                match chain.get_tx_by_hash(&tx_hash).await {
+                    Ok(res) => res.value,
+                    Err(e) => {
+                        tracing::error!("tx could not fetched  {}",e);
+                        return Err(TNRAppError::from(e));
+                    }
+                }
+            }
+        };
+
+        Ok(internal_tx)
+    }
+
+    pub async fn update_poll_status(&self, chain: &Chain, poll_id: &String) -> Result<(), TNRAppError> {
+        if self.is_poll_completed() {
+            match chain.database.find_evm_poll(doc! {"poll_id": &poll_id}).await {
+                Ok(res) => {
+                    if res.status != "Completed" {
+                        match chain.database.update_evm_poll(
+                            doc! {"poll_id": &poll_id.clone()},
+                            doc! {"$set":{"status":"Completed"}}).await {
+                            Ok(_) => {
+                                tracing::info!("Successfully updated as completed evm poll {}", &poll_id);
+                            }
+                            Err(e) => {
+                                tracing::error!("{}",e);
+                                return Err(TNRAppError::from(e));
+                            }
+                        };
+                    }
+                }
+                Err(e) => {
+                    tracing::error!("{}",e);
+                    return Err(TNRAppError::from(e));
+                }
+            }
+        };
+
+        Ok(())
+    }
+
+    pub fn get_tx_hash(&self) -> String {
+        self.tx_hash.get(0).unwrap().to_string()
+    }
+
+
+    pub fn get_tx_height(&self) -> String {
+        self.tx_height.get(0).unwrap().to_string()
+    }
+
+    pub fn get_poll_state(&self) -> String {
+        self.poll_state.get(0).unwrap().replace("\"", "")
+    }
+
+    pub fn is_poll_completed(&self) -> bool {
+        self.get_poll_state() == "POLL_STATE_COMPLETED"
+    }
 }
 
 #[derive(Deserialize, Debug, Clone)]
