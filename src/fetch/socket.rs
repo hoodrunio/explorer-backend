@@ -205,11 +205,18 @@ impl Chain {
                             SocketResult::NonEmpty(SocketResultNonEmpty::VotedTx { events }) => {
                                 let tx_hash = events.tx_hash.get(0).unwrap();
 
+                                //TODO give cumulative rest api request at least 3 try chance to get data.
                                 let tx_content_res = match self.get_tx_by_hash(&tx_hash).await {
                                     Ok(res) => res,
                                     Err(e) => {
-                                        tracing::error!("tx could not fetched {}",e);
-                                        return Err(TNRAppError::from(e));
+                                        tracing::error!("tx could not fetched retrying {}",e);
+                                        match self.get_tx_by_hash(&tx_hash).await {
+                                            Ok(res) => res,
+                                            Err(e) => {
+                                                tracing::error!("tx could not fetched  {}",e);
+                                                return Err(TNRAppError::from(e));
+                                            }
+                                        }
                                     }
                                 };
 
@@ -222,14 +229,20 @@ impl Chain {
                                                 match vote {
                                                     AxelarVote::Known(axelar_known_vote) => {
                                                         let vote = axelar_known_vote.evm_vote();
+                                                        let time = tx_content_res.value.time as u64;
+                                                        let tx_height = tx_content_res.value.height;
                                                         let validator = self.database.find_validator(doc! {"voter_address":sender}).await;
                                                         if let Ok(validator) = validator {
-                                                            match self.database.update_evm_poll_participant_vote(&poll_id, EvmPollParticipantForDb {
+                                                            let evm_poll_participant = EvmPollParticipantForDb {
                                                                 operator_address: validator.operator_address,
                                                                 vote,
-                                                            }).await {
-                                                                Ok(_) => {}
-                                                                Err(e) => { TNRAppError::from(format!("Can not get axelar vote info.to_string() {}", e)); }
+                                                                time,
+                                                                tx_height,
+                                                                tx_hash: tx_hash.to_string(),
+                                                            };
+                                                            match self.database.update_evm_poll_participant(&poll_id, &evm_poll_participant).await {
+                                                                Ok(_) => {tracing::info!("Successfully updated evm poll participant");}
+                                                                Err(e) => { tracing::error!("Can not updated evm poll participant {}",e); }
                                                             };
                                                         }
                                                     }
