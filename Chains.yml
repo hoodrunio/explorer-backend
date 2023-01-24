@@ -9,7 +9,7 @@ axelar:
   # version: 0.45
   rpc_url: https://rpc.cosmos.directory/axelar
   rest_url:  https://rest.cosmos.directory/axelar
-  wss_url: wss://axelar-rpc.chainode.tech/websocket
+  wss_url: wss://rpc-axelar.stakerun.com/websocket
   archive_url: https://axelararchive-lcd.quickapi.com
 
 
