@@ -21,6 +21,7 @@ pub struct EvmPollParticipant {
     pub time: u64,
     pub tx_height: u64,
     pub tx_hash: String,
+    pub voter_address: String,
 }
 
 impl From<String> for EvmPollParticipant {
@@ -31,6 +32,7 @@ impl From<String> for EvmPollParticipant {
             time: 0,
             tx_height: 0,
             tx_hash: String::from(""),
+            voter_address: "".to_string(),
         }
     }
 }
