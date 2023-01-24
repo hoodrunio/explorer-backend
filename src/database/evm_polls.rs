@@ -18,6 +18,9 @@ pub struct EvmPoll {
 pub struct EvmPollParticipant {
     pub operator_address:String,
     pub vote: EvmPollVote,
+    pub time: u64,
+    pub tx_height: u64,
+    pub tx_hash: String,
 }
 
 impl From<String> for EvmPollParticipant {
@@ -25,6 +28,9 @@ impl From<String> for EvmPollParticipant {
         Self{
             operator_address,
             vote: EvmPollVote::UnSubmit,
+            time: 0,
+            tx_height: 0,
+            tx_hash: String::from(""),
         }
     }
 }
