@@ -205,7 +205,6 @@ impl Chain {
                             SocketResult::NonEmpty(SocketResultNonEmpty::VotedTx { events }) => {
                                 let tx_hash = events.tx_hash.get(0).unwrap();
 
-                                //TODO give cumulative rest api request at least 3 try chance to get data.
                                 let tx_content_res = match self.get_tx_by_hash(&tx_hash).await {
                                     Ok(res) => res,
                                     Err(e) => {
@@ -269,7 +268,7 @@ impl Chain {
                                     participants,
                                 }).await?;
                             }
-                            SocketResult::Empty { .. } => { dbg!("Socket result empty"); }
+                            SocketResult::Empty { .. } => {}
                         };
                     }
                     Err(error) => tracing::info!("Websocket JSON parse error for {}: {error}", chain_name),
