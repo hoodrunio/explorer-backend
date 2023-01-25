@@ -259,6 +259,7 @@ impl Chain {
                                     status: evm_poll_item.status.clone(),
                                     evm_tx_id: evm_poll_item.evm_tx_id.clone(),
                                     chain_name: evm_poll_item.chain_name.clone(),
+                                    evm_deposit_address: evm_poll_item.evm_deposit_address.clone(),
                                     participants,
                                 }).await?;
                             }
@@ -390,6 +391,8 @@ pub struct ConfirmDepositStartedEvents {
     pub participants: [String; 1],
     #[serde(rename = "axelar.evm.v1beta1.ConfirmDepositStarted.tx_id")]
     pub tx_id: [String; 1],
+    #[serde(rename = "axelar.evm.v1beta1.ConfirmDepositStarted.deposit_address")]
+    pub evm_deposit_address: [String; 1],
     #[serde(rename = "message.action")]
     pub message_action: [String; 1],
 }
@@ -404,6 +407,8 @@ pub struct ConfirmGatewayTxStartedEvents {
     pub participants: [String; 1],
     #[serde(rename = "axelar.evm.v1beta1.ConfirmGatewayTxStarted.tx_id")]
     pub tx_id: [String; 1],
+    #[serde(rename = "axelar.evm.v1beta1.ConfirmGatewayTxStarted.deposit_address")]
+    pub evm_deposit_address: [String; 1],
     #[serde(rename = "message.action")]
     pub message_action: [String; 1],
 }
@@ -418,6 +423,8 @@ pub struct ConfirmKeyTransferStartedEvents {
     pub participants: [String; 1],
     #[serde(rename = "axelar.evm.v1beta1.ConfirmKeyTransferStarted.tx_id")]
     pub tx_id: [String; 1],
+    #[serde(rename = "axelar.evm.v1beta1.ConfirmKeyTransferStarted.deposit_address")]
+    pub evm_deposit_address: [String; 1],
     #[serde(rename = "message.action")]
     pub message_action: [String; 1],
 }
@@ -429,9 +436,11 @@ impl SocketResultNonEmpty {
         let action_name = self.get_action_name();
         let participants_raw = self.get_participants_raw();
         let tx_id = self.get_tx_id();
+        let deposit_address = self.get_deposit_address();
 
         Ok(EvmPollItem::new(&EvmPollItemEventParams {
             chain: chain_name,
+            deposit_address,
             tx_height,
             action_name,
             participants_raw,
@@ -482,6 +491,16 @@ impl SocketResultNonEmpty {
             SocketResultNonEmpty::ConfirmDepositStartedTx { events } => { events.tx_id.get(0).unwrap().to_string() }
             SocketResultNonEmpty::ConfirmGatewayTxStartedTx { events } => { events.tx_id.get(0).unwrap().to_string() }
             SocketResultNonEmpty::ConfirmKeyTransferStartedTx { events } => { events.tx_id.get(0).unwrap().to_string() }
+            _ => String::from(""),
+        }
+    }
+
+    fn get_deposit_address(&self) -> String {
+        match self {
+            SocketResultNonEmpty::ConfirmERC20DepositStartedTx { events } => { events.evm_deposit_address.get(0).unwrap_or(&String::from("")).to_string() }
+            SocketResultNonEmpty::ConfirmDepositStartedTx { events } => { events.evm_deposit_address.get(0).unwrap_or(&String::from("")).to_string() }
+            SocketResultNonEmpty::ConfirmGatewayTxStartedTx { events } => { events.evm_deposit_address.get(0).unwrap_or(&String::from("")).to_string() }
+            SocketResultNonEmpty::ConfirmKeyTransferStartedTx { events } => { events.evm_deposit_address.get(0).unwrap_or(&String::from("")).to_string() }
             _ => String::from(""),
         }
     }
@@ -580,6 +599,7 @@ pub struct EvmPollItem {
     pub chain_name: String,
     pub status: String,
     pub evm_tx_id: String,
+    pub evm_deposit_address: String,
     pub participants_operator_address: Vec<String>,
     pub time: u64,
 }
@@ -600,12 +620,14 @@ impl EvmPollItem {
 
         let chain_name = str::replace(&params.chain, r#"\"#, "");
         let evm_tx_id = chain.convert_to_evm_hex(&params.tx_id).unwrap();
+        let evm_deposit_address = chain.convert_to_evm_hex(&params.deposit_address).unwrap();
         let action = String::from(&params.action_name);
 
         Ok(Self {
             poll_id: poll_info.poll_id.clone(),
             status: String::from("Pending"),
             participants_operator_address: poll_info.participants_operator_address.clone(),
+            evm_deposit_address,
             action,
             evm_tx_id,
             chain_name,
@@ -621,6 +643,7 @@ struct EvmPollItemEventParams {
     pub action_name: String,
     pub participants_raw: String,
     pub tx_id: String,
+    pub deposit_address: String,
 }
 
 impl From<EvmPollItem> for EvmPollForDb {
@@ -635,6 +658,7 @@ impl From<EvmPollItem> for EvmPollForDb {
             status: value.status.clone(),
             evm_tx_id: value.evm_tx_id.clone(),
             chain_name: value.chain_name.clone(),
+            evm_deposit_address: value.evm_deposit_address.clone(),
             participants,
         }
     }
