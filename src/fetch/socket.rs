@@ -451,46 +451,46 @@ impl SocketResultNonEmpty {
 
     fn get_tx_height(&self) -> u64 {
         match self {
-            SocketResultNonEmpty::ConfirmERC20DepositStartedTx { events } => { events.tx_height.get(0).unwrap().parse::<u64>().unwrap() }
-            SocketResultNonEmpty::ConfirmDepositStartedTx { events } => { events.tx_height.get(0).unwrap().parse::<u64>().unwrap() }
-            SocketResultNonEmpty::ConfirmGatewayTxStartedTx { events } => { events.tx_height.get(0).unwrap().parse::<u64>().unwrap() }
-            SocketResultNonEmpty::ConfirmKeyTransferStartedTx { events } => { events.tx_height.get(0).unwrap().parse::<u64>().unwrap() }
+            SocketResultNonEmpty::ConfirmERC20DepositStartedTx { events } => { events.tx_height.get(0).unwrap_or(&String::from("0")).parse::<u64>().unwrap() }
+            SocketResultNonEmpty::ConfirmDepositStartedTx { events } => { events.tx_height.get(0).unwrap_or(&String::from("0")).parse::<u64>().unwrap() }
+            SocketResultNonEmpty::ConfirmGatewayTxStartedTx { events } => { events.tx_height.get(0).unwrap_or(&String::from("0")).parse::<u64>().unwrap() }
+            SocketResultNonEmpty::ConfirmKeyTransferStartedTx { events } => { events.tx_height.get(0).unwrap_or(&String::from("0")).parse::<u64>().unwrap() }
             _ => 0,
         }
     }
     fn get_chain_name(&self) -> String {
         match self {
-            SocketResultNonEmpty::ConfirmERC20DepositStartedTx { events } => { events.chain.get(0).unwrap().to_string() }
-            SocketResultNonEmpty::ConfirmDepositStartedTx { events } => { events.chain.get(0).unwrap().to_string() }
-            SocketResultNonEmpty::ConfirmGatewayTxStartedTx { events } => { events.chain.get(0).unwrap().to_string() }
-            SocketResultNonEmpty::ConfirmKeyTransferStartedTx { events } => { events.chain.get(0).unwrap().to_string() }
+            SocketResultNonEmpty::ConfirmERC20DepositStartedTx { events } => { events.chain.get(0).unwrap_or(&String::from("")).to_string() }
+            SocketResultNonEmpty::ConfirmDepositStartedTx { events } => { events.chain.get(0).unwrap_or(&String::from("")).to_string() }
+            SocketResultNonEmpty::ConfirmGatewayTxStartedTx { events } => { events.chain.get(0).unwrap_or(&String::from("")).to_string() }
+            SocketResultNonEmpty::ConfirmKeyTransferStartedTx { events } => { events.chain.get(0).unwrap_or(&String::from("")).to_string() }
             _ => String::from(""),
         }
     }
     fn get_action_name(&self) -> String {
         match self {
-            SocketResultNonEmpty::ConfirmERC20DepositStartedTx { events } => { events.message_action.get(0).unwrap().to_string() }
-            SocketResultNonEmpty::ConfirmDepositStartedTx { events } => { events.message_action.get(0).unwrap().to_string() }
-            SocketResultNonEmpty::ConfirmGatewayTxStartedTx { events } => { events.message_action.get(0).unwrap().to_string() }
-            SocketResultNonEmpty::ConfirmKeyTransferStartedTx { events } => { events.message_action.get(0).unwrap().to_string() }
+            SocketResultNonEmpty::ConfirmERC20DepositStartedTx { events } => { events.message_action.get(0).unwrap_or(&String::from("")).to_string() }
+            SocketResultNonEmpty::ConfirmDepositStartedTx { events } => { events.message_action.get(0).unwrap_or(&String::from("")).to_string() }
+            SocketResultNonEmpty::ConfirmGatewayTxStartedTx { events } => { events.message_action.get(0).unwrap_or(&String::from("")).to_string() }
+            SocketResultNonEmpty::ConfirmKeyTransferStartedTx { events } => { events.message_action.get(0).unwrap_or(&String::from("")).to_string() }
             _ => String::from(""),
         }
     }
     fn get_participants_raw(&self) -> String {
         match self {
-            SocketResultNonEmpty::ConfirmERC20DepositStartedTx { events } => { events.participants.get(0).unwrap().to_string() }
-            SocketResultNonEmpty::ConfirmDepositStartedTx { events } => { events.participants.get(0).unwrap().to_string() }
-            SocketResultNonEmpty::ConfirmGatewayTxStartedTx { events } => { events.participants.get(0).unwrap().to_string() }
-            SocketResultNonEmpty::ConfirmKeyTransferStartedTx { events } => { events.participants.get(0).unwrap().to_string() }
+            SocketResultNonEmpty::ConfirmERC20DepositStartedTx { events } => { events.participants.get(0).unwrap_or(&String::from("")).to_string() }
+            SocketResultNonEmpty::ConfirmDepositStartedTx { events } => { events.participants.get(0).unwrap_or(&String::from("")).to_string() }
+            SocketResultNonEmpty::ConfirmGatewayTxStartedTx { events } => { events.participants.get(0).unwrap_or(&String::from("")).to_string() }
+            SocketResultNonEmpty::ConfirmKeyTransferStartedTx { events } => { events.participants.get(0).unwrap_or(&String::from("")).to_string() }
             _ => String::from(""),
         }
     }
     fn get_tx_id(&self) -> String {
         match self {
-            SocketResultNonEmpty::ConfirmERC20DepositStartedTx { events } => { events.tx_id.get(0).unwrap().to_string() }
-            SocketResultNonEmpty::ConfirmDepositStartedTx { events } => { events.tx_id.get(0).unwrap().to_string() }
-            SocketResultNonEmpty::ConfirmGatewayTxStartedTx { events } => { events.tx_id.get(0).unwrap().to_string() }
-            SocketResultNonEmpty::ConfirmKeyTransferStartedTx { events } => { events.tx_id.get(0).unwrap().to_string() }
+            SocketResultNonEmpty::ConfirmERC20DepositStartedTx { events } => { events.tx_id.get(0).unwrap_or(&String::from("")).to_string() }
+            SocketResultNonEmpty::ConfirmDepositStartedTx { events } => { events.tx_id.get(0).unwrap_or(&String::from("")).to_string() }
+            SocketResultNonEmpty::ConfirmGatewayTxStartedTx { events } => { events.tx_id.get(0).unwrap_or(&String::from("")).to_string() }
+            SocketResultNonEmpty::ConfirmKeyTransferStartedTx { events } => { events.tx_id.get(0).unwrap_or(&String::from("")).to_string() }
             _ => String::from(""),
         }
     }
