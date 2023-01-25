@@ -249,7 +249,7 @@ impl Chain {
                                 };
                             }
                             SocketResult::NonEmpty(evm_poll_msg) => {
-                                let evm_poll_item = evm_poll_msg.get_evm_poll_item(&self).await.unwrap();
+                                let evm_poll_item = evm_poll_msg.get_evm_poll_item(&self).await?;
                                 let participants: Vec<EvmPollParticipantForDb> = evm_poll_item.participants_operator_address.clone().into_iter().map(|address| { EvmPollParticipantForDb::from(address) }).collect();
                                 self.database.upsert_evm_poll(EvmPollForDb {
                                     timestamp: evm_poll_item.time.clone(),
@@ -407,8 +407,6 @@ pub struct ConfirmGatewayTxStartedEvents {
     pub participants: [String; 1],
     #[serde(rename = "axelar.evm.v1beta1.ConfirmGatewayTxStarted.tx_id")]
     pub tx_id: [String; 1],
-    #[serde(rename = "axelar.evm.v1beta1.ConfirmGatewayTxStarted.deposit_address")]
-    pub evm_deposit_address: [String; 1],
     #[serde(rename = "message.action")]
     pub message_action: [String; 1],
 }
@@ -423,8 +421,6 @@ pub struct ConfirmKeyTransferStartedEvents {
     pub participants: [String; 1],
     #[serde(rename = "axelar.evm.v1beta1.ConfirmKeyTransferStarted.tx_id")]
     pub tx_id: [String; 1],
-    #[serde(rename = "axelar.evm.v1beta1.ConfirmKeyTransferStarted.deposit_address")]
-    pub evm_deposit_address: [String; 1],
     #[serde(rename = "message.action")]
     pub message_action: [String; 1],
 }
@@ -438,15 +434,19 @@ impl SocketResultNonEmpty {
         let tx_id = self.get_tx_id();
         let deposit_address = self.get_deposit_address();
 
-        Ok(EvmPollItem::new(&EvmPollItemEventParams {
+        let evm_poll_item = match EvmPollItem::new(&EvmPollItemEventParams {
             chain: chain_name,
             deposit_address,
             tx_height,
             action_name,
             participants_raw,
             tx_id,
-        }, &chain).await.unwrap()
-        )
+        }, &chain).await {
+            Ok(res) => res,
+            Err(e) => { return Err(e); }
+        };
+
+        Ok(evm_poll_item)
     }
 
     fn get_tx_height(&self) -> u64 {
@@ -499,8 +499,8 @@ impl SocketResultNonEmpty {
         match self {
             SocketResultNonEmpty::ConfirmERC20DepositStartedTx { events } => { events.evm_deposit_address.get(0).unwrap_or(&String::from("")).to_string() }
             SocketResultNonEmpty::ConfirmDepositStartedTx { events } => { events.evm_deposit_address.get(0).unwrap_or(&String::from("")).to_string() }
-            SocketResultNonEmpty::ConfirmGatewayTxStartedTx { events } => { events.evm_deposit_address.get(0).unwrap_or(&String::from("")).to_string() }
-            SocketResultNonEmpty::ConfirmKeyTransferStartedTx { events } => { events.evm_deposit_address.get(0).unwrap_or(&String::from("")).to_string() }
+            SocketResultNonEmpty::ConfirmGatewayTxStartedTx { events: _ } => { String::from("") }
+            SocketResultNonEmpty::ConfirmKeyTransferStartedTx { events: _ } => { String::from("") }
             _ => String::from(""),
         }
     }
@@ -669,14 +669,4 @@ pub enum EvmPollVote {
     UnSubmit,
     Yes,
     No,
-}
-
-impl EvmPollVote {
-    pub fn to_db_str(&self) -> String {
-        match self {
-            EvmPollVote::UnSubmit => format!("UnSubmit"),
-            EvmPollVote::Yes => format!("Yes"),
-            EvmPollVote::No => format!("No")
-        }
-    }
 }
