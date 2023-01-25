@@ -223,15 +223,15 @@ impl Chain {
                                                         }
 
                                                         let validator = self.database.find_validator(doc! {"voter_address":sender.clone()}).await;
-
                                                         if let Ok(validator) = validator {
+                                                            let voter_address = validator.voter_address.unwrap_or(String::from(sender));
                                                             let evm_poll_participant = EvmPollParticipantForDb {
                                                                 operator_address: validator.operator_address,
+                                                                tx_hash: tx_hash.to_string(),
                                                                 vote,
                                                                 time,
                                                                 tx_height,
-                                                                tx_hash: tx_hash.to_string(),
-                                                                voter_address: sender.clone(),
+                                                                voter_address,
                                                             };
                                                             match self.database.update_evm_poll_participant(&poll_id, &evm_poll_participant).await {
                                                                 Ok(_) => { tracing::info!("Successfully updated evm poll participant"); }
