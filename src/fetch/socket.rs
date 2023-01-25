@@ -451,10 +451,10 @@ impl SocketResultNonEmpty {
 
     fn get_tx_height(&self) -> u64 {
         match self {
-            SocketResultNonEmpty::ConfirmERC20DepositStartedTx { events } => { events.tx_height.get(0).unwrap_or(&String::from("0")).parse::<u64>().unwrap() }
-            SocketResultNonEmpty::ConfirmDepositStartedTx { events } => { events.tx_height.get(0).unwrap_or(&String::from("0")).parse::<u64>().unwrap() }
-            SocketResultNonEmpty::ConfirmGatewayTxStartedTx { events } => { events.tx_height.get(0).unwrap_or(&String::from("0")).parse::<u64>().unwrap() }
-            SocketResultNonEmpty::ConfirmKeyTransferStartedTx { events } => { events.tx_height.get(0).unwrap_or(&String::from("0")).parse::<u64>().unwrap() }
+            SocketResultNonEmpty::ConfirmERC20DepositStartedTx { events } => { events.tx_height.get(0).unwrap_or(&String::from("0")).parse::<u64>().unwrap_or(0) }
+            SocketResultNonEmpty::ConfirmDepositStartedTx { events } => { events.tx_height.get(0).unwrap_or(&String::from("0")).parse::<u64>().unwrap_or(0) }
+            SocketResultNonEmpty::ConfirmGatewayTxStartedTx { events } => { events.tx_height.get(0).unwrap_or(&String::from("0")).parse::<u64>().unwrap_or(0) }
+            SocketResultNonEmpty::ConfirmKeyTransferStartedTx { events } => { events.tx_height.get(0).unwrap_or(&String::from("0")).parse::<u64>().unwrap_or(0) }
             _ => 0,
         }
     }
