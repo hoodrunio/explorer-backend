@@ -276,6 +276,11 @@ impl Chain {
 
     pub fn convert_to_evm_hex(&self, string_byte_array: &String) -> Option<String> {
         let mut result: Option<String> = None;
+
+        if string_byte_array.is_empty() {
+            return result;
+        };
+
         let mut prefix = String::from("0x").to_owned();
         match serde_json::from_str::<Vec<u8>>(string_byte_array) {
             Ok(res) => {
