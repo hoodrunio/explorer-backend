@@ -217,29 +217,30 @@ impl Chain {
                                                         let time = tx.time as u64;
                                                         let tx_height = tx.height;
 
-                                                        match voted_tx.update_poll_status(&self, &poll_id).await {
-                                                            Ok(_) => {}
-                                                            Err(e) => return Err(e)
+                                                            let validator = self.database.find_validator(doc! {"voter_address":sender.clone()}).await;
+                                                            if let Ok(validator) = validator {
+                                                                let voter_address = validator.voter_address.unwrap_or(String::from(sender));
+                                                                let evm_poll_participant = EvmPollParticipantForDb {
+                                                                    operator_address: validator.operator_address,
+                                                                    tx_hash: tx_hash.to_string(),
+                                                                    vote,
+                                                                    time,
+                                                                    tx_height,
+                                                                    voter_address,
+                                                                };
+                                                                match self.database.update_evm_poll_participant(&poll_id, &evm_poll_participant).await {
+                                                                    Ok(_) => { tracing::info!("Successfully updated evm poll participant"); }
+                                                                    Err(e) => { tracing::error!("Can not updated evm poll participant {}",e); }
+                                                                };
+                                                            }
                                                         }
-
-                                                        let validator = self.database.find_validator(doc! {"voter_address":sender.clone()}).await;
-                                                        if let Ok(validator) = validator {
-                                                            let voter_address = validator.voter_address.unwrap_or(String::from(sender));
-                                                            let evm_poll_participant = EvmPollParticipantForDb {
-                                                                operator_address: validator.operator_address,
-                                                                tx_hash: tx_hash.to_string(),
-                                                                vote,
-                                                                time,
-                                                                tx_height,
-                                                                voter_address,
-                                                            };
-                                                            match self.database.update_evm_poll_participant(&poll_id, &evm_poll_participant).await {
-                                                                Ok(_) => { tracing::info!("Successfully updated evm poll participant"); }
-                                                                Err(e) => { tracing::error!("Can not updated evm poll participant {}",e); }
-                                                            };
+                                                        AxelarVote::Unknown(_) => {
+                                                            tracing::error!("Unknown axelar evm poll vote info");
                                                         }
                                                     }
-                                                    AxelarVote::Unknown(_) => { TNRAppError::from("Can not get axelar vote info".to_string()); }
+                                                }
+                                                InnerMessage::Unknown(_) => {
+                                                    tracing::error!("Unknown axelar evm poll inner message");
                                                 }
                                             }
                                             InnerMessage::Unknown(_) => { TNRAppError::from("Can not get inner message info".to_string()); }
@@ -540,34 +541,6 @@ impl VotedTxEvents {
         };
 
         Ok(internal_tx)
-    }
-
-    pub async fn update_poll_status(&self, chain: &Chain, poll_id: &String) -> Result<(), TNRAppError> {
-        if self.is_poll_completed() {
-            match chain.database.find_evm_poll(doc! {"poll_id": &poll_id}).await {
-                Ok(res) => {
-                    if res.status != "Completed" {
-                        match chain.database.update_evm_poll(
-                            doc! {"poll_id": &poll_id.clone()},
-                            doc! {"$set":{"status":"Completed"}}).await {
-                            Ok(_) => {
-                                tracing::info!("Successfully updated as completed evm poll {}", &poll_id);
-                            }
-                            Err(e) => {
-                                tracing::error!("{}",e);
-                                return Err(TNRAppError::from(e));
-                            }
-                        };
-                    }
-                }
-                Err(e) => {
-                    tracing::error!("{}",e);
-                    return Err(TNRAppError::from(e));
-                }
-            }
-        };
-
-        Ok(())
     }
 
     pub fn get_tx_hash(&self) -> String {
