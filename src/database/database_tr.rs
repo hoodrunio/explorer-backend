@@ -8,6 +8,7 @@ use crate::database::blocks::Block;
 use crate::database::params::{HistoricalValidatorData, VotingPower};
 use crate::database::evm_polls::{EvmPoll};
 use crate::database::EvmPollParticipantForDb;
+use crate::fetch::evm::EvmPollListDbResp;
 use crate::fetch::others::{PaginationConfig, PaginationDb};
 use crate::fetch::socket::EvmPollVote;
 use crate::fetch::validators::ValidatorListDbResp;
@@ -294,6 +295,50 @@ impl DatabaseTR {
     /// ```
     pub async fn find_validator_by_hex_addr(&self, hex_address: &str) -> Result<Validator, String> {
         self.find_validator(doc! {"hex_address": hex_address}).await
+    }
+
+    /// Finds evm_polls with pagination option
+    /// # Usage
+    /// ```rs
+    /// database.find_paginated_evm_polls(evm_poll).await;
+    /// ```
+    pub async fn find_paginated_evm_polls(&self, pipe: Option<Document>, config: PaginationConfig) -> Result<EvmPollListDbResp, String> {
+        let mut pipeline: Vec<Document> = vec![];
+
+        let filter = pipe.clone();
+        match filter {
+            None => {}
+            Some(val) => pipeline.push(val)
+        };
+
+        let sort = doc! {
+            "$sort": {
+                "poll_id": -1
+            }
+        };
+
+        let page = config.get_page() as f32;
+        let limit = config.get_limit() as f32;
+        let skip_count = config.get_offset() as f32;
+        let limit_pipe = doc! { "$limit": limit };
+        let skip_pipe = doc! {
+            "$skip": skip_count
+        };
+
+        pipeline.push(sort);
+        pipeline.push(skip_pipe);
+        pipeline.push(limit_pipe);
+
+        let mut results = self.evm_poll_collection().aggregate(pipeline, None).await.map_err(|e| format!("{}", e.to_string()))?;
+        let count_cursor = self.evm_poll_collection().aggregate(pipe, None).await.map_err(|e| format!("{}", e.to_string()))?;
+        let count = count_cursor.count().await;
+
+        let mut res: Vec<EvmPoll> = vec![];
+        while let Some(result) = results.next().await {
+            res.push(from_document(result.expect("db connection error")).expect("db connection error"));
+        };
+
+        Ok(EvmPollListDbResp { polls: res, pagination: PaginationDb { page: page as u16, total: count as u16 } })
     }
 
     /// Add new evm_poll item to the evm_polls collection
