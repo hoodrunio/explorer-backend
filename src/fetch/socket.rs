@@ -544,16 +544,16 @@ impl VotedTxEvents {
     }
 
     pub fn get_tx_hash(&self) -> String {
-        self.tx_hash.get(0).unwrap().to_string()
+        self.tx_hash.get(0).unwrap_or(&String::from("")).to_string()
     }
 
 
     pub fn get_tx_height(&self) -> String {
-        self.tx_height.get(0).unwrap().to_string()
+        self.tx_height.get(0).unwrap_or(&String::from("")).to_string()
     }
 
     pub fn get_poll_state(&self) -> String {
-        self.poll_state.get(0).unwrap().replace("\"", "")
+        self.poll_state.get(0).unwrap_or(&String::from("")).replace("\"", "")
     }
 
     pub fn is_poll_completed(&self) -> bool {
