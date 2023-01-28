@@ -615,6 +615,7 @@ impl EvmPollItem {
     }
 }
 
+#[derive(Deserialize, Debug, Clone)]
 struct EvmPollItemEventParams {
     pub tx_height: u64,
     pub chain: String,
