@@ -529,12 +529,18 @@ impl VotedTxEvents {
         let internal_tx = match chain.get_tx_by_hash(&tx_hash).await {
             Ok(res) => res.value,
             Err(e) => {
-                tracing::error!("tx could not fetched retrying {}",e);
+                tracing::error!("tx could not fetched retrying 1 {}",e);
                 match chain.get_tx_by_hash(&tx_hash).await {
                     Ok(res) => res.value,
                     Err(e) => {
-                        tracing::error!("tx could not fetched  {}",e);
-                        return Err(TNRAppError::from(e));
+                        tracing::error!("tx could not fetched retrying 2  {}",e);
+                        match chain.get_tx_by_hash(&tx_hash).await {
+                            Ok(res) => res.value,
+                            Err(e) => {
+                                tracing::error!("tx could not fetched  {}",e);
+                                return Err(TNRAppError::from(e));
+                            }
+                        }
                     }
                 }
             }
