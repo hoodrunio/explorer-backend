@@ -261,7 +261,6 @@ impl Chain {
             write.send(AXELAR_SUB_VOTE_TX.into()).await.map_err(|e| format!("Can't subscribe to AXELAR_SUB_VOTE_TX for {}: {e}", chain_name))?;
 
             while let Some(msg) = read.next().await {
-                dbg!("evm poll votes ping {}",&msg);
                 if let Ok(Message::Text(text_msg)) = msg {
                     match serde_json::from_str::<SocketMessage>(&text_msg) {
                         Ok(socket_msg) => {
