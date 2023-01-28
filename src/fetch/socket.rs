@@ -185,37 +185,51 @@ impl Chain {
         let ws_url = "wss://axelar-rpc.chainode.tech/websocket";
         let chain_name = "axelar";
 
-        let (ws_stream, _) = connect_async(ws_url).await.map_err(|_| TNRAppError::from("Can not connect".to_string()))?;
 
-        // Split the connection into two parts.
-        let (mut write, mut read) = ws_stream.split();
+        loop {
+            let (ws_stream, _) = connect_async(ws_url).await.map_err(|_| TNRAppError::from("Can not connect".to_string()))?;
 
-        // Subscribe to txs which are related evm polls.
-        write.send(AXELAR_SUB_CONFIRM_DEPOSIT_TX.into()).await.map_err(|e| format!("Can't subscribe to confirm AXELAR CONFIRM DEPOSIT TX for {}: {e}", chain_name))?;
-        write.send(AXELAR_SUB_CONFIRM_ERC20_DEPOSIT_TX.into()).await.map_err(|e| format!("Can't subscribe to AXELAR CONFIRM ERC20_DEPOSIT TX for {}: {e}", chain_name))?;
-        write.send(AXELAR_SUB_CONFIRM_TRANSFER_KEY_TX.into()).await.map_err(|e| format!("Can't subscribe to AXELAR CONFIRM TRANSFER_KEY TX for {}: {e}", chain_name))?;
-        write.send(AXELAR_SUB_CONFIRM_GATEWAY_TX.into()).await.map_err(|e| format!("Can't subscribe to AXELAR CONFIRM GATEWAY TX for {}: {e}", chain_name))?;
-        write.send(AXELAR_SUB_VOTE_TX.into()).await.map_err(|e| format!("Can't subscribe to AXELAR_SUB_VOTE_TX for {}: {e}", chain_name))?;
+            // Split the connection into two parts.
+            let (mut write, mut read) = ws_stream.split();
 
-        while let Some(msg) = read.next().await {
-            if let Ok(Message::Text(text_msg)) = msg {
-                match serde_json::from_str::<SocketMessage>(&text_msg) {
-                    Ok(socket_msg) => {
-                        match socket_msg.result {
-                            SocketResult::NonEmpty(SocketResultNonEmpty::VotedTx { events: voted_tx }) => {
-                                let tx_hash = voted_tx.get_tx_hash();
-                                let tx = voted_tx.fetch_tx(&self).await?;
-                                let tx_content = tx.content.get(0).unwrap();
+            // Subscribe to txs which are related evm polls.
+            write.send(AXELAR_SUB_CONFIRM_DEPOSIT_TX.into()).await.map_err(|e| format!("Can't subscribe to confirm AXELAR CONFIRM DEPOSIT TX for {}: {e}", chain_name))?;
+            write.send(AXELAR_SUB_CONFIRM_ERC20_DEPOSIT_TX.into()).await.map_err(|e| format!("Can't subscribe to AXELAR CONFIRM ERC20_DEPOSIT TX for {}: {e}", chain_name))?;
+            write.send(AXELAR_SUB_CONFIRM_TRANSFER_KEY_TX.into()).await.map_err(|e| format!("Can't subscribe to AXELAR CONFIRM TRANSFER_KEY TX for {}: {e}", chain_name))?;
+            write.send(AXELAR_SUB_CONFIRM_GATEWAY_TX.into()).await.map_err(|e| format!("Can't subscribe to AXELAR CONFIRM GATEWAY TX for {}: {e}", chain_name))?;
+            write.send(AXELAR_SUB_VOTE_TX.into()).await.map_err(|e| format!("Can't subscribe to AXELAR_SUB_VOTE_TX for {}: {e}", chain_name))?;
 
-                                match tx_content {
-                                    InternalTransactionContent::Known(InternalTransactionContentKnowns::AxelarRefundRequest { sender: _, inner_message }) => {
-                                        match inner_message {
-                                            InnerMessage::Known(InnerMessageKnown::VoteRequest { sender, vote, poll_id }) => {
-                                                match vote {
-                                                    AxelarVote::Known(axelar_known_vote) => {
-                                                        let vote = axelar_known_vote.evm_vote();
-                                                        let time = tx.time as u64;
-                                                        let tx_height = tx.height;
+            while let Some(msg) = read.next().await {
+                if let Ok(Message::Text(text_msg)) = msg {
+                    match serde_json::from_str::<SocketMessage>(&text_msg) {
+                        Ok(socket_msg) => {
+                            match socket_msg.result {
+                                SocketResult::NonEmpty(SocketResultNonEmpty::VotedTx { events: voted_tx }) => {
+                                    let tx_hash = voted_tx.get_tx_hash();
+                                    let tx = match voted_tx.fetch_tx(&self).await {
+                                        Ok(res) => res,
+                                        Err(e) => {
+                                            dbg!("Axelar evm poll vote tx fetcher error {}",&e);
+                                            continue;
+                                        }
+                                    };
+                                    let tx_content = match tx.content.get(0) {
+                                        Some(res) => res,
+                                        None => {
+                                            dbg!("Axelar evm poll tx does not have content which hash is {}", &tx_hash);
+                                            continue;
+                                        }
+                                    };
+
+                                    match tx_content {
+                                        InternalTransactionContent::Known(InternalTransactionContentKnowns::AxelarRefundRequest { sender: _, inner_message }) => {
+                                            match inner_message {
+                                                InnerMessage::Known(InnerMessageKnown::VoteRequest { sender, vote, poll_id }) => {
+                                                    match vote {
+                                                        AxelarVote::Known(axelar_known_vote) => {
+                                                            let vote = axelar_known_vote.evm_vote();
+                                                            let time = tx.time as u64;
+                                                            let tx_height = tx.height;
 
                                                             let validator = self.database.find_validator(doc! {"voter_address":sender.clone()}).await;
                                                             if let Ok(validator) = validator {
@@ -243,36 +257,58 @@ impl Chain {
                                                     tracing::error!("Unknown axelar evm poll inner message");
                                                 }
                                             }
-                                            InnerMessage::Unknown(_) => { TNRAppError::from("Can not get inner message info".to_string()); }
                                         }
-                                    }
-                                    _ => { TNRAppError::from("Unknown vote type".to_string()); }
-                                };
-                            }
-                            SocketResult::NonEmpty(evm_poll_msg) => {
-                                let evm_poll_item = evm_poll_msg.get_evm_poll_item(&self).await?;
-                                let participants: Vec<EvmPollParticipantForDb> = evm_poll_item.participants_operator_address.clone().into_iter().map(|address| { EvmPollParticipantForDb::from(address) }).collect();
-                                self.database.upsert_evm_poll(EvmPollForDb {
-                                    timestamp: evm_poll_item.time.clone(),
-                                    tx_height: evm_poll_item.tx_height.clone(),
-                                    poll_id: evm_poll_item.poll_id.clone(),
-                                    action: evm_poll_item.action.clone(),
-                                    status: evm_poll_item.status.clone(),
-                                    evm_tx_id: evm_poll_item.evm_tx_id.clone(),
-                                    chain_name: evm_poll_item.chain_name.clone(),
-                                    evm_deposit_address: evm_poll_item.evm_deposit_address.clone(),
-                                    participants,
-                                }).await?;
-                            }
-                            SocketResult::Empty { .. } => {}
-                        };
+                                        InternalTransactionContent::Unknown { .. } => {
+                                            tracing::error!("Unknown InternalTransactionContent");
+                                        }
+                                        _ => {
+                                            tracing::error!("Unknown tx content");
+                                        }
+                                    };
+                                }
+                                SocketResult::NonEmpty(evm_poll_msg) => {
+                                    let evm_poll_item = match evm_poll_msg.get_evm_poll_item(&self).await {
+                                        Ok(res) => res,
+                                        Err(e) => {
+                                            tracing::error!("Could not get evm poll item {}",e);
+                                            continue;
+                                        }
+                                    };
+                                    let participants: Vec<EvmPollParticipantForDb> = evm_poll_item.participants_operator_address.clone().into_iter().map(|address| { EvmPollParticipantForDb::from(address) }).collect();
+                                    match self.database.upsert_evm_poll(EvmPollForDb {
+                                        timestamp: evm_poll_item.time.clone(),
+                                        tx_height: evm_poll_item.tx_height.clone(),
+                                        poll_id: evm_poll_item.poll_id.clone(),
+                                        action: evm_poll_item.action.clone(),
+                                        status: evm_poll_item.status.clone(),
+                                        evm_tx_id: evm_poll_item.evm_tx_id.clone(),
+                                        chain_name: evm_poll_item.chain_name.clone(),
+                                        evm_deposit_address: evm_poll_item.evm_deposit_address.clone(),
+                                        participants,
+                                    }).await {
+                                        Ok(_) => {
+                                            tracing::error!("evm poll successfully created {}", &evm_poll_item.poll_id);
+                                        }
+                                        Err(_) => {
+                                            tracing::error!("evm poll could not created {}", &evm_poll_item.poll_id);
+                                        }
+                                    };
+                                }
+                                SocketResult::Empty { .. } => {
+                                    tracing::error!("Empty axelar evm poll result ");
+                                }
+                            };
+                            continue;
+                        }
+                        Err(error) => {
+                            tracing::error!("Websocket JSON parse error for {}: {error}", chain_name);
+                            continue;
+                        }
                     }
-                    Err(error) => tracing::info!("Websocket JSON parse error for {}: {error}", chain_name),
-                }
-            }
+                };
+            };
         }
-
-        Ok(())
+        tracing::error!("Axelar evm poll listener stopped");
     }
 
     pub fn convert_to_evm_hex(&self, string_byte_array: &String) -> Option<String> {
