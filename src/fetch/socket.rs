@@ -597,8 +597,8 @@ impl EvmPollItem {
         };
 
         let chain_name = str::replace(&params.chain, r#"\"#, "");
-        let evm_tx_id = chain.convert_to_evm_hex(&params.tx_id).unwrap();
-        let evm_deposit_address = chain.convert_to_evm_hex(&params.deposit_address).unwrap();
+        let evm_tx_id = chain.convert_to_evm_hex(&params.tx_id).unwrap_or(String::from(""));
+        let evm_deposit_address = chain.convert_to_evm_hex(&params.deposit_address).unwrap_or(String::from(""));
         let action = String::from(&params.action_name);
 
         Ok(Self {
