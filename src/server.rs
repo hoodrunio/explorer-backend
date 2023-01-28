@@ -42,14 +42,14 @@ pub async fn start_web_server() -> std::io::Result<()> {
         match axelar_chain.sub_for_axelar_evm_pools().await {
             Ok(_) => tracing::info!("Stopped listening axelar evm poll events for"),
             Err(e) => tracing::error!("Failed listening axelar evm poll events {}",e),
-        }
+        };
     });
 
     let chains = HashSet::from_iter(state.get_chains().keys().cloned());
     tokio::spawn(async move {
         if let Err(e) = run_ws(tx, chains).await {
             tracing::error!("Error spawning the websocket task {e}");
-        }
+        };
     });
 
     HttpServer::new(move || {
