@@ -45,6 +45,14 @@ pub async fn start_web_server() -> std::io::Result<()> {
         };
     });
 
+    let axelar_chain = state.get("axelar").unwrap().clone();
+    tokio::spawn(async move {
+        match axelar_chain.sub_for_axelar_evm_pool_votes().await {
+            Ok(_) => tracing::info!("Stopped listening axelar evm poll votes events for"),
+            Err(e) => tracing::error!("Failed listening axelar votes evm poll events {}",e),
+        };
+    });
+
     let chains = HashSet::from_iter(state.get_chains().keys().cloned());
     tokio::spawn(async move {
         if let Err(e) = run_ws(tx, chains).await {
