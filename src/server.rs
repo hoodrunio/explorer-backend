@@ -129,6 +129,7 @@ pub async fn start_web_server() -> std::io::Result<()> {
             .service(routes::validators_unbonded)
             .service(routes::validators_unbonding)
             .service(routes::validators_unspecified)
+            .service(routes::evm_polls)
     })
     .bind(("127.0.0.1", 8080))
     .unwrap()
