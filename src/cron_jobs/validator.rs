@@ -63,6 +63,7 @@ impl Chain {
                 validator_commissions: validator.commission,
                 cumulative_bonded_tokens: None,
                 voter_address,
+                supported_evm_chains: None,
             };
 
             self.database.upsert_validator(db_val).await?;

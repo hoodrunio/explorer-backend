@@ -8,7 +8,7 @@ use crate::database::blocks::Block;
 use crate::database::params::{HistoricalValidatorData, VotingPower};
 use crate::database::evm_polls::{EvmPoll};
 use crate::database::EvmPollParticipantForDb;
-use crate::fetch::evm::EvmPollListDbResp;
+use crate::fetch::evm::{EvmPollListDbResp, EvmSupportedChains};
 use crate::fetch::others::{PaginationConfig, PaginationDb};
 use crate::fetch::socket::EvmPollVote;
 use crate::fetch::validators::ValidatorListDbResp;
@@ -351,6 +351,25 @@ impl DatabaseTR {
         };
 
         Ok(EvmPollListDbResp { polls: res, pagination: PaginationDb { page: page as u16, total: count as u16 } })
+    }
+
+    /// Finds evm_polls with pagination option
+    /// # Usage
+    /// ```rs
+    /// database.find_paginated_evm_polls(evm_poll).await;
+    /// ```
+    pub async fn find_validator_supported_chains(&self, operator_address: &String) -> Result<EvmSupportedChains, String> {
+        let mut pipeline: Vec<Document> = vec![doc! {"$match":{"operator_address": operator_address}}];
+
+        let mut results = self.validators_collection().aggregate(pipeline, None).await.map_err(|e| format!("{}", e.to_string()))?;
+
+        let mut res: Vec<String> = vec![];
+        while let Some(result) = results.next().await {
+            let val = from_document::<Validator>(result.expect("db connection error")).expect("db connection error");
+            res = val.supported_evm_chains.unwrap_or(vec![]);
+        };
+
+        Ok(res)
     }
 
     /// Add new evm_poll item to the evm_polls collection

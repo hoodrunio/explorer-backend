@@ -21,4 +21,5 @@ pub struct Validator {
 
     //Proxy/Voter/Broadcaster address for Axelar EVM Pool participants addresses
     pub voter_address: Option<String>,
+    pub supported_evm_chains: Option<Vec<String>>,
 }
