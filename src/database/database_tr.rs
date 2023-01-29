@@ -297,6 +297,18 @@ impl DatabaseTR {
         self.find_validator(doc! {"hex_address": hex_address}).await
     }
 
+    /// Updates validator on to the validators collection
+    /// # Usage
+    /// ```rs
+    /// database.update_validator(doc,doc).await;
+    /// ```
+    pub async fn update_validator(&self, query: Document, update: Document) -> Result<(), String> {
+        match self.validators_collection().update_one(query, update, None).await {
+            Ok(_) => Ok(()),
+            Err(e) => Err(format!("Can not update validator poll {}", e)),
+        }
+    }
+
     /// Finds evm_polls with pagination option
     /// # Usage
     /// ```rs
