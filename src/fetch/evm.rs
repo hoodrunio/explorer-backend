@@ -27,12 +27,12 @@ pub struct EvmPollListDbResp {
 
 #[derive(Deserialize, Serialize, Debug)]
 pub struct EvmPollListResp {
-    pub polls: Vec<EvmPollListRespElement>,
+    pub polls: Vec<EvmPollRespElement>,
     pub pagination: PaginationDb,
 }
 
 #[derive(Deserialize, Serialize, Debug)]
-pub struct EvmPollListRespElement {
+pub struct EvmPollRespElement {
     pub deposit_address: String,
     pub event: String,
     pub status: String,
@@ -43,22 +43,27 @@ pub struct EvmPollListRespElement {
     pub tx_id: String,
 }
 
+impl From<EvmPollForDb> for EvmPollRespElement {
+    fn from(value: EvmPollForDb) -> Self {
+        Self {
+            deposit_address: value.evm_deposit_address.clone(),
+            event: value.action.clone(),
+            status: value.status.clone(),
+            height: value.tx_height.clone(),
+            id: value.poll_id.clone(),
+            participants: value.participants.clone(),
+            sender_chain: value.chain_name.clone(),
+            tx_id: value.evm_tx_id.clone(),
+        }
+    }
+}
+
 impl EvmPollListResp {
     pub fn from_db_list(other: EvmPollListDbResp) -> Self {
-        let mut polls = vec![];
+        let mut polls:Vec<EvmPollRespElement> = vec![];
 
-        for p in (&other.polls).iter() {
-            polls.push(EvmPollListRespElement {
-                deposit_address: p.evm_deposit_address.clone(),
-                event: p.action.clone(),
-                status: p.status.clone(),
-                height: p.tx_height.clone(),
-                id: p.poll_id.clone(),
-                participants: p.participants.clone(),
-                sender_chain: p.chain_name.clone(),
-                tx_id: p.evm_tx_id.clone(),
-            }
-            )
+        for evm_poll in (&other.polls).iter() {
+            polls.push(evm_poll.clone().into());
         };
 
 
