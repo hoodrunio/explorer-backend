@@ -47,7 +47,10 @@ impl Chain {
                 Err(_) => None
             };
 
-            let supported_evm_chains = self.get_supported_chains(&validator.operator_address).await.unwrap_or(vec![]);
+            let supported_evm_chains = match self.get_supported_chains(&validator.operator_address).await {
+                Ok(res) => { Some(res) }
+                Err(_) => { None }
+            };
 
             let db_val = ValidatorForDb {
                 bonded_height: None,     // Find way to fetch and store.
@@ -67,7 +70,7 @@ impl Chain {
                 validator_commissions: validator.commission,
                 cumulative_bonded_tokens: None,
                 voter_address,
-                supported_evm_chains: Some(supported_evm_chains),
+                supported_evm_chains,
             };
 
             self.database.upsert_validator(db_val).await?;
