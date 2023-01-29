@@ -129,6 +129,7 @@ pub async fn start_web_server() -> std::io::Result<()> {
             .service(routes::validators_unbonded)
             .service(routes::validators_unbonding)
             .service(routes::validators_unspecified)
+            .service(routes::evm_poll)
             .service(routes::evm_polls)
             .service(routes::evm_val_supported_chains)
     })

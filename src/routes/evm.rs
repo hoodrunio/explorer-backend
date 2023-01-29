@@ -29,6 +29,20 @@ pub async fn evm_polls(path: Path<String>, chains: Data<State>, query: Query<Que
     Ok(TNRAppSuccessResponse::new(data))
 }
 
+#[get("{chain}/evm/poll/{poll_id}")]
+pub async fn evm_poll(path: Path<(String, String)>, chains: Data<State>) -> Result<impl Responder, TNRAppError> {
+    let (chain, poll_id) = path.into_inner();
+
+    let chain = extract_chain(&chain, chains)?;
+
+    if &chain.config.name != "axelar" {
+        return Err(TNRAppError::from(String::from(format!("Evm polls not supported for {}", &chain.config.name))));
+    };
+
+    let data = chain.get_evm_poll(&poll_id).await?;
+    Ok(TNRAppSuccessResponse::new(data))
+}
+
 #[get("{chain}/evm/validator/supported_chains/{operator_address}")]
 pub async fn evm_val_supported_chains(path: Path<(String, String)>, chains: Data<State>) -> Result<impl Responder, TNRAppError> {
     let (chain, operator_address) = path.into_inner();
