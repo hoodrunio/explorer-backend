@@ -6,6 +6,7 @@ use actix_web::{get, web, App, HttpResponse, HttpServer, Responder};
 use tokio::sync::broadcast::channel;
 use tracing_actix_web::TracingLogger;
 use web::Data;
+use crate::chain::Chain;
 
 use crate::routes;
 use crate::routes::TNRAppError;
@@ -37,28 +38,21 @@ pub async fn start_web_server() -> std::io::Result<()> {
         state_clone.subscribe_to_events(tx_clone).await;
     });
 
-    let axelar_chain = state.get("axelar").unwrap().clone();
-    tokio::spawn(async move {
-        match axelar_chain.sub_for_axelar_evm_pools().await {
-            Ok(_) => tracing::info!("Stopped listening axelar evm poll events for"),
-            Err(e) => tracing::error!("Failed listening axelar evm poll events {}",e),
-        };
-    });
-
-    let axelar_chain = state.get("axelar").unwrap().clone();
-    tokio::spawn(async move {
-        match axelar_chain.sub_for_axelar_evm_pool_votes().await {
-            Ok(_) => tracing::info!("Stopped listening axelar evm poll votes events for"),
-            Err(e) => tracing::error!("Failed listening axelar votes evm poll events {}",e),
-        };
-    });
-
     let chains = HashSet::from_iter(state.get_chains().keys().cloned());
     tokio::spawn(async move {
         if let Err(e) = run_ws(tx, chains).await {
             tracing::error!("Error spawning the websocket task {e}");
         };
     });
+
+    let axelar = state.get("axelar").unwrap().clone();
+    tokio::spawn(async move {
+        match Chain::sub_axelar_evm_polls_flow(axelar).await {
+            Ok(_) => {}
+            Err(e) => tracing::info!("Error axelar evm polls flow {}",e),
+        };
+    });
+
 
     HttpServer::new(move || {
         // Build a CORS middleware.

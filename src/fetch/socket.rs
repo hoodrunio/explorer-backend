@@ -7,6 +7,7 @@ use mongodb::bson::doc;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use tokio::sync::Mutex;
+use tokio::try_join;
 use tokio_tungstenite::{connect_async, tungstenite::Message};
 
 use crate::chain::Chain;
@@ -181,13 +182,24 @@ impl Chain {
         Ok(())
     }
 
-    pub async fn sub_for_axelar_evm_pools(&self) -> Result<(), TNRAppError> {
-        let ws_url = "wss://rpc-axelar.stakerun.com/websocket";
-        let chain_name = "axelar";
+    pub async fn sub_axelar_evm_polls_flow(axelar: Chain) -> Result<(), String> {
+        let poll = axelar.sub_for_axelar_evm_polls();
+        let vote = axelar.sub_for_axelar_evm_poll_votes();
+        match try_join!(poll,vote) {
+            Ok(..) => {}
+            Err(e) => { return Err(e.message.unwrap_or(String::from(""))); }
+        };
+
+        Ok(())
+    }
+
+    async fn sub_for_axelar_evm_polls(&self) -> Result<(), TNRAppError> {
+        let ws_url = self.config.wss_url.clone();
+        let chain_name = self.config.name.clone();
 
 
         loop {
-            let (ws_stream, _) = connect_async(ws_url).await.map_err(|_| TNRAppError::from("Can not connect".to_string()))?;
+            let (ws_stream, _) = connect_async(ws_url.clone()).await.map_err(|_| TNRAppError::from("Can not connect".to_string()))?;
 
             // Split the connection into two parts.
             let (mut write, mut read) = ws_stream.split();
@@ -246,13 +258,13 @@ impl Chain {
         tracing::error!("Axelar evm poll listener stopped");
     }
 
-    pub async fn sub_for_axelar_evm_pool_votes(&self) -> Result<(), TNRAppError> {
-        let ws_url = "wss://rpc-axelar.stakerun.com/websocket";
-        let chain_name = "axelar";
+    async fn sub_for_axelar_evm_poll_votes(&self) -> Result<(), TNRAppError> {
+        let ws_url = self.config.wss_url.clone();
+        let chain_name = self.config.name.clone();
 
 
         loop {
-            let (ws_stream, _) = connect_async(ws_url).await.map_err(|_| TNRAppError::from("Can not connect".to_string()))?;
+            let (ws_stream, _) = connect_async(ws_url.clone()).await.map_err(|_| TNRAppError::from("Can not connect".to_string()))?;
 
             // Split the connection into two parts.
             let (mut write, mut read) = ws_stream.split();
