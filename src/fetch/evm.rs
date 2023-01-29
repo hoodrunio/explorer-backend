@@ -2,6 +2,7 @@ use std::fmt::format;
 use std::num::ParseFloatError;
 
 use chrono::DateTime;
+use mongodb::bson::doc;
 use serde::{Deserialize, Serialize};
 
 use crate::fetch::blocks::BlockResp;
@@ -16,6 +17,13 @@ impl Chain {
         let res = self.database.find_validator_supported_chains(operator_address).await?;
 
         Ok(res)
+    }
+
+    pub async fn get_evm_poll(&self, poll_id: &String) -> Result<EvmPollRespElement, TNRAppError> {
+        let query = doc! {"poll_id": poll_id};
+        let res = self.database.find_evm_poll(query).await?;
+
+        Ok(res.into())
     }
 }
 
