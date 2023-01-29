@@ -41,14 +41,14 @@ pub struct EvmPollListResp {
 
 #[derive(Deserialize, Serialize, Debug)]
 pub struct EvmPollRespElement {
-    pub deposit_address: String,
+    pub id: String,
+    pub tx_id: String,
+    pub sender_chain: String,
     pub event: String,
     pub status: String,
     pub height: u64,
-    pub id: String,
+    pub deposit_address: String,
     pub participants: Vec<EvmPollParticipantForDb>,
-    pub sender_chain: String,
-    pub tx_id: String,
 }
 
 impl From<EvmPollForDb> for EvmPollRespElement {
