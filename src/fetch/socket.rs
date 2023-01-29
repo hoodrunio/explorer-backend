@@ -182,7 +182,7 @@ impl Chain {
     }
 
     pub async fn sub_for_axelar_evm_pools(&self) -> Result<(), TNRAppError> {
-        let ws_url = "wss://axelar-rpc.chainode.tech/websocket";
+        let ws_url = "wss://rpc-axelar.stakerun.com/websocket";
         let chain_name = "axelar";
 
 
@@ -247,7 +247,7 @@ impl Chain {
     }
 
     pub async fn sub_for_axelar_evm_pool_votes(&self) -> Result<(), TNRAppError> {
-        let ws_url = "wss://axelar-rpc.chainode.tech/websocket";
+        let ws_url = "wss://rpc-axelar.stakerun.com/websocket";
         let chain_name = "axelar";
 
 
