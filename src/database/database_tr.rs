@@ -309,6 +309,21 @@ impl DatabaseTR {
         }
     }
 
+    /// Updates validator supported chains on to the validators collection
+    /// # Usage
+    /// ```rs
+    /// database.update_validator(doc,doc).await;
+    /// ```
+    pub async fn update_validator_supported_chains(&self, operator_address: &String, chains: Vec<String>) -> Result<(), String> {
+        let query = doc! {"operator_address": operator_address};
+        let bson_doc = to_bson(&chains).unwrap();
+        let update_query = doc! {"$set": {"supported_evm_chains": bson_doc}};
+        match self.update_validator(query, update_query).await {
+            Ok(_) => Ok(()),
+            Err(e) => Err(format!("Can not update validator supported chains {}", e)),
+        }
+    }
+
     /// Finds evm_polls with pagination option
     /// # Usage
     /// ```rs
