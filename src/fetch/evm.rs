@@ -11,7 +11,13 @@ use crate::database::{EvmPollForDb, EvmPollParticipantForDb};
 use crate::fetch::others::PaginationDb;
 use crate::routes::TNRAppError;
 
-impl Chain {}
+impl Chain {
+    pub async fn get_supported_chains(&self, operator_address: &String) -> Result<EvmSupportedChains, TNRAppError> {
+        let res = self.database.find_validator_supported_chains(operator_address).await?;
+
+        Ok(res)
+    }
+}
 
 #[derive(Deserialize, Serialize, Debug)]
 pub struct EvmPollListDbResp {
@@ -63,4 +69,4 @@ impl EvmPollListResp {
     }
 }
 
-
+pub type EvmSupportedChains = Vec<String>;

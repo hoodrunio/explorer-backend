@@ -8,6 +8,7 @@ use mongodb::bson::doc;
 use crate::database::{ValidatorForDb, VotingPowerForDb};
 use crate::utils::{convert_consensus_pubkey_to_consensus_address, convert_consensus_pubkey_to_hex_address, get_validator_logo};
 use crate::{chain::Chain, fetch::others::PaginationConfig};
+use crate::fetch::evm::EvmSupportedChains;
 use crate::fetch::validators::ValidatorStatus;
 
 impl Chain {
@@ -46,6 +47,7 @@ impl Chain {
                 Err(_) => None
             };
 
+            let supported_evm_chains = self.get_supported_chains(&validator.operator_address).await.unwrap_or(vec![]);
 
             let db_val = ValidatorForDb {
                 bonded_height: None,     // Find way to fetch and store.
@@ -65,7 +67,7 @@ impl Chain {
                 validator_commissions: validator.commission,
                 cumulative_bonded_tokens: None,
                 voter_address,
-                supported_evm_chains: None,
+                supported_evm_chains: Some(supported_evm_chains),
             };
 
             self.database.upsert_validator(db_val).await?;
