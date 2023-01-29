@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use crate::fetch::evm::EvmSupportedChains;
 use crate::fetch::validators::{ValidatorListValidatorCommission, ValidatorStatus};
 
 #[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
@@ -21,5 +22,5 @@ pub struct Validator {
 
     //Proxy/Voter/Broadcaster address for Axelar EVM Pool participants addresses
     pub voter_address: Option<String>,
-    pub supported_evm_chains: Option<Vec<String>>,
+    pub supported_evm_chains: Option<EvmSupportedChains>,
 }
