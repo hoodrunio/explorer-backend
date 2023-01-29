@@ -82,7 +82,13 @@ impl Chain {
         let mut chains_maintainers: HashMap<String, Vec<String>> = HashMap::new();
 
         for supported_chain in supported_chains {
-            let maintainers = self.get_evm_chain_maintainers(&supported_chain).await?;
+            let maintainers = match self.get_evm_chain_maintainers(&supported_chain).await {
+                Ok(res) => res,
+                Err(_) => {
+                    tracing::error!("Could not fetched supported chain maintainers");
+                    continue;
+                }
+            };
             chains_maintainers.insert(supported_chain.to_string(), maintainers);
         }
 
@@ -94,8 +100,16 @@ impl Chain {
                 if is_suppoerted {
                     val_supported_chains.push(chain.clone());
                 }
-            }
-            self.database.update_validator_supported_chains(&operator_address, val_supported_chains).await?;
+            };
+
+
+            match self.database.update_validator_supported_chains(&operator_address, val_supported_chains).await {
+                Ok(_) => {}
+                Err(e) => {
+                    tracing::error!("{}",e);
+                }
+            };
+
             val_supported_chains = vec![];
         }
 
