@@ -7,9 +7,9 @@ axelar:
   logo: https://assets.coingecko.com/coins/images/24489/large/tsYr25vB_400x400.jpg
   # decimals: 6
   # version: 0.45
-  rpc_url: https://rpc.cosmos.directory/axelar
-  rest_url:  https://rest.cosmos.directory/axelar
-  wss_url: wss://axelar-rpc.chainode.tech/websocket
+  rpc_url: https://rpc-axelar.stakerun.com
+  rest_url:  https://lcd-axelar.stakerun.com
+  wss_url: wss://rpc-axelar.stakerun.com/websocket
   archive_url: https://axelararchive-lcd.quickapi.com
 
 
