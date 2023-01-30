@@ -56,3 +56,17 @@ pub async fn evm_val_supported_chains(path: Path<(String, String)>, chains: Data
     let data: Vec<String> = chain.get_supported_chains(&operator_address).await?;
     Ok(TNRAppSuccessResponse::new(data))
 }
+
+#[get("{chain}/evm/validator/heartbeats/{operator_address}")]
+pub async fn evm_validator_hearbeats(path: Path<(String, String)>, chains: Data<State>) -> Result<impl Responder, TNRAppError> {
+    let (chain, operator_address) = path.into_inner();
+
+    let chain = extract_chain(&chain, chains)?;
+
+    if &chain.config.name != "axelar" {
+        return Err(TNRAppError::from(String::from(format!("Evm polls not supported for {}", &chain.config.name))));
+    };
+
+    let data: String = chain.get_val_heartbeats(&operator_address).await?;
+    Ok(TNRAppSuccessResponse::new(data))
+}

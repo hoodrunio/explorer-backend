@@ -25,6 +25,13 @@ impl Chain {
 
         Ok(res.into())
     }
+
+    pub async fn get_val_heartbeats(&self, operator_address: &String) -> Result<String, TNRAppError> {
+        let query = doc! {"operator_address": operator_address};
+        // let res = self.database.find_val_hearbeats(query).await?;
+
+        Ok(String::from("Heartbeat"))
+    }
 }
 
 #[derive(Deserialize, Serialize, Debug)]
@@ -68,7 +75,7 @@ impl From<EvmPollForDb> for EvmPollRespElement {
 
 impl EvmPollListResp {
     pub fn from_db_list(other: EvmPollListDbResp) -> Self {
-        let mut polls:Vec<EvmPollRespElement> = vec![];
+        let mut polls: Vec<EvmPollRespElement> = vec![];
 
         for evm_poll in (&other.polls).iter() {
             polls.push(evm_poll.clone().into());
