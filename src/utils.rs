@@ -8,6 +8,7 @@ use std::collections::HashMap;
 
 use reqwest::Client;
 use serde::Deserialize;
+use base64::{decode as decode_from_base64};
 
 /// Returns the prices of coins with given Coin Gecko IDs.
 pub async fn get_prices(client: Client, coin_ids: &[&'static str]) -> HashMap<String, f64> {
@@ -117,4 +118,20 @@ pub fn convert_consensus_pubkey_to_consensus_address(address: &str, prefix: &str
         bech32::Variant::Bech32,
     )
     .unwrap()
+}
+
+pub trait Base64Convert {
+    fn base64_to_string(&self) -> String;
+}
+
+impl Base64Convert for String {
+    fn base64_to_string(&self) -> Self {
+        let default_res = String::from("");
+        match decode_from_base64(self.to_string()) {
+            Ok(decode) => {
+                String::from_utf8(decode).unwrap_or(default_res)
+            },
+            Err(_) => { default_res }
+        }
+    }
 }
