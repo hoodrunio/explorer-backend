@@ -1,8 +1,10 @@
+use std::collections::HashMap;
 use chrono::DateTime;
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize};
+use serde_json::Value;
 
 use crate::database::ValidatorForDb;
-use crate::utils::convert_tx_to_hex;
+use crate::utils::{Base64Convert, convert_tx_to_hex};
 use crate::{chain::Chain, routes::OutRestResponse};
 
 impl Chain {
@@ -98,7 +100,7 @@ impl Chain {
 
                     block_metas.push(InternalBlockMeta {
                         block_id: block_meta.block_id,
-                        block_size: block_size,
+                        block_size,
                         header: InternalBlockHeader {
                             version: block_meta.header.version,
                             chain_id: block_meta.header.chain_id,
@@ -291,6 +293,24 @@ pub struct Block {
     pub header: BlockHeader,
     pub data: BlockData,
     pub last_commit: BlockLastCommit,
+}
+
+#[derive(Deserialize, Serialize, Debug, Clone)]
+pub struct ResultBlockEventAttribute {
+    #[serde(deserialize_with = "from_base64")]
+    pub key: String,
+    #[serde(deserialize_with = "from_base64")]
+    pub value: String,
+    pub index: bool,
+}
+
+pub fn from_base64<'de, D>(deserializer: D) -> Result<String, D::Error>
+    where
+        D: Deserializer<'de>,
+{
+    let s: &str = Deserialize::deserialize(deserializer)?;
+
+    Ok(String::base64_to_string(&String::from(s)))
 }
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
