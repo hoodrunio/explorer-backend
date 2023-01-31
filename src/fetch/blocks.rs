@@ -296,6 +296,25 @@ pub struct Block {
 }
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
+pub struct ResultEndBlock {
+    pub events: Vec<ResultBlockEvent>,
+    pub consensus_param_updates: HashMap<String, Value>,
+    // pub validator_updates: Vec<String>,
+}
+
+#[derive(Deserialize, Serialize, Debug, Clone)]
+pub struct ResultBeginBlock {
+    pub events: Vec<ResultBlockEvent>,
+}
+
+#[derive(Deserialize, Serialize, Debug, Clone)]
+pub struct ResultBlockEvent {
+    pub attributes: Vec<ResultBlockEventAttribute>,
+    pub r#type: String,
+}
+
+
+#[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct ResultBlockEventAttribute {
     #[serde(deserialize_with = "from_base64")]
     pub key: String,
