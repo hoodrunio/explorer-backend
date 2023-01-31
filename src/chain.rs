@@ -74,7 +74,7 @@ impl Chain {
             base_prefix: ic.prefix.unwrap_or_else(|| ic.name),
             main_denom,
             rpc_url: ic.rpc_url,
-            jsonrpc_url: ic.json_rpc,
+            jsonrpc_url: ic.jsonrpc_url,
             rest_url: ic.rest_url,
             wss_url: ic.wss_url,
             archive_url: ic.archive_url,
@@ -151,6 +151,6 @@ pub struct IntermediateChainConfig {
     pub archive_url: String,
     pub decimals: Option<u8>,
     pub sdk_version: Option<SemVer>,
-    pub json_rpc: Option<String>,
+    pub jsonrpc_url: Option<String>,
     pub main_denom: Option<String>,
 }
