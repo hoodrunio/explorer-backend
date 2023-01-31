@@ -10,6 +10,7 @@ axelar:
   rpc_url: https://rpc-axelar.stakerun.com
   rest_url: https://lcd-axelar.stakerun.com
   wss_url: wss://rpc-axelar.stakerun.com/websocket
+  archive_url: https://axelararchive-lcd.quickapi.com
 
 
 evmos:
