@@ -8,9 +8,8 @@ axelar:
   # decimals: 6
   # version: 0.45
   rpc_url: https://rpc-axelar.stakerun.com
-  rest_url:  https://lcd-axelar.stakerun.com
+  rest_url: https://lcd-axelar.stakerun.com
   wss_url: wss://rpc-axelar.stakerun.com/websocket
-  archive_url: https://axelararchive-lcd.quickapi.com
 
 
 evmos:
@@ -27,7 +26,6 @@ evmos:
   rest_url: https://rest.bd.evmos.org:1317
   wss_url: wss://rpc-evmos.ecostake.com/websocket
   archive_url: empty
-
 
 osmosis:
   name: osmosis
