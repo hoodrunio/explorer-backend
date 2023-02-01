@@ -313,6 +313,25 @@ pub struct ResultBlockEvent {
     pub r#type: String,
 }
 
+impl ResultBlockEvent {
+    pub fn is_heartbeat(&self) -> bool {
+        self.r#type == "heartbeat"
+    }
+}
+
+impl ResultEndBlock {
+    pub fn is_heartbeat_begin(&self) -> bool {
+        for event in &self.events {
+            let res = event.is_heartbeat();
+            if res {
+                return res;
+            }
+        };
+
+        false
+    }
+}
+
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct ResultBlockEventAttribute {
