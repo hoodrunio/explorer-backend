@@ -320,7 +320,10 @@ impl Chain {
                                                             tracing::error!("Unknown axelar evm poll vote info");
                                                         }
                                                     }
-                                                }
+                                                },
+                                                InnerMessage::Known(_) => {
+                                                    tracing::warn!("Non handled message");
+                                                },
                                                 InnerMessage::Unknown(_) => {
                                                     tracing::error!("Unknown axelar evm poll inner message");
                                                 }
