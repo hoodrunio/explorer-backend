@@ -56,6 +56,22 @@ impl Chain {
         Ok(latest_block)
     }
 
+    pub async fn get_block_result_by_height(&self, height: Option<u64>) -> Result<OutRestResponse<InternalBlockResult>, String> {
+        let mut query = vec![];
+
+        let height = height.map(|height| height.to_string());
+
+        if let Some(height) = height {
+            query.push(("height", height))
+        }
+
+        let resp = self.rpc_request::<BlockResult>("/block_results", &query).await?;
+
+        let block = InternalBlockResult::new(resp);
+
+        Ok(OutRestResponse::new(block, 0))
+    }
+
     /// Returns the block headers between `min_height` & `max_height`.
     async fn get_blockchain(&self, min_height: Option<u64>, max_height: Option<u64>) -> Result<InternalBlockchainResp, String> {
         let mut query = vec![];
