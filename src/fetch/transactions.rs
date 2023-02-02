@@ -416,6 +416,12 @@ impl InternalTransaction {
 }
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
+pub struct InternalAxelarHeartbeatInfo {
+    pub sender: String,
+    pub key_ids: Vec<String>,
+}
+
+#[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct TransactionItem {
     pub height: u64,
     pub r#type: String,
