@@ -12,7 +12,7 @@ use tokio_tungstenite::{connect_async, tungstenite::Message};
 
 use crate::chain::Chain;
 use crate::database::{BlockForDb, EvmPollForDb, EvmPollParticipantForDb};
-use crate::fetch::blocks::{Block};
+use crate::fetch::blocks::{Block, ResultBeginBlock, ResultEndBlock};
 use crate::fetch::transactions::{AxelarVote, InnerMessage, InnerMessageKnown, InternalTransaction, InternalTransactionContent, InternalTransactionContentKnowns};
 use crate::routes::{OutRestResponse, TNRAppError};
 use crate::events::WsEvent;
