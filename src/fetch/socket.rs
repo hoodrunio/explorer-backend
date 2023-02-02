@@ -223,7 +223,6 @@ impl Chain {
                                             continue;
                                         }
                                     };
-                                    let participants: Vec<EvmPollParticipantForDb> = evm_poll_item.participants_operator_address.clone().into_iter().map(|address| { EvmPollParticipantForDb::from(address) }).collect();
                                     let evm_poll: EvmPollForDb = evm_poll_item.clone().into();
                                     if let Err(e) = tx.send((self.config.name.clone(), WsEvent::NewEvmPoll(evm_poll.clone()))) {
                                         tracing::error!("Error dispatching evm poll event: {e}");
