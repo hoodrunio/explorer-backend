@@ -3,7 +3,7 @@ mod chains;
 mod database_tr;
 mod params;
 mod validators;
-mod evm_polls;
+mod evm;
 
 pub use database_tr::DatabaseTR;
 
@@ -16,5 +16,5 @@ pub use params::SlashingParams as SlashingParamsForDb;
 pub use params::StakingParams as StakingParamsForDb;
 pub use params::VotingPower as VotingPowerForDb;
 pub use validators::Validator as ValidatorForDb;
-pub use evm_polls::EvmPoll as EvmPollForDb;
-pub use evm_polls::EvmPollParticipant as EvmPollParticipantForDb;
+pub use evm::EvmPoll as EvmPollForDb;
+pub use evm::EvmPollParticipant as EvmPollParticipantForDb;

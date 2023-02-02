@@ -6,7 +6,7 @@ use mongodb::{
 use mongodb::bson::{bson, from_document, to_bson, to_document};
 use crate::database::blocks::Block;
 use crate::database::params::{HistoricalValidatorData, VotingPower};
-use crate::database::evm_polls::{EvmPoll};
+use crate::database::evm::{EvmPoll};
 use crate::database::EvmPollParticipantForDb;
 use crate::fetch::evm::{EvmPollListDbResp, EvmSupportedChains};
 use crate::fetch::others::{PaginationConfig, PaginationDb};
