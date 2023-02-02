@@ -99,6 +99,44 @@ impl Chain {
         Ok(OutRestResponse::new(txs, pages))
     }
 
+    pub async fn get_internal_txs_by_sender_height(&self, sender_address: &str, block_height: Option<u64>, config: PaginationConfig) -> Result<OutRestResponse<Vec<InternalTransaction>>, String> {
+        let mut query = vec![];
+
+        if let Some(block_height) = block_height {
+            query.push(("events", format!("tx.height={}", block_height)));
+        };
+
+        query.push(("events", format!("message.sender='{}'", sender_address)));
+        query.push(("pagination.reverse", format!("{}", config.is_reverse())));
+        query.push(("pagination.limit", format!("{}", config.get_limit())));
+        query.push(("pagination.count_total", "true".to_string()));
+        query.push(("pagination.offset", format!("{}", config.get_offset())));
+
+        let resp = self.rest_api_request::<TxsResp>("/cosmos/tx/v1beta1/txs", &query).await?;
+
+        let mut txs = vec![];
+
+        for i in 0..resp.txs.len() {
+            let (tx, tx_response) = (
+                resp.txs
+                    .get(i)
+                    .cloned()
+                    .ok_or_else(|| "The count of transactions and transaction responses aren't the same.".to_string())?,
+                resp.tx_responses
+                    .get(i)
+                    .cloned()
+                    .ok_or_else(|| "The count of transactions and transaction responses aren't the same.".to_string())?,
+            );
+
+            txs.push(InternalTransaction::new(tx, tx_response, self).await?)
+        }
+
+        let pages = calc_pages(resp.pagination.unwrap_or(Pagination::default()), config)?;
+
+        Ok(OutRestResponse::new(txs, pages))
+    }
+
+
     /// Returns transactions with given recipient.
     pub async fn get_txs_by_recipient(
         &self,
@@ -949,7 +987,12 @@ pub enum InnerMessageKnown {
         sender: String,
         poll_id: String,
         vote: AxelarVote,
-    }
+    },
+    #[serde(rename = "/axelar.tss.v1beta1.HeartBeatRequest")]
+    HeartBeatRequest {
+        sender: String,
+        key_ids: Vec<String>,
+    },
 }
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
