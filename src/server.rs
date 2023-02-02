@@ -51,17 +51,9 @@ pub async fn start_web_server() -> std::io::Result<()> {
 
     let tx_clone = tx.clone();
     tokio::spawn(async move {
-        match Chain::sub_axelar_evm_polls_flow(axelar, tx_clone).await {
+        match Chain::sub_axelar_events(axelar, tx_clone).await {
             Ok(_) => {}
             Err(e) => tracing::info!("Error axelar evm polls flow {}",e),
-        };
-    });
-
-    let axelar = state.get("axelar").unwrap().clone();
-    tokio::spawn(async move {
-        match axelar.sub_for_axelar_heartbeat().await {
-            Ok(_) => {}
-            Err(e) => tracing::info!("Error axelar heartbeat listener {}",e),
         };
     });
 

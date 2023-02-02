@@ -183,10 +183,11 @@ impl Chain {
         Ok(())
     }
 
-    pub async fn sub_axelar_evm_polls_flow(axelar: Chain, tx: Sender<(String, WsEvent)>) -> Result<(), String> {
+    pub async fn sub_axelar_events(axelar: Chain, tx: Sender<(String, WsEvent)>) -> Result<(), String> {
         let poll = axelar.sub_for_axelar_evm_polls(tx.clone());
         let vote = axelar.sub_for_axelar_evm_poll_votes(tx.clone());
-        match try_join!(poll,vote) {
+        let heartbeats = axelar.sub_for_axelar_heartbeats();
+        match try_join!(poll,vote,heartbeats) {
             Ok(..) => {}
             Err(e) => { return Err(e.message.unwrap_or(String::from(""))); }
         };
@@ -353,7 +354,7 @@ impl Chain {
         tracing::error!("Axelar evm poll votes listener stopped");
     }
 
-    pub async fn sub_for_axelar_heartbeat(&self) -> Result<(), TNRAppError> {
+    async fn sub_for_axelar_heartbeats(&self) -> Result<(), TNRAppError> {
         let ws_url = self.config.wss_url.clone();
         let chain_name = self.config.name.clone();
 
