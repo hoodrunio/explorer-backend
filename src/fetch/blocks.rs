@@ -282,6 +282,75 @@ pub struct BlockResp {
 }
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
+pub struct InternalBlockResult {
+    pub height: String,
+    pub txs_results: Vec<InternalBlockResultTxsResult>,
+    pub begin_block_events: Vec<ResultBlockEvent>,
+    pub end_block_events: Vec<ResultBlockEvent>,
+}
+
+impl InternalBlockResult {
+    fn new(block_result: BlockResult) -> Self {
+        let txs_results = block_result.txs_results.clone().unwrap_or(vec![]);
+        Self {
+            height: block_result.height.clone(),
+            txs_results: txs_results.into_iter().map(|res| { InternalBlockResultTxsResult::new(res) }).collect(),
+            begin_block_events: block_result.begin_block_events.clone().unwrap_or(vec![]),
+            end_block_events: block_result.end_block_events.clone().unwrap_or(vec![]),
+        }
+    }
+}
+
+#[derive(Deserialize, Serialize, Debug, Clone)]
+pub struct InternalBlockResultTxsResult {
+    pub code: i64,
+    pub data: String,
+    pub log: String,
+    pub info: String,
+    pub gas_wanted: String,
+    pub gas_used: String,
+    pub events: Vec<ResultBlockEvent>,
+    pub codespace: String,
+}
+
+impl InternalBlockResultTxsResult {
+    fn new(block_result_txs_result: BlockResultTxResult) -> Self {
+        Self {
+            code: block_result_txs_result.code.clone(),
+            data: block_result_txs_result.data.clone(),
+            log: block_result_txs_result.log.clone(),
+            info: block_result_txs_result.info.clone(),
+            gas_wanted: block_result_txs_result.gas_wanted.clone(),
+            gas_used: block_result_txs_result.gas_used.clone(),
+            events: block_result_txs_result.events.clone(),
+            codespace: block_result_txs_result.codespace.clone(),
+        }
+    }
+
+    pub fn get_sender_address(&self) -> Option<String> {
+        for res_block_event in self.events.clone() {
+            match res_block_event.attributes.into_iter().find(|attr_item| { attr_item.key == "sender" }) {
+                None => {}
+                Some(item) => {
+                    return Some(item.value.clone());
+                }
+            }
+        };
+
+        None
+    }
+}
+
+
+#[derive(Deserialize, Serialize, Debug)]
+pub struct BlockResult {
+    pub height: String,
+    pub txs_results: Option<Vec<BlockResultTxResult>>,
+    pub begin_block_events: Option<Vec<ResultBlockEvent>>,
+    pub end_block_events: Option<Vec<ResultBlockEvent>>,
+}
+
+#[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct BlockId {
     /// HEX encoded hash.
     pub hash: String,
@@ -457,4 +526,16 @@ pub struct BlockLastCommit {
     pub block_id: BlockId,
     /// Array of signatures.
     pub signatures: Vec<BlockLastCommitSignatures>,
+}
+
+#[derive(Deserialize, Serialize, Debug, Clone)]
+pub struct BlockResultTxResult {
+    pub code: i64,
+    pub data: String,
+    pub log: String,
+    pub info: String,
+    pub gas_wanted: String,
+    pub gas_used: String,
+    pub events: Vec<ResultBlockEvent>,
+    pub codespace: String,
 }
