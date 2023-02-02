@@ -6,8 +6,7 @@ use mongodb::{
 use mongodb::bson::{bson, from_document, to_bson, to_document};
 use crate::database::blocks::Block;
 use crate::database::params::{HistoricalValidatorData, VotingPower};
-use crate::database::evm::{EvmPoll};
-use crate::database::EvmPollParticipantForDb;
+use crate::database::{EvmPollForDb, EvmPollParticipantForDb, HeartbeatForDb};
 use crate::fetch::evm::{EvmPollListDbResp, EvmSupportedChains};
 use crate::fetch::others::{PaginationConfig, PaginationDb};
 use crate::fetch::socket::EvmPollVote;
@@ -107,8 +106,17 @@ impl DatabaseTR {
     /// ```rs
     /// let collection = database.evm_poll_collection();
     /// ```
-    fn evm_poll_collection(&self) -> Collection<EvmPoll> {
+    fn evm_poll_collection(&self) -> Collection<EvmPollForDb> {
         self.db().collection("evm_polls")
+    }
+
+    /// Returns the heartbeats collection.
+    /// # Usage
+    /// ```rs
+    /// let collection = database.heartbeat_collection();
+    /// ```
+    fn heartbeat_collection(&self) -> Collection<HeartbeatForDb> {
+        self.db().collection("heartbeats")
     }
 
     /// Adds a new validator to the validators collection of the database.
@@ -360,7 +368,7 @@ impl DatabaseTR {
         let count_cursor = self.evm_poll_collection().aggregate(pipe, None).await.map_err(|e| format!("{}", e.to_string()))?;
         let count = count_cursor.count().await;
 
-        let mut res: Vec<EvmPoll> = vec![];
+        let mut res: Vec<EvmPollForDb> = vec![];
         while let Some(result) = results.next().await {
             res.push(from_document(result.expect("db connection error")).expect("db connection error"));
         };
@@ -392,7 +400,7 @@ impl DatabaseTR {
     /// ```rs
     /// database.upsert_block(evm_poll).await;
     /// ```
-    pub async fn upsert_evm_poll(&self, poll: EvmPoll) -> Result<(), String> {
+    pub async fn upsert_evm_poll(&self, poll: EvmPollForDb) -> Result<(), String> {
         let doc = to_document(&poll).unwrap();
         let command = doc! {"update":"evm_polls","updates":[{"q":{"poll_id":&poll.poll_id},"u":doc,"upsert":true}]};
         match self.db().run_command(command, None).await {
@@ -406,7 +414,7 @@ impl DatabaseTR {
     /// ```rs
     /// let evm_poll = database.find_validator(doc!("operator_address": address)).await;
     /// ```
-    pub async fn find_evm_poll(&self, doc: Document) -> Result<EvmPoll, String> {
+    pub async fn find_evm_poll(&self, doc: Document) -> Result<EvmPollForDb, String> {
         match self.evm_poll_collection().find_one(doc, None).await {
             Ok(potential_validator) => match potential_validator {
                 Some(poll) => Ok(poll),

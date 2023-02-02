@@ -18,3 +18,4 @@ pub use params::VotingPower as VotingPowerForDb;
 pub use validators::Validator as ValidatorForDb;
 pub use evm::EvmPoll as EvmPollForDb;
 pub use evm::EvmPollParticipant as EvmPollParticipantForDb;
+pub use evm::Heartbeat as HeartbeatForDb;
