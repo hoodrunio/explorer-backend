@@ -261,6 +261,24 @@ impl Chain {
             .await?
             .try_into()
     }
+    pub async fn get_axelar_sender_heartbeat_info(&self, val_voter_address: &String, block_height: u64) -> Result<InternalAxelarHeartbeatInfo, String> {
+        match self.get_internal_txs_by_sender_height(&val_voter_address, Some(block_height), PaginationConfig::new().limit(1).page(1)).await {
+            Ok(txs_res) => {
+                for contents in txs_res.value {
+                    match contents.extract_axelar_heartbeat_info() {
+                        Some(res) => { return Ok(res); }
+                        None => {}
+                    };
+                };
+                let message = String::from("This is not an heartbeat tx");
+                Err(message)
+            }
+            Err(e) => {
+                tracing::error!("Could not fetched txs by sender");
+                Err(e)
+            }
+        }
+    }
 }
 
 #[derive(Deserialize, Serialize, Debug)]
