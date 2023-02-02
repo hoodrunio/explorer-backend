@@ -451,6 +451,18 @@ impl DatabaseTR {
         }
     }
 
+    /// Adds a new heartbeat to the heartbeats collection of the database.
+    /// # Usage
+    /// ```rs
+    /// database.add_heartbeat(heartbeat).await;
+    /// ```
+    pub async fn add_heartbeat(&self, heartbeat: HeartbeatForDb) -> Result<(), String> {
+        match self.heartbeat_collection().insert_one(heartbeat, None).await {
+            Ok(_) => Ok(()),
+            Err(_) => Err("Cannot save the heartbeat.".into()),
+        }
+    }
+
     /// Adds a new chain to the chains collection of the database.
     /// # Usage
     /// ```rs
