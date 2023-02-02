@@ -230,7 +230,7 @@ impl Chain {
                                     }
                                     match self.database.upsert_evm_poll(evm_poll).await {
                                         Ok(_) => {
-                                            tracing::error!("evm poll successfully created {}", &evm_poll_item.poll_id);
+                                            tracing::info!("evm poll successfully created by poll id {}", &evm_poll_item.poll_id);
                                         }
                                         Err(e) => {
                                             tracing::error!("evm poll could not created {}, e", &evm_poll_item.poll_id);
