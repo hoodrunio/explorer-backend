@@ -334,6 +334,7 @@ pub struct InternalTransaction {
     pub raw: String,
     pub result: String,
     pub memo: String,
+    pub signatures: Vec<String>,
     pub content: Vec<InternalTransactionContent>,
 }
 
@@ -424,6 +425,7 @@ impl InternalTransaction {
             } else {
                 "Failed".to_string()
             },
+            signatures: match tx_response.tx { TxsResponseTx::Tx { signatures, .. } => { signatures } },
             memo: tx.body.memo,
             raw: tx_response.raw_log,
             content,
@@ -439,6 +441,10 @@ impl InternalTransaction {
                     res = Some(InternalAxelarHeartbeatInfo {
                         sender: sender.clone(),
                         key_ids: key_ids.clone(),
+                        signatures: self.signatures.clone(),
+                        tx_hash: self.hash.clone(),
+                        height: self.height.clone(),
+                        timestamp: self.time.clone(),
                     });
                     break;
                 }
@@ -453,6 +459,10 @@ impl InternalTransaction {
 pub struct InternalAxelarHeartbeatInfo {
     pub sender: String,
     pub key_ids: Vec<String>,
+    pub signatures: Vec<String>,
+    pub tx_hash: String,
+    pub height: u64,
+    pub timestamp: i64,
 }
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
