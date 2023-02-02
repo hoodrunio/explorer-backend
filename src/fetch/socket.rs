@@ -436,6 +436,8 @@ pub struct NewBlockHeaderValue {
 #[derive(Deserialize, Debug, Clone)]
 pub struct NewBlockValue {
     pub block: Block,
+    pub result_begin_block: ResultBeginBlock,
+    pub result_end_block: ResultEndBlock,
 }
 
 #[derive(Deserialize)]
