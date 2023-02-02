@@ -236,8 +236,8 @@ impl Chain {
                                             tracing::error!("evm poll could not created {}, e", &evm_poll_item.poll_id);
                                         }
                                     };
-                                },
-                                SocketResult::Empty { .. } => {},
+                                }
+                                SocketResult::Empty { .. } => {}
                             };
                         }
                         Err(error) => {
@@ -334,7 +334,7 @@ impl Chain {
                                         }
                                     };
                                 }
-                                SocketResult::Empty { .. } => {},
+                                SocketResult::Empty { .. } => {}
                                 _ => {
                                     tracing::error!("Empty axelar evm poll votes could not listen");
                                 }
