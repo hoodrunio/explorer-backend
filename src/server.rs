@@ -39,15 +39,19 @@ pub async fn start_web_server() -> std::io::Result<()> {
     });
 
     let chains = HashSet::from_iter(state.get_chains().keys().cloned());
+
+    let tx_clone = tx.clone();
     tokio::spawn(async move {
-        if let Err(e) = run_ws(tx, chains).await {
+        if let Err(e) = run_ws(tx_clone, chains).await {
             tracing::error!("Error spawning the websocket task {e}");
         };
     });
 
     let axelar = state.get("axelar").unwrap().clone();
+
+    let tx_clone = tx.clone();
     tokio::spawn(async move {
-        match Chain::sub_axelar_evm_polls_flow(axelar).await {
+        match Chain::sub_axelar_evm_polls_flow(axelar, tx_clone).await {
             Ok(_) => {}
             Err(e) => tracing::info!("Error axelar evm polls flow {}",e),
         };

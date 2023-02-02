@@ -1,5 +1,5 @@
 use std::collections::{HashMap, HashSet};
-use crate::database::BlockForDb;
+use crate::database::{BlockForDb, EvmPollForDb, EvmPollParticipantForDb};
 use crate::fetch::transactions::TransactionItem;
 use actix::{Actor, AsyncContext, StreamHandler};
 use actix_web::web::Data;
@@ -31,6 +31,8 @@ struct SubscriptionMode {
     tx: bool,
     #[serde(default)]
     block: bool,
+    #[serde(default)]
+    poll: bool,
 }
 
 pub async fn handle_connection(tx: Sender<(String, WsEvent)>, raw_stream: TcpStream, addr: SocketAddr, chains: HashSet<String>) -> Result<(), String> {
@@ -105,6 +107,8 @@ pub async fn handle_connection(tx: Sender<(String, WsEvent)>, raw_stream: TcpStr
                 let should_send = match msg {
                     WsEvent::NewTX(_) => mode.tx,
                     WsEvent::NewBLock(_) => mode.block,
+                    WsEvent::NewEvmPoll(_) => mode.poll,
+                    WsEvent::UpdateEvmPollParticipant(_) => mode.poll,
                 };
                 if chain == wanted_chain && should_send {
                     outgoing.send(Message::Text(serde_json::to_string(&msg).unwrap())).await;
@@ -130,6 +134,8 @@ pub async fn run_ws(tx: Sender<(String, WsEvent)>, chains: HashSet<String>) -> R
 pub enum WsEvent {
     NewTX(TransactionItem),
     NewBLock(BlockForDb),
+    NewEvmPoll(EvmPollForDb),
+    UpdateEvmPollParticipant((String, EvmPollParticipantForDb)),
 }
 
 impl Display for WsEvent {
@@ -142,7 +148,15 @@ impl Display for WsEvent {
             WsEvent::NewBLock(block) => {
                 let hash = block.hash.clone();
                 write!(f, "WsEvent (NewBlock), hash: {hash}")
-            }
+            },
+            WsEvent::NewEvmPoll(poll) => {
+                let poll_id = poll.poll_id.clone();
+                write!(f, "WsEvent (NewEvmPoll), id: {poll_id}")
+            },
+            WsEvent::UpdateEvmPollParticipant((poll_id, participant)) => {
+                let participant_address = participant.voter_address.clone();
+                write!(f, "WsEvent (UpdateEvmPollParticipant), poll_id: {poll_id}, participant_hash: {participant_address}")
+            },
         }
     }
 }

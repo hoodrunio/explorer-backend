@@ -182,9 +182,9 @@ impl Chain {
         Ok(())
     }
 
-    pub async fn sub_axelar_evm_polls_flow(axelar: Chain) -> Result<(), String> {
-        let poll = axelar.sub_for_axelar_evm_polls();
-        let vote = axelar.sub_for_axelar_evm_poll_votes();
+    pub async fn sub_axelar_evm_polls_flow(axelar: Chain, tx: Sender<(String, WsEvent)>) -> Result<(), String> {
+        let poll = axelar.sub_for_axelar_evm_polls(tx.clone());
+        let vote = axelar.sub_for_axelar_evm_poll_votes(tx.clone());
         match try_join!(poll,vote) {
             Ok(..) => {}
             Err(e) => { return Err(e.message.unwrap_or(String::from(""))); }
@@ -193,7 +193,7 @@ impl Chain {
         Ok(())
     }
 
-    async fn sub_for_axelar_evm_polls(&self) -> Result<(), TNRAppError> {
+    async fn sub_for_axelar_evm_polls(&self, tx: Sender<(String, WsEvent)>) -> Result<(), TNRAppError> {
         let ws_url = self.config.wss_url.clone();
         let chain_name = self.config.name.clone();
 
@@ -224,22 +224,16 @@ impl Chain {
                                         }
                                     };
                                     let participants: Vec<EvmPollParticipantForDb> = evm_poll_item.participants_operator_address.clone().into_iter().map(|address| { EvmPollParticipantForDb::from(address) }).collect();
-                                    match self.database.upsert_evm_poll(EvmPollForDb {
-                                        timestamp: evm_poll_item.time.clone(),
-                                        tx_height: evm_poll_item.tx_height.clone(),
-                                        poll_id: evm_poll_item.poll_id.clone(),
-                                        action: evm_poll_item.action.clone(),
-                                        status: evm_poll_item.status.clone(),
-                                        evm_tx_id: evm_poll_item.evm_tx_id.clone(),
-                                        chain_name: evm_poll_item.chain_name.clone(),
-                                        evm_deposit_address: evm_poll_item.evm_deposit_address.clone(),
-                                        participants,
-                                    }).await {
+                                    let evm_poll: EvmPollForDb = evm_poll_item.clone().into();
+                                    if let Err(e) = tx.send((self.config.name.clone(), WsEvent::NewEvmPoll(evm_poll.clone()))) {
+                                        tracing::error!("Error dispatching evm poll event: {e}");
+                                    }
+                                    match self.database.upsert_evm_poll(evm_poll).await {
                                         Ok(_) => {
                                             tracing::error!("evm poll successfully created {}", &evm_poll_item.poll_id);
                                         }
-                                        Err(_) => {
-                                            tracing::error!("evm poll could not created {}", &evm_poll_item.poll_id);
+                                        Err(e) => {
+                                            tracing::error!("evm poll could not created {}, e", &evm_poll_item.poll_id);
                                         }
                                     };
                                 }
@@ -258,7 +252,7 @@ impl Chain {
         tracing::error!("Axelar evm poll listener stopped");
     }
 
-    async fn sub_for_axelar_evm_poll_votes(&self) -> Result<(), TNRAppError> {
+    async fn sub_for_axelar_evm_poll_votes(&self, mut ws_tx: Sender<(String, WsEvent)>) -> Result<(), TNRAppError> {
         let ws_url = self.config.wss_url.clone();
         let chain_name = self.config.name.clone();
 
@@ -279,7 +273,7 @@ impl Chain {
                             match socket_msg.result {
                                 SocketResult::NonEmpty(SocketResultNonEmpty::VotedTx { events: voted_tx }) => {
                                     let tx_hash = voted_tx.get_tx_hash();
-                                    let tx = match voted_tx.fetch_tx(&self).await {
+                                    let mut tx = match voted_tx.fetch_tx(&self).await {
                                         Ok(res) => res,
                                         Err(e) => {
                                             dbg!("Axelar evm poll vote tx fetcher error {}",&e);
@@ -315,6 +309,9 @@ impl Chain {
                                                                     tx_height,
                                                                     voter_address,
                                                                 };
+                                                                if let Err(e) = ws_tx.send((self.config.name.clone(), WsEvent::UpdateEvmPollParticipant((poll_id.clone(), evm_poll_participant.clone())))) {
+                                                                    tracing::error!("Error dispatching Evm Poll Update event: {e}");
+                                                                }
                                                                 match self.database.update_evm_poll_participant(&poll_id, &evm_poll_participant).await {
                                                                     Ok(_) => { tracing::info!("Successfully updated evm poll participant"); }
                                                                     Err(e) => { tracing::error!("Can not updated evm poll participant {}",e); }
