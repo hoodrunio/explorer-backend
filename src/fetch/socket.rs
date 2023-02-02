@@ -236,10 +236,8 @@ impl Chain {
                                             tracing::error!("evm poll could not created {}, e", &evm_poll_item.poll_id);
                                         }
                                     };
-                                }
-                                SocketResult::Empty { .. } => {
-                                    tracing::error!("Empty axelar evm poll result ");
-                                }
+                                },
+                                SocketResult::Empty { .. } => {},
                             };
                         }
                         Err(error) => {
@@ -313,7 +311,7 @@ impl Chain {
                                                                     tracing::error!("Error dispatching Evm Poll Update event: {e}");
                                                                 }
                                                                 match self.database.update_evm_poll_participant(&poll_id, &evm_poll_participant).await {
-                                                                    Ok(_) => { tracing::info!("Successfully updated evm poll participant"); }
+                                                                    Ok(_) => { tracing::info!("Successfully updated evm poll participant {} for which poll id is {}", &evm_poll_participant.operator_address, &poll_id); }
                                                                     Err(e) => { tracing::error!("Can not updated evm poll participant {}",e); }
                                                                 };
                                                             }
@@ -336,9 +334,7 @@ impl Chain {
                                         }
                                     };
                                 }
-                                SocketResult::Empty { .. } => {
-                                    tracing::error!("Empty axelar evm poll votes result ");
-                                }
+                                SocketResult::Empty { .. } => {},
                                 _ => {
                                     tracing::error!("Empty axelar evm poll votes could not listen");
                                 }
