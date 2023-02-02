@@ -57,6 +57,13 @@ pub async fn start_web_server() -> std::io::Result<()> {
         };
     });
 
+    let axelar = state.get("axelar").unwrap().clone();
+    tokio::spawn(async move {
+        match axelar.sub_for_axelar_heartbeat().await {
+            Ok(_) => {}
+            Err(e) => tracing::info!("Error axelar heartbeat listener {}",e),
+        };
+    });
 
     HttpServer::new(move || {
         // Build a CORS middleware.

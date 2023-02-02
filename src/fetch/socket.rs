@@ -2,6 +2,7 @@ use std::sync::Arc;
 
 use chrono::DateTime;
 use futures::{SinkExt, StreamExt};
+use futures::future::join_all;
 use tokio::sync::broadcast::Sender;
 use mongodb::bson::doc;
 use serde::{Deserialize, Serialize};
@@ -11,7 +12,7 @@ use tokio::try_join;
 use tokio_tungstenite::{connect_async, tungstenite::Message};
 
 use crate::chain::Chain;
-use crate::database::{BlockForDb, EvmPollForDb, EvmPollParticipantForDb};
+use crate::database::{BlockForDb, EvmPollForDb, EvmPollParticipantForDb, HeartbeatForDb};
 use crate::fetch::blocks::{Block, ResultBeginBlock, ResultEndBlock};
 use crate::fetch::transactions::{AxelarVote, InnerMessage, InnerMessageKnown, InternalTransaction, InternalTransactionContent, InternalTransactionContentKnowns};
 use crate::routes::{OutRestResponse, TNRAppError};
@@ -232,7 +233,7 @@ impl Chain {
                                             tracing::info!("evm poll successfully created by poll id {}", &evm_poll_item.poll_id);
                                         }
                                         Err(e) => {
-                                            tracing::error!("evm poll could not created {}, e", &evm_poll_item.poll_id);
+                                            tracing::error!("evm poll could not created {}, Error: {}", &evm_poll_item.poll_id,e);
                                         }
                                     };
                                 }
@@ -350,6 +351,82 @@ impl Chain {
             };
         }
         tracing::error!("Axelar evm poll votes listener stopped");
+    }
+
+    pub async fn sub_for_axelar_heartbeat(&self) -> Result<(), TNRAppError> {
+        let ws_url = self.config.wss_url.clone();
+        let chain_name = self.config.name.clone();
+
+
+        loop {
+            let (ws_stream, _) = connect_async(ws_url.clone()).await.map_err(|_| TNRAppError::from("Can not connect".to_string()))?;
+
+            // Split the connection into two parts.
+            let (mut write, mut read) = ws_stream.split();
+
+            // Subscribe to txs which are for heartbeats.
+            write.send(SUBSCRIBE_BLOCK.into()).await.map_err(|e| format!("Can't subscribe to confirm AXELAR SUB HEARTBEAT TX for {}: {e}", chain_name))?;
+
+            let mut heartbeat_begin_height: u64 = 0;
+            let heartbeat_block_check_range = 6;
+            while let Some(msg) = read.next().await {
+                if let Ok(Message::Text(text_msg)) = msg {
+                    match serde_json::from_str::<SocketMessage>(&text_msg) {
+                        Ok(socket_msg) => {
+                            match socket_msg.result {
+                                SocketResult::NonEmpty(SocketResultNonEmpty::Block { data }) => {
+                                    let current_height = data.value.block.header.height.parse::<u64>().unwrap_or(0);
+
+                                    if data.value.result_end_block.is_heartbeat_begin() {
+                                        heartbeat_begin_height = current_height.clone();
+                                    };
+
+                                    if heartbeat_begin_height + heartbeat_block_check_range >= current_height {
+                                        let block_result = self.get_block_result_by_height(Some(current_height)).await;
+
+                                        if let Ok(block_result) = block_result {
+                                            let mut block_res_txs_handler_futures = vec![];
+                                            for block_res_tx_res in block_result.value.txs_results {
+                                                let sender_address = block_res_tx_res.get_sender_address().unwrap_or(String::from("")).clone();
+                                                block_res_txs_handler_futures.push(async move {
+                                                    let heartbeat_info = self.get_axelar_sender_heartbeat_info(&sender_address, current_height).await;
+                                                    if let Ok(info) = heartbeat_info {
+                                                        let period_height = heartbeat_begin_height.clone();
+                                                        let generated_id = format!("{}_{}", info.sender.clone(), period_height);
+                                                        let db_heartbeat = HeartbeatForDb {
+                                                            tx_hash: info.tx_hash.clone(),
+                                                            height: current_height.clone(),
+                                                            period_height: heartbeat_begin_height.clone(),
+                                                            timestamp: info.timestamp.clone() as u64,
+                                                            signatures: info.signatures.clone(),
+                                                            sender: info.sender.clone(),
+                                                            key_ids: info.key_ids.clone(),
+                                                            id: generated_id.clone(),
+                                                        };
+                                                        match self.database.add_heartbeat(db_heartbeat).await {
+                                                            Ok(_) => { tracing::info!("Successfully inserted heartbeat id {}", &generated_id) }
+                                                            Err(_) => { tracing::error!("Could not inserted heartbeat id {}", &generated_id) }
+                                                        };
+                                                    };
+                                                });
+                                            };
+
+                                            join_all(block_res_txs_handler_futures).await;
+                                        }
+                                    }
+                                }
+                                SocketResult::Empty { .. } => {}
+                                _ => {}
+                            };
+                        }
+                        Err(error) => {
+                            tracing::error!("Websocket JSON parse error for {}: {error}", chain_name);
+                        }
+                    }
+                };
+            };
+        }
+        tracing::error!("Axelar heartbeats listener stopped");
     }
 
     pub fn convert_to_evm_hex(&self, string_byte_array: &String) -> Option<String> {
