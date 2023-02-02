@@ -314,7 +314,7 @@ pub struct ResultBlockEvent {
 }
 
 impl ResultBlockEvent {
-    pub fn is_heartbeat(&self) -> bool {
+    pub fn is_heartbeat_event(&self) -> bool {
         self.r#type == "heartbeat"
     }
 }
@@ -322,7 +322,7 @@ impl ResultBlockEvent {
 impl ResultEndBlock {
     pub fn is_heartbeat_begin(&self) -> bool {
         for event in &self.events {
-            let res = event.is_heartbeat();
+            let res = event.is_heartbeat_event();
             if res {
                 return res;
             }
