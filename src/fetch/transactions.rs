@@ -413,6 +413,22 @@ impl InternalTransaction {
             r#type,
         })
     }
+    pub fn extract_axelar_heartbeat_info(&self) -> Option<InternalAxelarHeartbeatInfo> {
+        let mut res = None;
+        for content_item in &self.content {
+            if let InternalTransactionContent::Known(InternalTransactionContentKnowns::AxelarRefundRequest { sender: _, inner_message }) = content_item {
+                if let InnerMessage::Known(InnerMessageKnown::HeartBeatRequest { sender, key_ids }) = inner_message {
+                    res = Some(InternalAxelarHeartbeatInfo {
+                        sender: sender.clone(),
+                        key_ids: key_ids.clone(),
+                    });
+                    break;
+                }
+            }
+        }
+
+        res
+    }
 }
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
