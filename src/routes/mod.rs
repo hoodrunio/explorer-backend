@@ -15,6 +15,7 @@ mod validators;
 mod chains;
 mod api_response;
 mod evm;
+mod heartbeats;
 
 pub use blocks::*;
 pub use calculations::*;
@@ -33,3 +34,4 @@ pub use validators::*;
 pub use chains::*;
 pub use api_response::*;
 pub use evm::*;
+pub use heartbeats::*;
