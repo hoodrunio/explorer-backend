@@ -90,7 +90,7 @@ pub type EvmSupportedChains = Vec<String>;
 pub enum PollStatus {
     Pending,
     Completed,
-    Fail,
+    Failed,
 }
 
 impl fmt::Display for PollStatus {
@@ -98,7 +98,7 @@ impl fmt::Display for PollStatus {
         match self {
             PollStatus::Pending => write!(f, "Pending"),
             PollStatus::Completed => write!(f, "Completed"),
-            PollStatus::Fail => write!(f, "Fail"),
+            PollStatus::Failed => write!(f, "Failed"),
         }
     }
 }
