@@ -1,3 +1,4 @@
+use std::fmt;
 use std::fmt::format;
 use std::num::ParseFloatError;
 
@@ -5,11 +6,11 @@ use chrono::DateTime;
 use mongodb::bson::doc;
 use serde::{Deserialize, Serialize};
 
-use crate::fetch::blocks::BlockResp;
-use crate::fetch::params::ParamsResp;
 use crate::{chain::Chain, routes::OutRestResponse};
 use crate::database::{EvmPollForDb, EvmPollParticipantForDb};
+use crate::fetch::blocks::BlockResp;
 use crate::fetch::others::PaginationDb;
+use crate::fetch::params::ParamsResp;
 use crate::routes::TNRAppError;
 
 impl Chain {
@@ -56,7 +57,7 @@ impl From<EvmPollForDb> for EvmPollRespElement {
         Self {
             deposit_address: value.evm_deposit_address.clone(),
             event: value.action.clone(),
-            status: value.status.clone(),
+            status: value.status.to_string(),
             height: value.tx_height.clone(),
             id: value.poll_id.clone(),
             participants: value.participants.clone(),
@@ -83,3 +84,21 @@ impl EvmPollListResp {
 }
 
 pub type EvmSupportedChains = Vec<String>;
+
+
+#[derive(Deserialize, Serialize, Debug, Clone)]
+pub enum PollStatus {
+    Pending,
+    Completed,
+    Fail,
+}
+
+impl fmt::Display for PollStatus {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            PollStatus::Pending => write!(f, "Pending"),
+            PollStatus::Completed => write!(f, "Completed"),
+            PollStatus::Fail => write!(f, "Fail"),
+        }
+    }
+}

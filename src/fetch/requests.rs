@@ -1,4 +1,8 @@
-use reqwest::{Client, Method};
+use reqwest::{Client, Method, Request, Response};
+use reqwest_middleware::{ClientBuilder, Extension, Middleware, Next};
+use reqwest_retry::policies::ExponentialBackoff;
+use reqwest_retry::RetryTransientMiddleware;
+use reqwest_tracing::{OtelName, TracingMiddleware};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
 use crate::chain::Chain;
@@ -53,6 +57,30 @@ impl Chain {
         let url = format!("{}{}", self.config.rest_url, path);
 
         match self.client.get(&url).query(query).send().await {
+            Ok(res) => match res.json::<RestResponse<T>>().await {
+                Ok(res_json) => match res_json {
+                    RestResponse::Success(res_json) => Ok(res_json),
+                    RestResponse::Error { message, details: _ } => Err(message),
+                },
+                Err(error) => Err(format!("Cannot parse JSON.\nURL requested: {url}\nError Message:\n{error}")),
+            },
+            Err(_) => Err(format!("Cannot make a request to `{url}`.")),
+        }
+    }
+
+    /// Makes a request to the REST API node.
+    pub(super) async fn forced_rest_api_request<T: DeserializeOwned>(&self, path: &str, query: &[(&'static str, String)]) -> Result<T, String> {
+        // Create the URL request to.
+        let url = format!("{}{}", self.config.rest_url, path);
+        let retry_count = 3;
+        let retry_policy = ExponentialBackoff::builder().build_with_max_retries(retry_count);
+        let client = ClientBuilder::new(Client::new())
+            .with_init(Extension(OtelName("my-client".into())))
+            .with(TracingMiddleware::default())
+            .with(RetryTransientMiddleware::new_with_policy(retry_policy))
+            .build();
+
+        match client.get(&url).query(query).send().await {
             Ok(res) => match res.json::<RestResponse<T>>().await {
                 Ok(res_json) => match res_json {
                     RestResponse::Success(res_json) => Ok(res_json),
