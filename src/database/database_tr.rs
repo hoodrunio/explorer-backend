@@ -4,13 +4,15 @@ use mongodb::{
     Client, Collection, Database,
 };
 use mongodb::bson::{bson, from_document, to_bson, to_document};
+
+use crate::database::{EvmPollForDb, EvmPollParticipantForDb, HeartbeatForDb};
 use crate::database::blocks::Block;
 use crate::database::params::{HistoricalValidatorData, VotingPower};
-use crate::database::{EvmPollForDb, EvmPollParticipantForDb, HeartbeatForDb};
 use crate::fetch::evm::{EvmPollListDbResp, EvmSupportedChains};
 use crate::fetch::others::{PaginationConfig, PaginationDb};
 use crate::fetch::socket::EvmPollVote;
 use crate::fetch::validators::ValidatorListDbResp;
+
 use super::{chains::Chain, params::Params, validators::Validator};
 
 // Testnetrun explorer database.
@@ -461,6 +463,22 @@ impl DatabaseTR {
             Ok(_) => Ok(()),
             Err(_) => Err("Cannot save the heartbeat.".into()),
         }
+    }
+
+    /// Finds a sorted hearbeats list by given document.
+    /// # Usage
+    /// ```rs
+    /// let hearbeats = database.find_heartbeats(doc!{"$match":{"voter_address":"axelar1k3h51l35g5hb3lh4kjg34"}}).await;
+    /// ```
+    pub async fn find_heartbeats(&self, pipeline: Vec<Document>) -> Result<Vec<HeartbeatForDb>, String> {
+        let mut results = self.heartbeat_collection().aggregate(pipeline, None).await.map_err(|e| format!("{}", e.to_string()))?;
+
+        let mut res: Vec<HeartbeatForDb> = vec![];
+        while let Some(result) = results.next().await {
+            res.push(from_document(result.map_err(|e| format!("{}", e.to_string()))?).map_err(|e| format!("{}", e.to_string()))?);
+        };
+
+        Ok(res)
     }
 
     /// Adds a new chain to the chains collection of the database.
