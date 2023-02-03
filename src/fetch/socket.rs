@@ -397,7 +397,7 @@ impl Chain {
                                                         let db_heartbeat = HeartbeatForDb {
                                                             tx_hash: info.tx_hash.clone(),
                                                             height: current_height.clone(),
-                                                            period_height: heartbeat_begin_height.clone(),
+                                                            period_height: heartbeat_begin_height.clone() + 1,
                                                             timestamp: info.timestamp.clone() as u64,
                                                             signatures: info.signatures.clone(),
                                                             sender: info.sender.clone(),
