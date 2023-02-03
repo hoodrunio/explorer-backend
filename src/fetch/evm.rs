@@ -25,13 +25,6 @@ impl Chain {
 
         Ok(res.into())
     }
-
-    pub async fn get_val_heartbeats(&self, operator_address: &String) -> Result<String, TNRAppError> {
-        let query = doc! {"operator_address": operator_address};
-        // let res = self.database.find_val_hearbeats(query).await?;
-
-        Ok(String::from("Heartbeat"))
-    }
 }
 
 #[derive(Deserialize, Serialize, Debug)]
