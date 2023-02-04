@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 #[derive(Deserialize, Serialize, Debug)]
 pub struct ListDbResult<T> {
     /// Array of validators.
-    pub validators: Vec<T>,
+    pub list: Vec<T>,
     /// Pagination.
     pub pagination: PaginationDb,
 }
