@@ -12,9 +12,9 @@ use crate::{
     chain::Chain,
     routes::{calc_pages, OutRestResponse},
 };
-use crate::database::ValidatorForDb;
+use crate::database::{PaginationDb, ValidatorForDb};
 use crate::utils::convert_consensus_pubkey_to_consensus_address;
-use crate::fetch::others::{PaginationDb, Response};
+use crate::fetch::others::{Response};
 use crate::fetch::transactions::{InternalTransactionContent, InternalTransactionContentKnowns};
 use crate::routes::TNRAppError;
 
