@@ -4,6 +4,7 @@ use actix_web::{
     web::{Data, Json, Path},
 };
 use actix_web::web::Query;
+use mongodb::bson::doc;
 use serde::{Deserialize, Serialize};
 
 use crate::{fetch::others::Response, state::State};
@@ -22,7 +23,7 @@ pub async fn validator_hearbeats(path: Path<(String, String)>, chains: Data<Stat
     let chain = extract_chain(&chain, chains)?;
 
     if &chain.config.name != "axelar" {
-        return Err(TNRAppError::from(String::from(format!("Evm polls not supported for {}", &chain.config.name))));
+        return Err(TNRAppError::from(String::from(format!("Heartbeats not supported for {}", &chain.config.name))));
     };
     let config = PaginationConfig::new().limit(query.limit.unwrap_or(250)).page(query.page.unwrap_or(1));
 
@@ -40,6 +41,24 @@ pub async fn validator_hearbeats(path: Path<(String, String)>, chains: Data<Stat
     let data = chain.get_val_heartbeats(operator_address, heartbeats_query, config).await?;
     Ok(TNRAppSuccessResponse::new(data))
 }
+
+#[get("{chain}/heartbeats")]
+pub async fn hearbeats(path: Path<String>, chains: Data<State>, query: Query<QueryParams>) -> Result<impl Responder, TNRAppError> {
+    let chain = path.into_inner();
+
+    let chain = extract_chain(&chain, chains)?;
+
+    if &chain.config.name != "axelar" {
+        return Err(TNRAppError::from(String::from(format!("Hearbeats not supported for {}", &chain.config.name))));
+    };
+
+    let config = PaginationConfig::new().limit(query.limit.unwrap_or(250)).page(query.page.unwrap_or(1));
+
+    let list_from_db = chain.database.find_paginated_heartbeats(vec![doc! {"$match":{"sender": {"$exists":true }}}], config).await?;
+    let data = HeartbeatsListResp::from_db_list(list_from_db)?;
+    Ok(TNRAppSuccessResponse::new(data))
+}
+
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct ValidatorHeartbeatsQBody {
