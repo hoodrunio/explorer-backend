@@ -134,12 +134,6 @@ pub struct CommunityPoolResp {
 }
 
 #[derive(Deserialize, Serialize, Debug)]
-pub struct PaginationDb {
-    pub page: u16,
-    pub total: u16,
-}
-
-#[derive(Deserialize, Serialize, Debug)]
 pub struct Pagination {
     /// Pagination next key. Might be `None`. Eg: `"FGxWOxzuw4bZozVHta3qYgdKOuRC"`
     pub next_key: Option<String>,

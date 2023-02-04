@@ -5,11 +5,11 @@ use mongodb::{
 };
 use mongodb::bson::{bson, from_document, to_bson, to_document};
 
-use crate::database::{EvmPollForDb, EvmPollParticipantForDb, HeartbeatForDb};
+use crate::database::{EvmPollForDb, EvmPollParticipantForDb, HeartbeatForDb, PaginationDb};
 use crate::database::blocks::Block;
 use crate::database::params::{HistoricalValidatorData, VotingPower};
 use crate::fetch::evm::{EvmPollListDbResp, EvmSupportedChains};
-use crate::fetch::others::{PaginationConfig, PaginationDb};
+use crate::fetch::others::{PaginationConfig};
 use crate::fetch::socket::EvmPollVote;
 use crate::fetch::validators::ValidatorListDbResp;
 

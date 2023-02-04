@@ -7,9 +7,8 @@ use mongodb::bson::doc;
 use serde::{Deserialize, Serialize};
 
 use crate::{chain::Chain, routes::OutRestResponse};
-use crate::database::{EvmPollForDb, EvmPollParticipantForDb};
+use crate::database::{EvmPollForDb, EvmPollParticipantForDb, PaginationDb};
 use crate::fetch::blocks::BlockResp;
-use crate::fetch::others::PaginationDb;
 use crate::fetch::params::ParamsResp;
 use crate::routes::TNRAppError;
 
