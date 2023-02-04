@@ -5,6 +5,7 @@ mod params;
 mod validators;
 mod evm;
 mod heartbeats;
+mod common;
 
 pub use database_tr::DatabaseTR;
 
@@ -20,3 +21,4 @@ pub use validators::Validator as ValidatorForDb;
 pub use evm::EvmPoll as EvmPollForDb;
 pub use evm::EvmPollParticipant as EvmPollParticipantForDb;
 pub use heartbeats::Heartbeat as HeartbeatForDb;
+pub use common::*;
