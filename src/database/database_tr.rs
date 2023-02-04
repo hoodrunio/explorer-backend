@@ -5,11 +5,11 @@ use mongodb::{
 };
 use mongodb::bson::{bson, from_document, to_bson, to_document};
 
-use crate::database::{EvmPollForDb, EvmPollParticipantForDb, HeartbeatForDb, PaginationDb};
+use crate::database::{EvmPollForDb, EvmPollParticipantForDb, HeartbeatForDb, ListDbResult, PaginationDb};
 use crate::database::blocks::Block;
 use crate::database::params::{HistoricalValidatorData, VotingPower};
 use crate::fetch::evm::{EvmPollListDbResp, EvmSupportedChains};
-use crate::fetch::others::{PaginationConfig};
+use crate::fetch::others::PaginationConfig;
 use crate::fetch::socket::EvmPollVote;
 use crate::fetch::validators::ValidatorListDbResp;
 
@@ -470,15 +470,35 @@ impl DatabaseTR {
     /// ```rs
     /// let hearbeats = database.find_heartbeats(doc!{"$match":{"voter_address":"axelar1k3h51l35g5hb3lh4kjg34"}}).await;
     /// ```
-    pub async fn find_heartbeats(&self, pipeline: Vec<Document>) -> Result<Vec<HeartbeatForDb>, String> {
+    pub async fn find_paginated_heartbeats(&self, q_pipeline: Vec<Document>, config: PaginationConfig) -> Result<ListDbResult<HeartbeatForDb>, String> {
+        let mut pipeline =  q_pipeline.clone();
+        let page = config.get_page() as f32;
+        let limit = config.get_limit() as f32;
+        let skip_count = config.get_offset() as f32;
+        let limit_pipe = doc! { "$limit": limit };
+        let skip_pipe = doc! {
+            "$skip": skip_count
+        };
+
+        let sort = doc! {
+            "$sort": {
+                "period_height": -1
+            }
+        };
+        pipeline.push(sort);
+        pipeline.push(skip_pipe);
+        pipeline.push(limit_pipe);
+
         let mut results = self.heartbeat_collection().aggregate(pipeline, None).await.map_err(|e| format!("{}", e.to_string()))?;
+        let count_cursor = self.heartbeat_collection().aggregate(q_pipeline, None).await.map_err(|e| format!("{}", e.to_string()))?;
+        let count = count_cursor.count().await;
 
         let mut res: Vec<HeartbeatForDb> = vec![];
         while let Some(result) = results.next().await {
             res.push(from_document(result.map_err(|e| format!("{}", e.to_string()))?).map_err(|e| format!("{}", e.to_string()))?);
         };
 
-        Ok(res)
+        Ok(ListDbResult { list: res, pagination: PaginationDb { page: page as u16, total: count as u16 } })
     }
 
     /// Adds a new chain to the chains collection of the database.
