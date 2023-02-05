@@ -7,9 +7,10 @@ use mongodb::bson::doc;
 use serde::{Deserialize, Serialize};
 
 use crate::{chain::Chain, routes::OutRestResponse};
-use crate::database::{EvmPollForDb, EvmPollParticipantForDb, PaginationDb};
+use crate::database::{EvmPollForDb, EvmPollParticipantForDb, ListDbResult, PaginationDb};
 use crate::fetch::blocks::BlockResp;
 use crate::fetch::params::ParamsResp;
+use crate::fetch::socket::EvmPollVote;
 use crate::routes::TNRAppError;
 
 impl Chain {
@@ -74,7 +75,6 @@ impl EvmPollListResp {
             polls.push(evm_poll.clone().into());
         };
 
-
         Self {
             polls,
             pagination: other.pagination,
@@ -100,4 +100,49 @@ impl fmt::Display for PollStatus {
             PollStatus::Failed => write!(f, "Failed"),
         }
     }
+}
+
+#[derive(Deserialize, Serialize, Debug)]
+pub struct EvmVotesListResp {
+    pub list: Vec<EvmVoteRespElement>,
+    pub pagination: PaginationDb,
+}
+
+impl EvmVotesListResp {
+    pub fn from_db_list(list_from_db: EvmPollListDbResp, operator_address: String) -> Self {
+        let mut votes: Vec<EvmVoteRespElement> = vec![];
+
+        for evm_poll in (&list_from_db).polls.iter() {
+            match &evm_poll.participants.iter().find(|participant| { participant.operator_address == operator_address }) {
+                None => {}
+                Some(evm_vote) => {
+                    votes.push(EvmVoteRespElement {
+                        operator_address: evm_vote.operator_address.clone(),
+                        poll_id: evm_vote.poll_id.clone(),
+                        vote: evm_vote.vote.clone(),
+                        time: evm_vote.time.clone(),
+                        tx_height: evm_vote.tx_height.clone(),
+                        tx_hash: evm_vote.tx_hash.clone(),
+                        voter_address: evm_vote.voter_address.clone(),
+                    });
+                }
+            };
+        };
+
+        Self {
+            list: votes,
+            pagination: list_from_db.pagination,
+        }
+    }
+}
+
+#[derive(Deserialize, Serialize, Debug)]
+pub struct EvmVoteRespElement {
+    pub operator_address: String,
+    pub poll_id: String,
+    pub vote: EvmPollVote,
+    pub time: u64,
+    pub tx_height: u64,
+    pub tx_hash: String,
+    pub voter_address: String,
 }

@@ -8,7 +8,7 @@ use mongodb::bson::doc;
 
 use crate::{fetch::others::Response, state::State};
 use crate::chain::Chain;
-use crate::fetch::evm::EvmPollListResp;
+use crate::fetch::evm::{EvmPollListResp, EvmVotesListResp};
 use crate::fetch::others::PaginationConfig;
 use crate::routes::{extract_chain, OutRestResponse, QueryParams, TNRAppError, TNRAppErrorResponse, TNRAppErrorType, TNRAppSuccessResponse};
 
@@ -31,23 +31,6 @@ pub async fn evm_polls(path: Path<String>, chains: Data<State>, query: Query<Que
     Ok(TNRAppSuccessResponse::new(data))
 }
 
-#[get("{chain}/evm/polls/{operator_address}")]
-pub async fn validator_evm_polls(path: Path<(String, String)>, chains: Data<State>, query: Query<QueryParams>) -> Result<impl Responder, TNRAppError> {
-    let (chain, operator_address) = path.into_inner();
-
-    let chain = extract_chain(&chain, chains)?;
-
-    if &chain.config.name != "axelar" {
-        return Err(TNRAppError::from(String::from(format!("Evm polls not supported for {}", &chain.config.name))));
-    };
-
-    let config = PaginationConfig::new().limit(query.limit.unwrap_or(20)).page(query.page.unwrap_or(1));
-
-    let val_evm_polls_from_db = chain.database.find_paginated_evm_polls(Some(doc! {"$match":{"participants":{"$elemMatch":{"operator_address":operator_address}}}}), config).await?;
-    let data = EvmPollListResp::from_db_list(val_evm_polls_from_db);
-    Ok(TNRAppSuccessResponse::new(data))
-}
-
 #[get("{chain}/evm/poll/{poll_id}")]
 pub async fn evm_poll(path: Path<(String, String)>, chains: Data<State>) -> Result<impl Responder, TNRAppError> {
     let (chain, poll_id) = path.into_inner();
@@ -59,6 +42,23 @@ pub async fn evm_poll(path: Path<(String, String)>, chains: Data<State>) -> Resu
     };
 
     let data = chain.get_evm_poll(&poll_id).await?;
+    Ok(TNRAppSuccessResponse::new(data))
+}
+
+#[get("{chain}/evm/votes/{operator_address}")]
+pub async fn evm_validator_votes(path: Path<(String, String)>, chains: Data<State>, query: Query<QueryParams>) -> Result<impl Responder, TNRAppError> {
+    let (chain, operator_address) = path.into_inner();
+
+    let chain = extract_chain(&chain, chains)?;
+
+    if &chain.config.name != "axelar" {
+        return Err(TNRAppError::from(String::from(format!("Evm votes not supported for {}", &chain.config.name))));
+    };
+
+    let config = PaginationConfig::new().limit(query.limit.unwrap_or(20)).page(query.page.unwrap_or(1));
+
+    let val_evm_polls_from_db = chain.database.find_paginated_evm_polls(Some(doc! {"$match":{"participants":{"$elemMatch":{"operator_address":operator_address.clone()}}}}), config).await?;
+    let data = EvmVotesListResp::from_db_list(val_evm_polls_from_db, operator_address);
     Ok(TNRAppSuccessResponse::new(data))
 }
 
