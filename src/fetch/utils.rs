@@ -52,4 +52,8 @@ impl Chain {
 
         Ok(self.calc_amount_u128_to_f64(formatted))
     }
+
+    pub fn generate_heartbeat_id(&self, sender_address: String, height: u64) -> String {
+        format!("{}_{}", sender_address, height)
+    }
 }
