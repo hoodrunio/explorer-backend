@@ -12,8 +12,9 @@ use tokio::try_join;
 use tokio_tungstenite::{connect_async, tungstenite::Message};
 
 use crate::chain::Chain;
-use crate::database::{BlockForDb, EvmPollForDb, EvmPollParticipantForDb, HeartbeatForDb};
+use crate::database::{BlockForDb, EvmPollForDb, EvmPollParticipantForDb, HeartbeatForDb, HeartbeatRawForDb};
 use crate::fetch::blocks::{Block, ResultBeginBlock, ResultEndBlock};
+use crate::fetch::heartbeats::HeartbeatStatus;
 use crate::fetch::transactions::{AxelarVote, InnerMessage, InnerMessageKnown, InternalTransaction, InternalTransactionContent, InternalTransactionContentKnowns};
 use crate::routes::{OutRestResponse, TNRAppError};
 use crate::events::WsEvent;
@@ -380,6 +381,34 @@ impl Chain {
 
                                     if data.value.result_end_block.is_heartbeat_begin() {
                                         heartbeat_begin_height = current_height.clone();
+                                        match self.database.find_validators(Some(doc! {"$match":{"voter_address":{"$exists":true}}})).await {
+                                            Ok(res) => {
+                                                let period_height = heartbeat_begin_height + 1;
+                                                let mut initial_period_heartbeats = vec![];
+                                                for validator in res.into_iter() {
+                                                    match validator.voter_address.clone() {
+                                                        None => {}
+                                                        Some(sender_address) => {
+                                                            let generated_id = self.generate_heartbeat_id(sender_address.clone(), period_height);
+                                                            let heartbeat = HeartbeatForDb {
+                                                                heartbeat_raw: None,
+                                                                period_height: period_height.clone(),
+                                                                status: HeartbeatStatus::Fail,
+                                                                sender: sender_address.clone(),
+                                                                id: generated_id,
+                                                            };
+                                                            initial_period_heartbeats.push(heartbeat);
+                                                        }
+                                                    };
+                                                };
+
+                                                match self.database.add_heartbeat_many(initial_period_heartbeats).await{
+                                                    Ok(_) => {tracing::info!("Current period initial heartbeats inserted");}
+                                                    Err(_) => {tracing::info!("Current period initial heartbeats could not inserted");}
+                                                };
+                                            }
+                                            Err(_) => {}
+                                        };
                                     };
 
                                     if heartbeat_begin_height + heartbeat_block_check_range >= current_height {
@@ -392,19 +421,27 @@ impl Chain {
                                                 block_res_txs_handler_futures.push(async move {
                                                     let heartbeat_info = self.get_axelar_sender_heartbeat_info(&sender_address, current_height).await;
                                                     if let Ok(info) = heartbeat_info {
-                                                        let period_height = heartbeat_begin_height.clone();
-                                                        let generated_id = format!("{}_{}", info.sender.clone(), period_height);
-                                                        let db_heartbeat = HeartbeatForDb {
-                                                            tx_hash: info.tx_hash.clone(),
+                                                        let period_height = heartbeat_begin_height.clone() + 1;
+                                                        let generated_id = self.generate_heartbeat_id(info.sender.clone(), period_height);
+                                                        let sender = info.sender.clone();
+                                                        let heartbeat_raw = HeartbeatRawForDb {
                                                             height: current_height.clone(),
-                                                            period_height: heartbeat_begin_height.clone() + 1,
+                                                            tx_hash: info.tx_hash.clone(),
                                                             timestamp: info.timestamp.clone() as u64,
                                                             signatures: info.signatures.clone(),
-                                                            sender: info.sender.clone(),
                                                             key_ids: info.key_ids.clone(),
-                                                            id: generated_id.clone(),
+                                                            sender: sender.clone(),
+                                                            period_height,
                                                         };
-                                                        match self.database.add_heartbeat(db_heartbeat).await {
+
+                                                        let db_heartbeat = HeartbeatForDb {
+                                                            id: generated_id.clone(),
+                                                            status: HeartbeatStatus::Success,
+                                                            heartbeat_raw: Some(heartbeat_raw),
+                                                            sender,
+                                                            period_height,
+                                                        };
+                                                        match self.database.upsert_heartbeat(db_heartbeat).await {
                                                             Ok(_) => { tracing::info!("Successfully inserted heartbeat id {}", &generated_id) }
                                                             Err(_) => { tracing::error!("Could not inserted heartbeat id {}", &generated_id) }
                                                         };
