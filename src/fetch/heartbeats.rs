@@ -2,7 +2,7 @@ use mongodb::bson::doc;
 use serde::{Deserialize, Serialize};
 
 use crate::chain::Chain;
-use crate::database::{HeartbeatForDb, PaginationDb};
+use crate::database::{HeartbeatForDb, HeartbeatRawForDb, PaginationDb};
 use crate::fetch::others::PaginationConfig;
 use crate::routes::{HeartbeatsListResp, TNRAppError, ValidatorHeartbeatsQBody};
 
@@ -44,6 +44,15 @@ pub struct HeartbeatsQuery {
 
 #[derive(Deserialize, Serialize, Debug)]
 pub struct HeartbeatsListElement {
+    pub status: HeartbeatStatus,
+    pub period_height: u64,
+    pub sender: String,
+    pub id: String,
+    pub heartbeat_raw: Option<HeartbeatsListRawElement>,
+}
+
+#[derive(Clone, Deserialize, Serialize, Debug)]
+pub struct HeartbeatsListRawElement {
     pub tx_hash: String,
     pub height: u64,
     pub period_height: u64,
@@ -51,7 +60,6 @@ pub struct HeartbeatsListElement {
     pub signatures: Vec<String>,
     pub sender: String,
     pub key_ids: Vec<String>,
-    pub id: String,
 }
 
 impl HeartbeatsQuery {
@@ -65,4 +73,10 @@ impl HeartbeatsQuery {
             to_block,
         })
     }
+}
+
+#[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
+pub enum HeartbeatStatus {
+    Success,
+    Fail,
 }
