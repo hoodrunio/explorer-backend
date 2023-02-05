@@ -1,14 +1,15 @@
-use crate::routes::{extract_chain, OutRestResponse, QueryParams, TNRAppError, TNRAppSuccessResponse};
-use crate::{
-    fetch::others::{PaginationConfig, Response},
-    state::State,
-};
 use actix_web::{
     get,
-    web::{Data, Json, Path},
     Responder,
+    web::{Data, Path},
 };
 use actix_web::web::Query;
+
+use crate::{
+    fetch::others::PaginationConfig,
+    state::State,
+};
+use crate::routes::{extract_chain, QueryParams, TNRAppError, TNRAppSuccessResponse};
 
 // ======== Transaction Methods ========
 
@@ -71,7 +72,7 @@ pub async fn txs_of_recipient(path: Path<(String, String)>, chains: Data<State>,
 pub async fn last_ten_txs(path: Path<String>, chains: Data<State>) -> Result<impl Responder, TNRAppError> {
     let chain = path.into_inner();
 
-    let chain = extract_chain(&chain, chains)?;
+    let _chain = extract_chain(&chain, chains)?;
     let data = "Storing txs in the database is not implemented yet.".to_string();
 
     // match chain.inner.data.last_ten_txs.queue.lock() {

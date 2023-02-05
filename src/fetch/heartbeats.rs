@@ -2,9 +2,8 @@ use mongodb::bson::doc;
 use serde::{Deserialize, Serialize};
 
 use crate::chain::Chain;
-use crate::database::{HeartbeatForDb, HeartbeatRawForDb, PaginationDb};
 use crate::fetch::others::PaginationConfig;
-use crate::routes::{HeartbeatsListResp, TNRAppError, ValidatorHeartbeatsQBody};
+use crate::routes::{HeartbeatsListResp, TNRAppError};
 
 impl Chain {
     pub async fn get_val_heartbeats(&self, operator_address: String, heartbeats_query: HeartbeatsQuery, config: PaginationConfig) -> Result<HeartbeatsListResp, TNRAppError> {
@@ -22,7 +21,7 @@ impl Chain {
         let match_pipe = doc! {"$match":{"sender": val_voter_address}};
         let mut pipeline = vec![match_pipe];
         match (heartbeats_query.from_block, heartbeats_query.to_block) {
-            (Some(from), (Some(to))) => {
+            (Some(from), Some(to)) => {
                 let range_match_pipe = doc! {"$match":{"period_height":{"$gte":from as i64,"$lt":to as i64}}};
                 pipeline.push(range_match_pipe);
             }

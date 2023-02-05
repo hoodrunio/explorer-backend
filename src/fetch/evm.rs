@@ -1,15 +1,10 @@
 use std::fmt;
-use std::fmt::format;
-use std::num::ParseFloatError;
 
-use chrono::DateTime;
 use mongodb::bson::doc;
 use serde::{Deserialize, Serialize};
 
-use crate::{chain::Chain, routes::OutRestResponse};
-use crate::database::{EvmPollForDb, EvmPollParticipantForDb, ListDbResult, PaginationDb};
-use crate::fetch::blocks::BlockResp;
-use crate::fetch::params::ParamsResp;
+use crate::chain::Chain;
+use crate::database::{EvmPollForDb, EvmPollParticipantForDb, PaginationDb};
 use crate::fetch::socket::EvmPollVote;
 use crate::routes::TNRAppError;
 

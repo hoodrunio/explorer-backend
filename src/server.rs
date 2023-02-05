@@ -1,15 +1,15 @@
 use std::collections::HashSet;
-use crate::events::{run_ws, WsEvent};
+
 use actix_cors::Cors;
+use actix_web::{App, get, HttpServer, Responder, web};
 use actix_web::web::Json;
-use actix_web::{get, web, App, HttpResponse, HttpServer, Responder};
 use tokio::sync::broadcast::channel;
 use tracing_actix_web::TracingLogger;
 use web::Data;
-use crate::chain::Chain;
 
+use crate::chain::Chain;
+use crate::events::{run_ws, WsEvent};
 use crate::routes;
-use crate::routes::TNRAppError;
 use crate::state::State;
 
 #[get("/")]
@@ -31,7 +31,7 @@ pub async fn start_web_server() -> std::io::Result<()> {
     // After connecting to MongoDB, there are so many thread safety & ownership errors.
     // You have to rewrite `src/fetch/socket.rs` to fix them.
 
-    let (tx, mut rx) = channel::<(String, WsEvent)>(100);
+    let (tx, _rx) = channel::<(String, WsEvent)>(100);
 
     let tx_clone = tx.clone();
     tokio::spawn(async move {
@@ -133,8 +133,8 @@ pub async fn start_web_server() -> std::io::Result<()> {
             .service(routes::validator_hearbeats)
             .service(routes::hearbeats)
     })
-    .bind(("127.0.0.1", 8080))
-    .unwrap()
-    .run()
-    .await
+        .bind(("127.0.0.1", 8080))
+        .unwrap()
+        .run()
+        .await
 }

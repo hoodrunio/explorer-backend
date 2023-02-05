@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
+
 use crate::fetch::evm::EvmSupportedChains;
-use crate::fetch::validators::{ValidatorListValidatorCommission, ValidatorStatus};
+use crate::fetch::validators::ValidatorListValidatorCommission;
 
 #[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
 pub struct Validator {

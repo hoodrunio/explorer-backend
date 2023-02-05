@@ -1,16 +1,15 @@
-use futures::{StreamExt, TryStreamExt};
+use futures::{StreamExt};
 use mongodb::{
     bson::{doc, Document},
     Client, Collection, Database,
 };
-use mongodb::bson::{bson, from_document, to_bson, to_document};
+use mongodb::bson::{from_document, to_bson, to_document};
 
 use crate::database::{EvmPollForDb, EvmPollParticipantForDb, HeartbeatForDb, ListDbResult, PaginationDb};
 use crate::database::blocks::Block;
 use crate::database::params::{HistoricalValidatorData, VotingPower};
 use crate::fetch::evm::{EvmPollListDbResp, EvmSupportedChains};
 use crate::fetch::others::PaginationConfig;
-use crate::fetch::socket::EvmPollVote;
 use crate::fetch::validators::ValidatorListDbResp;
 
 use super::{chains::Chain, params::Params, validators::Validator};
@@ -384,7 +383,7 @@ impl DatabaseTR {
     /// database.find_paginated_evm_polls(evm_poll).await;
     /// ```
     pub async fn find_validator_supported_chains(&self, operator_address: &String) -> Result<EvmSupportedChains, String> {
-        let mut pipeline: Vec<Document> = vec![doc! {"$match":{"operator_address": operator_address}}];
+        let pipeline: Vec<Document> = vec![doc! {"$match":{"operator_address": operator_address}}];
 
         let mut results = self.validators_collection().aggregate(pipeline, None).await.map_err(|e| format!("{}", e.to_string()))?;
 

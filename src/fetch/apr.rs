@@ -1,16 +1,7 @@
-use std::fmt::format;
-use std::num::ParseFloatError;
-
-use chrono::DateTime;
-use reqwest::{Client, Method};
+use reqwest::Method;
 use serde::{Deserialize, Serialize};
-use sha2::digest::typenum::private::IsGreaterOrEqualPrivate;
 
 use crate::chain::Chain;
-use crate::fetch::blocks::{Block, BlockResp};
-use crate::fetch::others::{MintParams, StakingPoolResp};
-use crate::fetch::params::ChainParams;
-use crate::routes::OutRestResponse;
 
 impl Chain {
     /// Returns the APR rate of the chain.
@@ -66,7 +57,7 @@ impl Chain {
                     Ok(apr)
                 }
                 "evmos" => {
-                    let evmos_decimal = (self.config.decimals_pow as f64);
+                    let evmos_decimal = self.config.decimals_pow as f64;
                     let evmos_inflation_params_response = match self
                         .external_rest_api_req::<EvmosInflationParamsResponse>(
                             &self.client,

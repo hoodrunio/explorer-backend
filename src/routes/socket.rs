@@ -7,12 +7,12 @@ use std::{
 
 use actix::prelude::*;
 use actix_web::{
-    web::{self, Data, Path},
-    Error, HttpRequest, HttpResponse, ResponseError,
+    Error,
+    HttpRequest, HttpResponse, ResponseError, web::{self, Data, Path},
 };
 use actix_web_actors::ws;
-use futures_core::ready;
 use futures_core::Future;
+use futures_core::ready;
 use pin_project_lite::pin_project;
 use serde::Serialize;
 
@@ -159,7 +159,7 @@ impl CheckTimeOutFunc {
 
 impl NewBlocksFunc {
     /// Creates a new `NewBlocksFunc` with the given interval duration.
-    pub fn new(chain: &Chain) -> Self {
+    pub fn new(_chain: &Chain) -> Self {
         Self {
             timer: tokio::time::sleep(Duration::from_secs_f64(
                 // *chain.inner.data.last_ten_blocks.avg_block_time_secs.lock().unwrap(),
@@ -209,8 +209,8 @@ impl ActorStream<MyWebSocket> for NewBlocksFunc {
 
     fn poll_next(
         self: Pin<&mut Self>,
-        act: &mut MyWebSocket,
-        ctx: &mut <MyWebSocket as Actor>::Context,
+        _act: &mut MyWebSocket,
+        _ctx: &mut <MyWebSocket as Actor>::Context,
         task: &mut std::task::Context<'_>,
     ) -> Poll<Option<Self::Item>> {
         let mut this = self.project();
@@ -246,8 +246,8 @@ impl ActorStream<MyWebSocket> for NewTxsFunc {
 
     fn poll_next(
         self: Pin<&mut Self>,
-        act: &mut MyWebSocket,
-        ctx: &mut <MyWebSocket as Actor>::Context,
+        _act: &mut MyWebSocket,
+        _ctx: &mut <MyWebSocket as Actor>::Context,
         task: &mut std::task::Context<'_>,
     ) -> Poll<Option<Self::Item>> {
         let mut this = self.project();

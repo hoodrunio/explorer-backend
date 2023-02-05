@@ -4,7 +4,7 @@ use actix_web::http::StatusCode;
 use actix_web::{HttpRequest, HttpResponse, Responder, ResponseError};
 use actix_web::body::BoxBody;
 use actix_web::http::header::ContentType;
-use serde::{Deserialize, Serialize};
+use serde::{Serialize};
 
 #[derive(Debug)]
 pub enum TNRAppErrorType {

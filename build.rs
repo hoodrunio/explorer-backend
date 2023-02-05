@@ -1,9 +1,7 @@
 use std::collections::HashMap;
-use std::fs::{read_to_string, write};
+use std::fs::{write};
 use std::path::Path;
-use std::time::Duration;
 
-use futures::future::join_all;
 use reqwest::Client;
 use serde_json::Value;
 

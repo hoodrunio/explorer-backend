@@ -7,10 +7,9 @@ use actix_web::web::Query;
 use mongodb::bson::doc;
 use serde::{Deserialize, Serialize};
 
-use crate::{fetch::others::Response, state::State};
-use crate::chain::Chain;
+use crate::state::State;
 use crate::database::{HeartbeatForDb, ListDbResult, PaginationDb};
-use crate::fetch::heartbeats::{HeartbeatsListElement, HeartbeatsListRawElement, HeartbeatsQuery, HeartbeatStatus};
+use crate::fetch::heartbeats::{HeartbeatsListElement, HeartbeatsListRawElement, HeartbeatsQuery};
 use crate::fetch::others::PaginationConfig;
 use crate::routes::{extract_chain, QueryParams, TNRAppError, TNRAppSuccessResponse};
 

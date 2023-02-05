@@ -1,12 +1,12 @@
-use crate::routes::{OutRestResponse, TNRAppError, TNRAppSuccessResponse};
-use crate::{fetch::others::Response, state::State};
 use actix_web::{
     get,
-    web::{Data, Json, Path},
     Responder,
+    web::Data,
 };
-use serde_json::json;
 use serde::{Deserialize, Serialize};
+
+use crate::state::State;
+use crate::routes::{TNRAppError, TNRAppSuccessResponse};
 
 // ======== Chains Methods ========
 
@@ -19,7 +19,7 @@ struct Chain {
 
 #[get("chains")]
 pub async fn chains(state: Data<State>) -> Result<impl Responder, TNRAppError> {
-    let mut chains = state
+    let chains = state
         .get_chains()
         .clone()
         .into_iter()
@@ -28,7 +28,7 @@ pub async fn chains(state: Data<State>) -> Result<impl Responder, TNRAppError> {
             logo: chain.config.logo,
             main_denom: chain.config.main_denom,
         }
-    ).collect::<Vec<Chain>>();
+        ).collect::<Vec<Chain>>();
 
     Ok(TNRAppSuccessResponse::new(chains))
 }

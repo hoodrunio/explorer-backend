@@ -1,16 +1,15 @@
 use actix_web::{
     get,
     Responder,
-    web::{Data, Json, Path},
+    web::{Data, Path},
 };
 use actix_web::web::Query;
 use mongodb::bson::doc;
 
-use crate::{fetch::others::Response, state::State};
-use crate::chain::Chain;
+use crate::state::State;
 use crate::fetch::evm::{EvmPollListResp, EvmVotesListResp};
 use crate::fetch::others::PaginationConfig;
-use crate::routes::{extract_chain, OutRestResponse, QueryParams, TNRAppError, TNRAppErrorResponse, TNRAppErrorType, TNRAppSuccessResponse};
+use crate::routes::{extract_chain, QueryParams, TNRAppError, TNRAppSuccessResponse};
 
 // ====== Evm Methods ======
 

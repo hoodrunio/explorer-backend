@@ -1,4 +1,4 @@
-use reqwest::{Client, Method, Request, Response};
+use reqwest::{Client, Method};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
 use crate::chain::Chain;

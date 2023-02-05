@@ -3,24 +3,23 @@ use std::sync::Arc;
 use chrono::DateTime;
 use futures::{SinkExt, StreamExt};
 use futures::future::join_all;
-use tokio::sync::broadcast::Sender;
 use mongodb::bson::doc;
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
+use tokio::sync::broadcast::Sender;
 use tokio::sync::Mutex;
 use tokio::try_join;
 use tokio_tungstenite::{connect_async, tungstenite::Message};
 
 use crate::chain::Chain;
 use crate::database::{BlockForDb, EvmPollForDb, EvmPollParticipantForDb, HeartbeatForDb, HeartbeatRawForDb};
+use crate::events::WsEvent;
 use crate::fetch::blocks::{Block, ResultBeginBlock, ResultEndBlock};
 use crate::fetch::heartbeats::HeartbeatStatus;
 use crate::fetch::transactions::{AxelarVote, InnerMessage, InnerMessageKnown, InternalTransaction, InternalTransactionContent, InternalTransactionContentKnowns};
-use crate::routes::{OutRestResponse, TNRAppError};
-use crate::events::WsEvent;
+use crate::routes::TNRAppError;
 
 use super::{
-    blocks::{BlockHeader, BlockItem},
+    blocks::BlockHeader,
     transactions::TransactionItem,
 };
 
@@ -136,7 +135,7 @@ impl Chain {
 
                             let mut mutex_previous_resp = previous_block_header_resp.lock().await;
                             match mutex_previous_resp.as_ref() {
-                                Some(mut previous_resp) => {
+                                Some(previous_resp) => {
                                     let proposer_metadata = self
                                         .database
                                         .find_validator_by_hex_addr(&previous_resp.block.header.proposer_address.clone())
@@ -155,7 +154,7 @@ impl Chain {
                                             .map_err(|e| format!("Cannot parse block height, {}: {e}", prev_block_data.header.height))?,
                                         timestamp: DateTime::parse_from_rfc3339(&prev_block_data.header.time)
                                             .map(|d| d.timestamp_millis())
-                                            .map_err(|e| format!("Cannot parse datetime, {}: e", prev_block_data.header.time))?,
+                                            .map_err(|_e| format!("Cannot parse datetime, {}: e", prev_block_data.header.time))?,
                                         tx_count: prev_block_data.data.txs.len() as u64,
                                         proposer_logo_url: proposer_metadata.logo_url,
                                         proposer_name: proposer_metadata.name,
@@ -252,7 +251,7 @@ impl Chain {
         tracing::error!("Axelar evm poll listener stopped");
     }
 
-    async fn sub_for_axelar_evm_poll_votes(&self, mut ws_tx: Sender<(String, WsEvent)>) -> Result<(), TNRAppError> {
+    async fn sub_for_axelar_evm_poll_votes(&self, ws_tx: Sender<(String, WsEvent)>) -> Result<(), TNRAppError> {
         let ws_url = self.config.wss_url.clone();
         let chain_name = self.config.name.clone();
 
@@ -273,7 +272,7 @@ impl Chain {
                             match socket_msg.result {
                                 SocketResult::NonEmpty(SocketResultNonEmpty::VotedTx { events: voted_tx }) => {
                                     let tx_hash = voted_tx.get_tx_hash();
-                                    let mut tx = match voted_tx.fetch_tx(&self).await {
+                                    let tx = match voted_tx.fetch_tx(&self).await {
                                         Ok(res) => res,
                                         Err(e) => {
                                             dbg!("Axelar evm poll vote tx fetcher error {}",&e);
@@ -323,10 +322,10 @@ impl Chain {
                                                             tracing::error!("Unknown axelar evm poll vote info");
                                                         }
                                                     }
-                                                },
+                                                }
                                                 InnerMessage::Known(_) => {
                                                     tracing::warn!("Non handled message");
-                                                },
+                                                }
                                                 InnerMessage::Unknown(_) => {
                                                     tracing::error!("Unknown axelar evm poll inner message");
                                                 }
@@ -403,9 +402,9 @@ impl Chain {
                                                     };
                                                 };
 
-                                                match self.database.add_heartbeat_many(initial_period_heartbeats).await{
-                                                    Ok(_) => {tracing::info!("Current period initial heartbeats inserted");}
-                                                    Err(_) => {tracing::info!("Current period initial heartbeats could not inserted");}
+                                                match self.database.add_heartbeat_many(initial_period_heartbeats).await {
+                                                    Ok(_) => { tracing::info!("Current period initial heartbeats inserted"); }
+                                                    Err(_) => { tracing::info!("Current period initial heartbeats could not inserted"); }
                                                 };
                                             }
                                             Err(_) => {}

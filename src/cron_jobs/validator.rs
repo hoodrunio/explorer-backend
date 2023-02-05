@@ -1,15 +1,11 @@
 use std::collections::HashMap;
-use std::str::FromStr;
-use std::time::Duration;
-use tendermint::PublicKey;
-use futures::future::join_all;
+
 use mongodb::bson::doc;
 
-use crate::database::{ValidatorForDb, VotingPowerForDb};
-use crate::utils::{convert_consensus_pubkey_to_consensus_address, convert_consensus_pubkey_to_hex_address, get_validator_logo};
 use crate::{chain::Chain, fetch::others::PaginationConfig};
-use crate::fetch::evm::EvmSupportedChains;
+use crate::database::{ValidatorForDb, VotingPowerForDb};
 use crate::fetch::validators::ValidatorStatus;
+use crate::utils::{convert_consensus_pubkey_to_consensus_address, convert_consensus_pubkey_to_hex_address, get_validator_logo};
 
 impl Chain {
     pub async fn cron_job_validator(&self) -> Result<(), String> {

@@ -1,11 +1,12 @@
-use crate::routes::{extract_chain, OutRestResponse, TNRAppError, TNRAppSuccessResponse};
-use crate::{fetch::others::Response, state::State};
 use actix_web::{
     get,
-    web::{Data, Json, Path},
     Responder,
+    web::{Data, Path},
 };
 use serde::Serialize;
+
+use crate::state::State;
+use crate::routes::{extract_chain, TNRAppError, TNRAppSuccessResponse};
 
 // ======== Staking Pool Methods ========
 
