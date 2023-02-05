@@ -114,6 +114,7 @@ impl EvmVotesListResp {
                     votes.push(EvmVoteRespElement {
                         operator_address: evm_vote.operator_address.clone(),
                         poll_id: evm_vote.poll_id.clone(),
+                        chain_name: evm_vote.chain_name.clone(),
                         vote: evm_vote.vote.clone(),
                         time: evm_vote.time.clone(),
                         tx_height: evm_vote.tx_height.clone(),
@@ -135,6 +136,7 @@ impl EvmVotesListResp {
 pub struct EvmVoteRespElement {
     pub operator_address: String,
     pub poll_id: String,
+    pub chain_name: String,
     pub vote: EvmPollVote,
     pub time: u64,
     pub tx_height: u64,
