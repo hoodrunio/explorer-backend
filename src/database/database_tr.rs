@@ -458,8 +458,22 @@ impl DatabaseTR {
     /// ```rs
     /// database.add_heartbeat(heartbeat).await;
     /// ```
-    pub async fn add_heartbeat(&self, heartbeat: HeartbeatForDb) -> Result<(), String> {
-        match self.heartbeat_collection().insert_one(heartbeat, None).await {
+    pub async fn upsert_heartbeat(&self, heartbeat: HeartbeatForDb) -> Result<(), String> {
+        let doc = to_document(&heartbeat).unwrap();
+        let command = doc! {"update":"heartbeats","updates":[{"q":{"period_height":heartbeat.period_height.clone() as i64,"sender":&heartbeat.sender},"u":doc,"upsert":true}]};
+        match self.db().run_command(command, None).await {
+            Ok(_) => Ok(()),
+            Err(_) => Err("Cannot upsert the hearbeat.".into()),
+        }
+    }
+
+    /// Adds a new heartbeats to the heartbeats collection of the database.
+    /// # Usage
+    /// ```rs
+    /// database.add_heartbeat_many(heartbeat).await;
+    /// ```
+    pub async fn add_heartbeat_many(&self, heartbeats: Vec<HeartbeatForDb>) -> Result<(), String> {
+        match self.heartbeat_collection().insert_many(heartbeats, None).await {
             Ok(_) => Ok(()),
             Err(_) => Err("Cannot save the heartbeat.".into()),
         }
