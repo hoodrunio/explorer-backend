@@ -21,4 +21,5 @@ pub use validators::Validator as ValidatorForDb;
 pub use evm::EvmPoll as EvmPollForDb;
 pub use evm::EvmPollParticipant as EvmPollParticipantForDb;
 pub use heartbeats::Heartbeat as HeartbeatForDb;
+pub use heartbeats::HeartbeatRaw as HeartbeatRawForDb;
 pub use common::*;
