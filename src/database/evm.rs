@@ -20,22 +20,24 @@ pub struct EvmPollParticipant {
     pub operator_address: String,
     pub poll_id: String,
     pub vote: EvmPollVote,
+    pub chain_name: String,
     pub time: u64,
     pub tx_height: u64,
     pub tx_hash: String,
     pub voter_address: String,
 }
 
-impl From<String> for EvmPollParticipant {
-    fn from(operator_address: String) -> Self {
+impl EvmPollParticipant {
+    pub fn from_info(operator_address: String, poll_id: String, chain_name: String) -> Self {
         Self {
-            operator_address,
-            poll_id: "".to_string(),
             vote: EvmPollVote::UnSubmit,
             time: 0,
             tx_height: 0,
             tx_hash: String::from(""),
             voter_address: "".to_string(),
+            poll_id,
+            chain_name,
+            operator_address,
         }
     }
 }

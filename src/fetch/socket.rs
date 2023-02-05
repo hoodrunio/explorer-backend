@@ -15,7 +15,7 @@ use crate::database::{BlockForDb, EvmPollForDb, EvmPollParticipantForDb, Heartbe
 use crate::events::WsEvent;
 use crate::fetch::blocks::{Block, ResultBeginBlock, ResultEndBlock};
 use crate::fetch::heartbeats::HeartbeatStatus;
-use crate::fetch::transactions::{AxelarVote, InnerMessage, InnerMessageKnown, InternalTransaction, InternalTransactionContent, InternalTransactionContentKnowns};
+use crate::fetch::transactions::{AxelarKnownVote, AxelarVote, InnerMessage, InnerMessageKnown, InternalTransaction, InternalTransactionContent, InternalTransactionContentKnowns};
 use crate::routes::TNRAppError;
 
 use super::{
@@ -296,6 +296,7 @@ impl Chain {
                                                             let vote = axelar_known_vote.evm_vote();
                                                             let time = tx.time as u64;
                                                             let tx_height = tx.height;
+                                                            let chain = match axelar_known_vote { AxelarKnownVote::VoteEvent { chain, .. } => { chain } };
 
                                                             let validator = self.database.find_validator(doc! {"voter_address":sender.clone()}).await;
                                                             if let Ok(validator) = validator {
@@ -304,6 +305,7 @@ impl Chain {
                                                                     operator_address: validator.operator_address,
                                                                     tx_hash: tx_hash.to_string(),
                                                                     poll_id: poll_id.clone(),
+                                                                    chain_name: String::from(chain),
                                                                     vote,
                                                                     time,
                                                                     tx_height,
@@ -827,7 +829,7 @@ struct EvmPollItemEventParams {
 
 impl From<EvmPollItem> for EvmPollForDb {
     fn from(value: EvmPollItem) -> Self {
-        let participants: Vec<EvmPollParticipantForDb> = value.participants_operator_address.into_iter().map(|address| { EvmPollParticipantForDb::from(address) }).collect();
+        let participants: Vec<EvmPollParticipantForDb> = value.participants_operator_address.into_iter().map(|address| { EvmPollParticipantForDb::from_info(address, value.poll_id.clone(), value.chain_name.clone()) }).collect();
 
         EvmPollForDb {
             timestamp: value.time.clone(),
