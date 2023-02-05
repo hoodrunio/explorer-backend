@@ -258,7 +258,7 @@ impl DatabaseTR {
 
         let mut res: Vec<Validator> = vec![];
         while let Some(result) = results.next().await {
-            res.push(from_document(result.expect("db conenction error")).expect("db conenction error"));
+            res.push(from_document(result.map_err(|e| format!("{}", e.to_string()))?).map_err(|e| format!("{}", e.to_string()))?);
         };
 
         Ok(ValidatorListDbResp { validators: res, pagination: PaginationDb { page: page as u16, total: count as u16 } })
@@ -372,7 +372,7 @@ impl DatabaseTR {
 
         let mut res: Vec<EvmPollForDb> = vec![];
         while let Some(result) = results.next().await {
-            res.push(from_document(result.expect("db connection error")).expect("db connection error"));
+            res.push(from_document(result.map_err(|e| format!("{}", e.to_string()))?).map_err(|e| format!("{}", e.to_string()))?);
         };
 
         Ok(EvmPollListDbResp { polls: res, pagination: PaginationDb { page: page as u16, total: count as u16 } })
@@ -390,7 +390,7 @@ impl DatabaseTR {
 
         let mut res: Vec<String> = vec![];
         while let Some(result) = results.next().await {
-            let val = from_document::<Validator>(result.expect("db connection error")).expect("db connection error");
+            let val = from_document::<Validator>(result.map_err(|e| format!("{}", e.to_string()))?).map_err(|e| format!("{}", e.to_string()))?;
             res = val.supported_evm_chains.unwrap_or(vec![]);
         };
 
@@ -485,7 +485,7 @@ impl DatabaseTR {
     /// let hearbeats = database.find_heartbeats(doc!{"$match":{"voter_address":"axelar1k3h51l35g5hb3lh4kjg34"}}).await;
     /// ```
     pub async fn find_paginated_heartbeats(&self, q_pipeline: Vec<Document>, config: PaginationConfig) -> Result<ListDbResult<HeartbeatForDb>, String> {
-        let mut pipeline =  q_pipeline.clone();
+        let mut pipeline = q_pipeline.clone();
         let page = config.get_page() as f32;
         let limit = config.get_limit() as f32;
         let skip_count = config.get_offset() as f32;
