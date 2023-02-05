@@ -460,7 +460,7 @@ impl DatabaseTR {
     /// ```
     pub async fn upsert_heartbeat(&self, heartbeat: HeartbeatForDb) -> Result<(), String> {
         let doc = to_document(&heartbeat).unwrap();
-        let command = doc! {"update":"heartbeats","updates":[{"q":{"period_height":heartbeat.period_height.clone() as i64,"sender":&heartbeat.sender},"u":doc,"upsert":true}]};
+        let command = doc! {"update":"heartbeats","updates":[{"q":{"id":&heartbeat.id,"sender":&heartbeat.sender},"u":doc,"upsert":true}]};
         match self.db().run_command(command, None).await {
             Ok(_) => Ok(()),
             Err(_) => Err("Cannot upsert the hearbeat.".into()),
