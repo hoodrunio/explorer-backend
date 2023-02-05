@@ -304,6 +304,7 @@ impl Chain {
                                                                 let evm_poll_participant = EvmPollParticipantForDb {
                                                                     operator_address: validator.operator_address,
                                                                     tx_hash: tx_hash.to_string(),
+                                                                    poll_id: poll_id.clone(),
                                                                     vote,
                                                                     time,
                                                                     tx_height,

@@ -600,16 +600,4 @@ impl DatabaseTR {
     pub async fn find_historical_data_by_operator_address(&self, operator_address: &str) -> Result<HistoricalValidatorData, String> {
         self.find_historical_data(doc! {"operator_address":operator_address}).await
     }
-
-    // Updates params collection of the database.
-    // # Usage
-    // ```rs
-    // database.add_params(params).await;
-    // ```
-    //  async fn add_params(&self, params: Params) -> Result<(), String> {
-    //      match self.chains_collection().insert_one(params, None).await {
-    //          Ok(_) => Ok(()),
-    //          Err(_) => Err("Cannot save the chain.".into()),
-    //      }
-    //  }
 }

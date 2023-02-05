@@ -18,6 +18,7 @@ pub struct EvmPoll {
 #[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
 pub struct EvmPollParticipant {
     pub operator_address:String,
+    pub poll_id:String,
     pub vote: EvmPollVote,
     pub time: u64,
     pub tx_height: u64,
@@ -29,6 +30,7 @@ impl From<String> for EvmPollParticipant {
     fn from(operator_address: String) -> Self {
         Self{
             operator_address,
+            poll_id: "".to_string(),
             vote: EvmPollVote::UnSubmit,
             time: 0,
             tx_height: 0,
