@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
 use crate::{fetch::others::Response, state::State};
 use crate::chain::Chain;
 use crate::database::{HeartbeatForDb, ListDbResult, PaginationDb};
-use crate::fetch::heartbeats::{HeartbeatsListElement, HeartbeatsQuery};
+use crate::fetch::heartbeats::{HeartbeatsListElement, HeartbeatsListRawElement, HeartbeatsQuery, HeartbeatStatus};
 use crate::fetch::others::PaginationConfig;
 use crate::routes::{extract_chain, QueryParams, TNRAppError, TNRAppSuccessResponse};
 
@@ -63,7 +63,6 @@ pub async fn hearbeats(path: Path<String>, chains: Data<State>, query: Query<Que
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct ValidatorHeartbeatsQBody {
     pub from_block: Option<i64>,
-    pub sender: String,
     pub to_block: Option<i64>,
 }
 
@@ -77,15 +76,27 @@ pub struct HeartbeatsListResp {
 impl HeartbeatsListResp {
     pub fn from_db_list(list_db_result: ListDbResult<HeartbeatForDb>) -> Result<Self, TNRAppError> {
         let heartbeats = list_db_result.list.into_iter().map(|heartbeat| {
+            let heartbeat_raw = match heartbeat.heartbeat_raw {
+                None => { None }
+                Some(res) => {
+                    Some(HeartbeatsListRawElement {
+                        tx_hash: res.tx_hash.clone(),
+                        height: res.height.clone(),
+                        period_height: res.period_height.clone(),
+                        timestamp: res.timestamp.clone(),
+                        signatures: res.signatures.clone(),
+                        sender: res.sender.clone(),
+                        key_ids: res.key_ids.clone(),
+                    })
+                }
+            };
+
             HeartbeatsListElement {
-                tx_hash: heartbeat.tx_hash.clone(),
-                height: heartbeat.height.clone(),
-                period_height: heartbeat.period_height.clone(),
-                timestamp: heartbeat.timestamp.clone(),
-                signatures: heartbeat.signatures.clone(),
-                sender: heartbeat.sender.clone(),
-                key_ids: heartbeat.key_ids.clone(),
                 id: heartbeat.id.clone(),
+                status: heartbeat.status.clone(),
+                period_height: heartbeat.period_height.clone(),
+                sender: heartbeat.sender.clone(),
+                heartbeat_raw,
             }
         }).collect();
 
