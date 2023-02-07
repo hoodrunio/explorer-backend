@@ -47,15 +47,16 @@ pub async fn start_web_server() -> std::io::Result<()> {
         };
     });
 
-    let axelar = state.get("axelar").unwrap().clone();
 
-    let tx_clone = tx.clone();
-    tokio::spawn(async move {
-        match Chain::sub_axelar_events(axelar, tx_clone).await {
-            Ok(_) => {}
-            Err(e) => tracing::info!("Error axelar evm polls flow {}",e),
-        };
-    });
+    if let Ok(axelar) = state.get("axelar") {
+        let tx_clone = tx.clone();
+        tokio::spawn(async move {
+            match Chain::sub_axelar_events(axelar, tx_clone).await {
+                Ok(_) => {}
+                Err(e) => tracing::info!("Error axelar evm polls flow {}",e),
+            };
+        });
+    };
 
     HttpServer::new(move || {
         // Build a CORS middleware.
