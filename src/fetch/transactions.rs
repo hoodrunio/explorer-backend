@@ -335,6 +335,7 @@ pub struct InternalTransaction {
     pub result: String,
     pub memo: String,
     pub signatures: Vec<String>,
+    pub logs: Vec<TxResponseLog>,
     pub content: Vec<InternalTransactionContent>,
 }
 
@@ -431,6 +432,7 @@ impl InternalTransaction {
             content,
             amount,
             r#type,
+            logs: tx_response.logs,
         })
     }
     pub fn extract_axelar_heartbeat_info(&self) -> Option<InternalAxelarHeartbeatInfo> {
@@ -452,6 +454,22 @@ impl InternalTransaction {
         }
 
         res
+    }
+    pub fn is_poll_failed(&self) -> bool {
+        let logs = &self.logs.clone();
+        match logs.into_iter().find(|log| { log.log == "failed" }) {
+            None => {}
+            Some(_) => { return true; }
+        };
+
+        for log in logs {
+            match log.events.clone().into_iter().find(|event| { event.r#type == "EVMEventFailed" }) {
+                None => {}
+                Some(_) => { return true; }
+            }
+        };
+
+        false
     }
 }
 
@@ -1152,6 +1170,8 @@ pub struct TxResponse {
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct TxResponseLog {
+    /// Array of events.
+    pub log: String,
     /// Array of events.
     pub events: Vec<TxResponseEvent>,
 }
