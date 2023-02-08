@@ -14,6 +14,7 @@ use crate::chain::Chain;
 use crate::database::{BlockForDb, EvmPollForDb, EvmPollParticipantForDb, HeartbeatForDb, HeartbeatRawForDb};
 use crate::events::WsEvent;
 use crate::fetch::blocks::{Block, ResultBeginBlock, ResultEndBlock};
+use crate::fetch::evm::PollStatus;
 use crate::fetch::heartbeats::HeartbeatStatus;
 use crate::fetch::transactions::{AxelarKnownVote, AxelarVote, InnerMessage, InnerMessageKnown, InternalTransaction, InternalTransactionContent, InternalTransactionContentKnowns};
 use crate::routes::TNRAppError;
@@ -291,6 +292,23 @@ impl Chain {
                                         InternalTransactionContent::Known(InternalTransactionContentKnowns::AxelarRefundRequest { sender: _, inner_message }) => {
                                             match inner_message {
                                                 InnerMessage::Known(InnerMessageKnown::VoteRequest { sender, vote, poll_id }) => {
+                                                    if tx.raw.contains("POLL_STATE_COMPLETED") {
+                                                        let mut poll_status = None;
+                                                        let is_poll_failed = &tx.is_poll_failed();
+                                                        if *is_poll_failed {
+                                                            poll_status = Some(PollStatus::Failed);
+                                                        } else {
+                                                            poll_status = Some(PollStatus::Completed);
+                                                        }
+
+                                                        if let Some(poll_status) = poll_status {
+                                                            match self.database.update_evm_poll_status(&poll_id, &poll_status).await {
+                                                                Ok(_) => { tracing::info!("Successfully updated evm poll status completed for which poll id is {}", &poll_id); }
+                                                                Err(e) => { tracing::error!("Can not updated evm poll participant {}",e); }
+                                                            };
+                                                        }
+                                                    };
+
                                                     match vote {
                                                         AxelarVote::Known(axelar_known_vote) => {
                                                             let vote = axelar_known_vote.evm_vote();
