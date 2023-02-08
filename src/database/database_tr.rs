@@ -8,7 +8,7 @@ use mongodb::bson::{from_document, to_bson, to_document};
 use crate::database::{EvmPollForDb, EvmPollParticipantForDb, HeartbeatForDb, ListDbResult, PaginationDb};
 use crate::database::blocks::Block;
 use crate::database::params::{HistoricalValidatorData, VotingPower};
-use crate::fetch::evm::{EvmPollListDbResp, EvmSupportedChains};
+use crate::fetch::evm::{EvmPollListDbResp, EvmSupportedChains, PollStatus};
 use crate::fetch::others::PaginationConfig;
 use crate::fetch::validators::ValidatorListDbResp;
 
@@ -446,6 +446,21 @@ impl DatabaseTR {
         let query = doc! {"poll_id": pool_id,"participants.operator_address": &poll_participant.operator_address};
         let bson_doc = to_bson(poll_participant).unwrap();
         let update_query = doc! {"$set": {"participants.$": bson_doc}};
+        match self.update_evm_poll(query, update_query).await {
+            Ok(_) => { Ok(()) }
+            Err(e) => Err(e),
+        }
+    }
+
+    /// Updates evm_poll item status on to the evm_polls collection
+    /// # Usage
+    /// ```rs
+    /// database.update_evm_poll_status(3890,PollStatus::YES).await;
+    /// ```
+    pub async fn update_evm_poll_status(&self, pool_id: &String, poll_status: &PollStatus) -> Result<(), String> {
+        let query = doc! {"poll_id": pool_id};
+        let bson_doc = to_bson(poll_status).unwrap();
+        let update_query = doc! {"$set": {"status": bson_doc}};
         match self.update_evm_poll(query, update_query).await {
             Ok(_) => { Ok(()) }
             Err(e) => Err(e),
