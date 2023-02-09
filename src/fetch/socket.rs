@@ -300,7 +300,9 @@ impl Chain {
                                                             poll_status = Some(PollStatus::Failed);
                                                         } else {
                                                             is_confirmation_tx = tx.is_evm_poll_confirmation_tx().clone();
-                                                            poll_status = Some(PollStatus::Completed);
+                                                            if is_confirmation_tx {
+                                                                poll_status = Some(PollStatus::Completed);
+                                                            }
                                                         }
 
                                                         if let Some(poll_status) = poll_status {
