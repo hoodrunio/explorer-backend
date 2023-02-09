@@ -456,7 +456,7 @@ impl InternalTransaction {
 
         res
     }
-    pub fn is_poll_failed(&self) -> bool {
+    pub fn is_evm_poll_failed(&self) -> bool {
         let logs = &self.logs.clone();
         match logs.into_iter().find(|log| { log.log == "failed" && log.log != "already confirmed" }) {
             None => {}

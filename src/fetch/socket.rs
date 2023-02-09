@@ -295,7 +295,7 @@ impl Chain {
                                                     let mut is_confirmation_tx = false;
                                                     if tx.raw.contains("POLL_STATE_COMPLETED") {
                                                         let mut poll_status = None;
-                                                        let is_poll_failed = &tx.is_poll_failed();
+                                                        let is_poll_failed = &tx.is_evm_poll_failed();
                                                         if *is_poll_failed {
                                                             poll_status = Some(PollStatus::Failed);
                                                         } else {
