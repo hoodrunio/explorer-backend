@@ -1,3 +1,4 @@
+use std::future::Future;
 use std::sync::Arc;
 
 use chrono::DateTime;
@@ -13,7 +14,7 @@ use tokio_tungstenite::{connect_async, tungstenite::Message};
 use crate::chain::Chain;
 use crate::database::{BlockForDb, EvmPollForDb, EvmPollParticipantForDb, HeartbeatForDb, HeartbeatRawForDb};
 use crate::events::WsEvent;
-use crate::fetch::blocks::{Block, ResultBeginBlock, ResultEndBlock};
+use crate::fetch::blocks::{Block, ResultBeginBlock, ResultBlockEvent, ResultEndBlock};
 use crate::fetch::evm::PollStatus;
 use crate::fetch::heartbeats::HeartbeatStatus;
 use crate::fetch::transactions::{AxelarKnownVote, AxelarVote, InnerMessage, InnerMessageKnown, InternalTransaction, InternalTransactionContent, InternalTransactionContentKnowns};
@@ -130,6 +131,24 @@ impl Chain {
                             // clone.store_new_tx(tx_item);
                         }
                         SocketResult::NonEmpty(SocketResultNonEmpty::Block { data }) => {
+                            if self.config.name == "axelar" {
+                                match &data.value.extract_evm_poll_completed_event() {
+                                    None => {}
+                                    Some(polls) => {
+                                        if !polls.completed_polls.is_empty() {
+                                            for completed_poll in polls.completed_polls.clone() {
+                                                match self.database.update_evm_poll_status(&completed_poll.poll_id, &PollStatus::Completed) { _ => {} }
+                                            };
+                                        }
+
+                                        if !polls.failed_polls.is_empty() {
+                                            for failed_poll in polls.failed_polls.clone() {
+                                                match self.database.update_evm_poll_status(&failed_poll.poll_id, &PollStatus::Failed) { _ => {} }
+                                            };
+                                        }
+                                    }
+                                };
+                            }
                             tracing::info!("wss: new block on {}", clone.config.name);
                             let data = data;
                             let current_resp = data.value;
@@ -576,6 +595,88 @@ pub struct NewBlockValue {
     pub block: Block,
     pub result_begin_block: ResultBeginBlock,
     pub result_end_block: ResultEndBlock,
+}
+
+impl NewBlockValue {
+    fn extract_evm_poll_info(&self, event: &ResultBlockEvent) -> AxelarCompletedPoll {
+        let mut poll_id: String = String::from("");
+        let mut chain: String = String::from("");
+        let mut tx_id: String = String::from("");
+
+        for attribute in event.attributes.clone() {
+            if attribute.key == "poll_id" {
+                poll_id = attribute.value.clone().replace('"', "");
+            };
+            if attribute.key == "chain" {
+                chain = attribute.value.clone().replace('"', "");
+            };
+            if attribute.key == "tx_id" {
+                tx_id = attribute.value.clone();
+            };
+        }
+
+        AxelarCompletedPoll {
+            chain,
+            poll_id,
+            tx_id,
+        }
+    }
+
+    pub fn extract_evm_poll_completed_event(&self) -> Option<AxelarCompletedPolls> {
+        let end_block_events = &self.result_end_block.events;
+        if end_block_events.is_empty() {
+            return None;
+        };
+
+        let mut poll_failed_axelar_polls = vec![];
+        for event in end_block_events {
+            if event.r#type == "axelar.evm.v1beta1.NoEventsConfirmed" {
+                let axelar_poll_info = self.extract_evm_poll_info(&event);
+                poll_failed_axelar_polls.push(axelar_poll_info);
+            }
+        };
+
+        let mut poll_completed_axelar_polls = vec![];
+        for event in end_block_events {
+            if event.r#type == "axelar.evm.v1beta1.PollCompleted" {
+                let mut ignore_current_poll = false;
+
+                let completed_axelar_poll_info = self.extract_evm_poll_info(&event);
+
+                for failed_poll_info in poll_failed_axelar_polls.clone() {
+                    if failed_poll_info.poll_id != completed_axelar_poll_info.poll_id {
+                        ignore_current_poll = true
+                    }
+                }
+
+                if !ignore_current_poll {
+                    poll_completed_axelar_polls.push(completed_axelar_poll_info);
+                };
+            }
+        };
+
+        if poll_failed_axelar_polls.is_empty() && poll_completed_axelar_polls.is_empty() {
+            return None;
+        }
+
+        return Some(AxelarCompletedPolls {
+            completed_polls: poll_completed_axelar_polls,
+            failed_polls: poll_failed_axelar_polls,
+        });
+    }
+}
+
+#[derive(Deserialize, Debug, Clone)]
+pub struct AxelarCompletedPolls {
+    completed_polls: Vec<AxelarCompletedPoll>,
+    failed_polls: Vec<AxelarCompletedPoll>,
+}
+
+#[derive(Deserialize, Debug, Clone)]
+pub struct AxelarCompletedPoll {
+    pub chain: String,
+    pub poll_id: String,
+    pub tx_id: String,
 }
 
 #[derive(Deserialize)]
