@@ -18,6 +18,7 @@ pub struct EvmPoll {
 #[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
 pub struct EvmPollParticipant {
     pub operator_address: String,
+    pub confirmation: bool,
     pub poll_id: String,
     pub vote: EvmPollVote,
     pub chain_name: String,
@@ -38,6 +39,7 @@ impl EvmPollParticipant {
             poll_id,
             chain_name,
             operator_address,
+            confirmation: false,
         }
     }
 }
