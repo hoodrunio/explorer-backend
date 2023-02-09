@@ -2,19 +2,20 @@ use std::collections::HashMap;
 
 use chrono::DateTime;
 use futures::{
-    future::{join_all, BoxFuture},
+    future::{BoxFuture, join_all},
     FutureExt,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-use super::others::{DenomAmount, InternalDenomAmount, Pagination, PaginationConfig, PublicKey};
 use crate::{
     chain::Chain,
     routes::{calc_pages, OutRestResponse},
     utils::get_msg_name,
 };
 use crate::fetch::socket::EvmPollVote;
+
+use super::others::{DenomAmount, InternalDenomAmount, Pagination, PaginationConfig, PublicKey};
 
 impl Chain {
     /// Returns transaction by given hash.
@@ -457,7 +458,7 @@ impl InternalTransaction {
     }
     pub fn is_poll_failed(&self) -> bool {
         let logs = &self.logs.clone();
-        match logs.into_iter().find(|log| { log.log == "failed" }) {
+        match logs.into_iter().find(|log| { log.log == "failed" && log.log != "already confirmed" }) {
             None => {}
             Some(_) => { return true; }
         };
@@ -466,6 +467,29 @@ impl InternalTransaction {
             match log.events.clone().into_iter().find(|event| { event.r#type == "EVMEventFailed" }) {
                 None => {}
                 Some(_) => { return true; }
+            }
+        };
+
+        false
+    }
+
+    pub fn is_evm_poll_confirmation_tx(&self) -> bool {
+        let evm_confirmation_event_types = [
+            String::from("axelar.evm.v1beta1.EVMEventConfirmed"),
+            String::from("depositConfirmation"),
+            String::from("eventConfirmation"),
+            String::from("transferKeyConfirmation"),
+            String::from("tokenConfirmation"),
+            String::from("TokenSent"),
+            String::from("ContractCall"),
+        ];
+        let logs = &self.logs.clone();
+        for log in logs {
+            for event in &log.events {
+                let event_type = &event.r#type.clone();
+                if evm_confirmation_event_types.contains(event_type) {
+                    return true;
+                };
             }
         };
 

@@ -292,12 +292,14 @@ impl Chain {
                                         InternalTransactionContent::Known(InternalTransactionContentKnowns::AxelarRefundRequest { sender: _, inner_message }) => {
                                             match inner_message {
                                                 InnerMessage::Known(InnerMessageKnown::VoteRequest { sender, vote, poll_id }) => {
+                                                    let mut is_confirmation_tx = false;
                                                     if tx.raw.contains("POLL_STATE_COMPLETED") {
                                                         let mut poll_status = None;
                                                         let is_poll_failed = &tx.is_poll_failed();
                                                         if *is_poll_failed {
                                                             poll_status = Some(PollStatus::Failed);
                                                         } else {
+                                                            is_confirmation_tx = tx.is_evm_poll_confirmation_tx().clone();
                                                             poll_status = Some(PollStatus::Completed);
                                                         }
 
@@ -328,6 +330,7 @@ impl Chain {
                                                                     time,
                                                                     tx_height,
                                                                     voter_address,
+                                                                    confirmation: is_confirmation_tx,
                                                                 };
                                                                 if let Err(e) = ws_tx.send((self.config.name.clone(), WsEvent::UpdateEvmPollParticipant((poll_id.clone(), evm_poll_participant.clone())))) {
                                                                     tracing::error!("Error dispatching Evm Poll Update event: {e}");
