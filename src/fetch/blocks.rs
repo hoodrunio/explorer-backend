@@ -3,7 +3,7 @@ use chrono::DateTime;
 use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::Value;
 
-use crate::database::ValidatorForDb;
+use crate::database::{BlockForDb, ValidatorForDb};
 use crate::utils::{Base64Convert, convert_tx_to_hex};
 use crate::{chain::Chain, routes::OutRestResponse};
 
@@ -151,6 +151,11 @@ impl Chain {
     /// Returns the block headers between max and min height.
     pub async fn get_block_headers(&self, min_height: u64, max_height: u64) -> Result<InternalBlockchainResp, String> {
         self.get_blockchain(Some(min_height), Some(max_height)).await
+    }
+
+    /// Returns the block headers between max and min height.
+    pub async fn get_last_count_block(&self, count: u64) -> Result<Vec<BlockForDb>, String> {
+        self.database.find_last_count_blocks(count).await
     }
 }
 
