@@ -118,6 +118,7 @@ pub async fn start_web_server() -> std::io::Result<()> {
             .service(routes::validator_delegator_pair)
             .service(routes::validator_rewards)
             .service(routes::validator_delegations)
+            .service(routes::validator_last_signed_blocks)
             .service(routes::validator_redelegations)
             .service(routes::validator_unbondings)
             .service(routes::validators_bonded)
