@@ -53,12 +53,11 @@ pub async fn latest_headers(path: Path<String>, chains: Data<State>) -> Result<i
 }
 
 #[get("{chain}/last-ten-blocks")]
-pub async fn last_ten_blocks() -> Result<impl Responder, TNRAppError> {
-    let data = "Storing blocks in the database is not implemented yet.".to_string();
+pub async fn last_ten_blocks(path: Path<String>, chains: Data<State>) -> Result<impl Responder, TNRAppError> {
 
-    // match chain.inner.data.last_ten_blocks.queue.lock() {
-    //    Ok(last_ten_blocks) => Response::Success(OutRestResponse::new(Json(last_ten_blocks.clone()), 0)),
-    //  _ => Response::Error("An internal error occured.".to_string()),
-    // },
+    let chain = path.into_inner();
+
+    let chain = extract_chain(&chain, chains)?;
+    let data = chain.get_last_count_block(10).await?;
     Ok(TNRAppSuccessResponse::new(data))
 }

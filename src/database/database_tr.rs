@@ -1,4 +1,4 @@
-use futures::{StreamExt};
+use futures::StreamExt;
 use mongodb::{
     bson::{doc, Document},
     Client, Collection, Database,
@@ -178,6 +178,30 @@ impl DatabaseTR {
             Ok(_) => Ok(()),
             Err(e) => Err(format!("Cannot save the block to db: {e}")),
         }
+    }
+
+    /// Finds blocks in the blocks collection
+    /// # Usage
+    /// ```rs
+    /// database.find_blocks(doc!{}).await;
+    /// ```
+    pub async fn find_last_count_blocks(&self, count: u64) -> Result<Vec<Block>, String> {
+        let mut pipeline = vec![];
+
+        let sort_pipe = doc! { "$sort": {"height": -1} };
+        let limit_pipe = doc! { "$limit": count as i64 };
+
+        pipeline.push(sort_pipe);
+        pipeline.push(limit_pipe);
+
+        let mut results = self.blocks_collection().aggregate(pipeline, None).await.map_err(|e| format!("{}", e.to_string()))?;
+
+        let mut res: Vec<Block> = vec![];
+        while let Some(result) = results.next().await {
+            res.push(from_document(result.map_err(|e| format!("{}", e.to_string()))?).map_err(|e| format!("{}", e.to_string()))?);
+        };
+
+        Ok(res)
     }
 
     /// Finds a validator by given document.
