@@ -1,12 +1,14 @@
 use std::collections::HashSet;
-use crate::events::{run_ws, WsEvent};
+
 use actix_cors::Cors;
+use actix_web::{App, get, HttpServer, Responder, web};
 use actix_web::web::Json;
-use actix_web::{get, web, App, HttpResponse, HttpServer, Responder};
 use tokio::sync::broadcast::channel;
 use tracing_actix_web::TracingLogger;
 use web::Data;
 
+use crate::chain::Chain;
+use crate::events::{run_ws, WsEvent};
 use crate::routes;
 use crate::state::State;
 
@@ -29,7 +31,7 @@ pub async fn start_web_server() -> std::io::Result<()> {
     // After connecting to MongoDB, there are so many thread safety & ownership errors.
     // You have to rewrite `src/fetch/socket.rs` to fix them.
 
-    let (tx, mut rx) = channel::<(String, WsEvent)>(100);
+    let (tx, _rx) = channel::<(String, WsEvent)>(100);
 
     let tx_clone = tx.clone();
     tokio::spawn(async move {
@@ -37,11 +39,24 @@ pub async fn start_web_server() -> std::io::Result<()> {
     });
 
     let chains = HashSet::from_iter(state.get_chains().keys().cloned());
+
+    let tx_clone = tx.clone();
     tokio::spawn(async move {
-        if let Err(e) = run_ws(tx, chains).await {
+        if let Err(e) = run_ws(tx_clone, chains).await {
             tracing::error!("Error spawning the websocket task {e}");
-        }
+        };
     });
+
+
+    if let Ok(axelar) = state.get("axelar") {
+        let tx_clone = tx.clone();
+        tokio::spawn(async move {
+            match Chain::sub_axelar_events(axelar, tx_clone).await {
+                Ok(_) => {}
+                Err(e) => tracing::info!("Error axelar evm polls flow {}",e),
+            };
+        });
+    };
 
     HttpServer::new(move || {
         // Build a CORS middleware.
@@ -112,9 +127,15 @@ pub async fn start_web_server() -> std::io::Result<()> {
             .service(routes::validators_unbonded)
             .service(routes::validators_unbonding)
             .service(routes::validators_unspecified)
+            .service(routes::evm_poll)
+            .service(routes::evm_polls)
+            .service(routes::evm_validator_votes)
+            .service(routes::evm_val_supported_chains)
+            .service(routes::validator_hearbeats)
+            .service(routes::hearbeats)
     })
-    .bind(("127.0.0.1", 8080))
-    .unwrap()
-    .run()
-    .await
+        .bind(("127.0.0.1", 8080))
+        .unwrap()
+        .run()
+        .await
 }

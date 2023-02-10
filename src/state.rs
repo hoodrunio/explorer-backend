@@ -1,14 +1,12 @@
-use crate::chain::{Chain, ChainConfig, IntermediateChainConfig};
-use crate::database::DatabaseTR;
-use crate::events::WsEvent;
-use crate::init_chain;
-use futures::future::{join, join_all};
-use futures::{stream, StreamExt};
 use std::collections::HashMap;
 use std::fs::File;
-use std::future::Future;
-use tokio::join;
+
+use futures::{stream, StreamExt};
 use tokio::sync::broadcast::Sender;
+
+use crate::chain::{Chain, IntermediateChainConfig};
+use crate::database::DatabaseTR;
+use crate::events::WsEvent;
 
 /// The state of the server.
 pub struct State {
@@ -42,7 +40,7 @@ impl State {
                 };
                 (name, chain)
             })
-            .filter(|(name, chain)| futures::future::ready(chain.is_some()))
+            .filter(|(_name, chain)| futures::future::ready(chain.is_some()))
             .map(|(name, chain)| (name, chain.unwrap()))
             .collect::<HashMap<String, Chain>>()
             .await;

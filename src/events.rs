@@ -1,27 +1,19 @@
-use std::collections::{HashMap, HashSet};
-use crate::database::BlockForDb;
-use crate::fetch::transactions::TransactionItem;
-use actix::{Actor, AsyncContext, StreamHandler};
-use actix_web::web::Data;
-use actix_web::{web, HttpRequest, HttpResponse, Responder};
-use actix_web_actors::ws;
-use futures::{SinkExt, StreamExt, TryStreamExt};
-use serde::de::Error;
-use serde::{Deserialize, Serialize};
+use std::collections::HashSet;
 use std::fmt::{Display, Formatter};
 use std::net::SocketAddr;
-use tokio::sync::oneshot;
-use cosmrs::bip32::secp256k1::elliptic_curve::weierstrass::add;
+
 use dashmap::{DashMap, DashSet};
-use serde_json::to_string;
+use futures::{SinkExt, StreamExt};
+use serde::{Deserialize, Serialize};
 use serde_querystring::de::ParseMode;
 use tokio::net::{TcpListener, TcpStream};
-use tokio::sync::broadcast::{Receiver, Sender};
+use tokio::sync::broadcast::Sender;
+use tokio::sync::oneshot;
+use tokio_tungstenite::tungstenite::handshake::server::{ErrorResponse, Request, Response};
 use tokio_tungstenite::tungstenite::Message;
-use tracing_subscriber::fmt::format;
-use tokio_tungstenite::tungstenite::handshake::server::{Callback, ErrorResponse, Request, Response};
-use tokio_tungstenite::tungstenite::http::header::SEC_WEBSOCKET_PROTOCOL;
-use tokio_tungstenite::tungstenite::http::StatusCode;
+
+use crate::database::{BlockForDb, EvmPollForDb, EvmPollParticipantForDb};
+use crate::fetch::transactions::TransactionItem;
 
 pub type PeerMap = DashMap<SocketAddr, DashSet<String>>;
 
@@ -31,14 +23,16 @@ struct SubscriptionMode {
     tx: bool,
     #[serde(default)]
     block: bool,
+    #[serde(default)]
+    poll: bool,
 }
 
 pub async fn handle_connection(tx: Sender<(String, WsEvent)>, raw_stream: TcpStream, addr: SocketAddr, chains: HashSet<String>) -> Result<(), String> {
     tracing::info!("Incoming TCP connection from: {addr}");
 
-    let (tx_config, rx_config) =  oneshot::channel();
-    let callback = |request: &Request, mut response: Response| -> Result<Response, ErrorResponse> {
-        let Some(chain) = request.uri().path().to_string()[1..].split("/" ).next().map(|s| s.to_string()) else {
+    let (tx_config, rx_config) = oneshot::channel();
+    let callback = |request: &Request, response: Response| -> Result<Response, ErrorResponse> {
+        let Some(chain) = request.uri().path().to_string()[1..].split("/").next().map(|s| s.to_string()) else {
             return Err(ErrorResponse::new(Some("No chain specified".to_string())));
         };
 
@@ -54,7 +48,7 @@ pub async fn handle_connection(tx: Sender<(String, WsEvent)>, raw_stream: TcpStr
 
         dbg!("query");
 
-        let Ok(parsed) = dbg!(serde_querystring::from_str::<SubscriptionMode>(query, ParseMode::UrlEncoded)) else  {
+        let Ok(parsed) = dbg!(serde_querystring::from_str::<SubscriptionMode>(query, ParseMode::UrlEncoded)) else {
             return Err(ErrorResponse::new(Some("Invalid query parameters".to_string())));
         };
 
@@ -105,6 +99,8 @@ pub async fn handle_connection(tx: Sender<(String, WsEvent)>, raw_stream: TcpStr
                 let should_send = match msg {
                     WsEvent::NewTX(_) => mode.tx,
                     WsEvent::NewBLock(_) => mode.block,
+                    WsEvent::NewEvmPoll(_) => mode.poll,
+                    WsEvent::UpdateEvmPollParticipant(_) => mode.poll,
                 };
                 if chain == wanted_chain && should_send {
                     outgoing.send(Message::Text(serde_json::to_string(&msg).unwrap())).await;
@@ -130,6 +126,8 @@ pub async fn run_ws(tx: Sender<(String, WsEvent)>, chains: HashSet<String>) -> R
 pub enum WsEvent {
     NewTX(TransactionItem),
     NewBLock(BlockForDb),
+    NewEvmPoll(EvmPollForDb),
+    UpdateEvmPollParticipant((String, EvmPollParticipantForDb)),
 }
 
 impl Display for WsEvent {
@@ -142,6 +140,14 @@ impl Display for WsEvent {
             WsEvent::NewBLock(block) => {
                 let hash = block.hash.clone();
                 write!(f, "WsEvent (NewBlock), hash: {hash}")
+            }
+            WsEvent::NewEvmPoll(poll) => {
+                let poll_id = poll.poll_id.clone();
+                write!(f, "WsEvent (NewEvmPoll), id: {poll_id}")
+            }
+            WsEvent::UpdateEvmPollParticipant((poll_id, participant)) => {
+                let participant_address = participant.voter_address.clone();
+                write!(f, "WsEvent (UpdateEvmPollParticipant), poll_id: {poll_id}, participant_hash: {participant_address}")
             }
         }
     }

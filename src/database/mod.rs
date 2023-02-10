@@ -3,6 +3,9 @@ mod chains;
 mod database_tr;
 mod params;
 mod validators;
+mod evm;
+mod heartbeats;
+mod common;
 
 pub use database_tr::DatabaseTR;
 
@@ -15,3 +18,8 @@ pub use params::SlashingParams as SlashingParamsForDb;
 pub use params::StakingParams as StakingParamsForDb;
 pub use params::VotingPower as VotingPowerForDb;
 pub use validators::Validator as ValidatorForDb;
+pub use evm::EvmPoll as EvmPollForDb;
+pub use evm::EvmPollParticipant as EvmPollParticipantForDb;
+pub use heartbeats::Heartbeat as HeartbeatForDb;
+pub use heartbeats::HeartbeatRaw as HeartbeatRawForDb;
+pub use common::*;

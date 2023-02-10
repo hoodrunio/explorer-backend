@@ -1,14 +1,16 @@
-use super::QueryParams;
-use crate::{
-    fetch::others::{PaginationConfig, Response},
-    state::State,
-};
 use actix_web::{
     get,
-    web::{Data, Json, Path, Query},
     Responder,
+    web::{Data, Path, Query},
+};
+
+use crate::{
+    fetch::others::PaginationConfig,
+    state::State,
 };
 use crate::routes::{extract_chain, TNRAppError, TNRAppSuccessResponse};
+
+use super::QueryParams;
 
 // ======== Delegation Methods ========
 

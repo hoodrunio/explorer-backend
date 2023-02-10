@@ -10,6 +10,7 @@ axelar:
   rpc_url: https://rpc-axelar.stakerun.com
   rest_url: https://lcd-axelar.stakerun.com
   wss_url: wss://rpc-axelar.stakerun.com/websocket
+  archive_url: https://axelararchive-lcd.quickapi.com
 
 
 evmos:
@@ -25,6 +26,7 @@ evmos:
   rpc_url: https://rpc.cosmos.directory/evmos
   rest_url: https://rest.bd.evmos.org:1317
   wss_url: wss://rpc-evmos.ecostake.com/websocket
+  archive_url: empty
 
 osmosis:
   name: osmosis
@@ -38,6 +40,8 @@ osmosis:
   rpc_url: https://rpc.cosmos.directory/osmosis
   rest_url: https://rest.cosmos.directory/osmosis
   wss_url: wss://rpc.osmosis.interbloc.org/websocket
+  archive_url: empty
+
 
 umee:
   name: umee
@@ -51,6 +55,8 @@ umee:
   rpc_url: https://rpc-umee.huginn.tech
   rest_url: https://api.umee.huginn.tech
   wss_url: wss://rpc-umee.huginn.tech/websocket
+  archive_url: empty
+
 
 secret:
   name: secret
@@ -64,6 +70,8 @@ secret:
   rpc_url: https://secret-4.api.trivium.network:26657/
   rest_url: https://secretnetwork-lcd.stakely.io
   wss_url: wss://scrt-rpc.agoranodes.com/websocket
+  archive_url: empty
+
 
 quicksilver:
   name: quicksilver
@@ -77,3 +85,4 @@ quicksilver:
   rpc_url: https://quicksilver-rpc.theamsolutions.info
   rest_url: https://quicksilver-mainnet-api.itrocket.net
   wss_url: wss://rpc-quicksilver-ia.cosmosia.notional.ventures/websocket
+  archive_url: empty

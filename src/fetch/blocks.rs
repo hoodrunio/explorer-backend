@@ -1,8 +1,10 @@
+use std::collections::HashMap;
 use chrono::DateTime;
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize};
+use serde_json::Value;
 
 use crate::database::ValidatorForDb;
-use crate::utils::convert_tx_to_hex;
+use crate::utils::{Base64Convert, convert_tx_to_hex};
 use crate::{chain::Chain, routes::OutRestResponse};
 
 impl Chain {
@@ -54,6 +56,22 @@ impl Chain {
         Ok(latest_block)
     }
 
+    pub async fn get_block_result_by_height(&self, height: Option<u64>) -> Result<OutRestResponse<InternalBlockResult>, String> {
+        let mut query = vec![];
+
+        let height = height.map(|height| height.to_string());
+
+        if let Some(height) = height {
+            query.push(("height", height))
+        }
+
+        let resp = self.rpc_request::<BlockResult>("/block_results", &query).await?;
+
+        let block = InternalBlockResult::new(resp);
+
+        Ok(OutRestResponse::new(block, 0))
+    }
+
     /// Returns the block headers between `min_height` & `max_height`.
     async fn get_blockchain(&self, min_height: Option<u64>, max_height: Option<u64>) -> Result<InternalBlockchainResp, String> {
         let mut query = vec![];
@@ -98,7 +116,7 @@ impl Chain {
 
                     block_metas.push(InternalBlockMeta {
                         block_id: block_meta.block_id,
-                        block_size: block_size,
+                        block_size,
                         header: InternalBlockHeader {
                             version: block_meta.header.version,
                             chain_id: block_meta.header.chain_id,
@@ -149,15 +167,15 @@ pub struct BlockItem {
 
 #[derive(Serialize, Debug)]
 pub struct InternalBlock {
-    height: u64,
-    hash: String,
-    proposer_name: String,
-    proposer_logo_url: String,
-    proposer_address: String,
-    time: i64,
-    txs: Vec<String>,
-    tx_count: u32,
-    signatures: Vec<InternalBlockSignature>,
+    pub height: u64,
+    pub hash: String,
+    pub proposer_name: String,
+    pub proposer_logo_url: String,
+    pub proposer_address: String,
+    pub time: i64,
+    pub txs: Vec<String>,
+    pub tx_count: u32,
+    pub signatures: Vec<InternalBlockSignature>,
 }
 
 impl InternalBlock {
@@ -279,21 +297,146 @@ pub struct BlockResp {
     pub block: Block,
 }
 
+#[derive(Deserialize, Serialize, Debug, Clone)]
+pub struct InternalBlockResult {
+    pub height: String,
+    pub txs_results: Vec<InternalBlockResultTxsResult>,
+    pub begin_block_events: Vec<ResultBlockEvent>,
+    pub end_block_events: Vec<ResultBlockEvent>,
+}
+
+impl InternalBlockResult {
+    fn new(block_result: BlockResult) -> Self {
+        let txs_results = block_result.txs_results.clone().unwrap_or(vec![]);
+        Self {
+            height: block_result.height.clone(),
+            txs_results: txs_results.into_iter().map(|res| { InternalBlockResultTxsResult::new(res) }).collect(),
+            begin_block_events: block_result.begin_block_events.clone().unwrap_or(vec![]),
+            end_block_events: block_result.end_block_events.clone().unwrap_or(vec![]),
+        }
+    }
+}
+
+#[derive(Deserialize, Serialize, Debug, Clone)]
+pub struct InternalBlockResultTxsResult {
+    pub code: i64,
+    pub data: String,
+    pub log: String,
+    pub info: String,
+    pub gas_wanted: String,
+    pub gas_used: String,
+    pub events: Vec<ResultBlockEvent>,
+    pub codespace: String,
+}
+
+impl InternalBlockResultTxsResult {
+    fn new(block_result_txs_result: BlockResultTxResult) -> Self {
+        Self {
+            code: block_result_txs_result.code.clone(),
+            data: block_result_txs_result.data.clone(),
+            log: block_result_txs_result.log.clone(),
+            info: block_result_txs_result.info.clone(),
+            gas_wanted: block_result_txs_result.gas_wanted.clone(),
+            gas_used: block_result_txs_result.gas_used.clone(),
+            events: block_result_txs_result.events.clone(),
+            codespace: block_result_txs_result.codespace.clone(),
+        }
+    }
+
+    pub fn get_sender_address(&self) -> Option<String> {
+        for res_block_event in self.events.clone() {
+            match res_block_event.attributes.into_iter().find(|attr_item| { attr_item.key == "sender" }) {
+                None => {}
+                Some(item) => {
+                    return Some(item.value.clone());
+                }
+            }
+        };
+
+        None
+    }
+}
+
+
 #[derive(Deserialize, Serialize, Debug)]
+pub struct BlockResult {
+    pub height: String,
+    pub txs_results: Option<Vec<BlockResultTxResult>>,
+    pub begin_block_events: Option<Vec<ResultBlockEvent>>,
+    pub end_block_events: Option<Vec<ResultBlockEvent>>,
+}
+
+#[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct BlockId {
     /// HEX encoded hash.
     pub hash: String,
     pub parts: BlockIdParts,
 }
 
-#[derive(Deserialize, Serialize, Debug)]
+#[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct Block {
     pub header: BlockHeader,
     pub data: BlockData,
     pub last_commit: BlockLastCommit,
 }
 
-#[derive(Deserialize, Serialize, Debug)]
+#[derive(Deserialize, Serialize, Debug, Clone)]
+pub struct ResultEndBlock {
+    pub events: Vec<ResultBlockEvent>,
+    pub consensus_param_updates: HashMap<String, Value>,
+    // pub validator_updates: Vec<String>,
+}
+
+#[derive(Deserialize, Serialize, Debug, Clone)]
+pub struct ResultBeginBlock {
+    pub events: Vec<ResultBlockEvent>,
+}
+
+#[derive(Deserialize, Serialize, Debug, Clone)]
+pub struct ResultBlockEvent {
+    pub attributes: Vec<ResultBlockEventAttribute>,
+    pub r#type: String,
+}
+
+impl ResultBlockEvent {
+    pub fn is_heartbeat_event(&self) -> bool {
+        self.r#type == "heartbeat"
+    }
+}
+
+impl ResultEndBlock {
+    pub fn is_heartbeat_begin(&self) -> bool {
+        for event in &self.events {
+            let res = event.is_heartbeat_event();
+            if res {
+                return res;
+            }
+        };
+
+        false
+    }
+}
+
+
+#[derive(Deserialize, Serialize, Debug, Clone)]
+pub struct ResultBlockEventAttribute {
+    #[serde(deserialize_with = "from_base64")]
+    pub key: String,
+    #[serde(deserialize_with = "from_base64")]
+    pub value: String,
+    pub index: bool,
+}
+
+pub fn from_base64<'de, D>(deserializer: D) -> Result<String, D::Error>
+    where
+        D: Deserializer<'de>,
+{
+    let s: &str = Deserialize::deserialize(deserializer)?;
+
+    Ok(String::base64_to_string(&String::from(s)))
+}
+
+#[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct BlockIdParts {
     /// Unknown. Eg: `1`
     pub total: u32,
@@ -333,7 +476,7 @@ pub struct InternalBlockHeader {
     pub proposer_address: String,
 }
 
-#[derive(Deserialize, Serialize, Debug)]
+#[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct BlockHeader {
     /// Block header version.
     pub version: BlockHeaderVersion,
@@ -365,13 +508,13 @@ pub struct BlockHeader {
     pub proposer_address: String,
 }
 
-#[derive(Deserialize, Serialize, Debug)]
+#[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct BlockData {
     /// Array of very long Base64 encoded transactions. Eg: `["CoYBCoMBCiUvYXhlbGFyLmF4ZWxhcm5ldC52MWJldGExLkxpbmtSZXF1ZXN0EloKFAfFBMRZ8AeNGGkWVAcX+idm5UutEioweDM1NzkyNTRmNTgwNWQxNjZiNjhhNTg3MzIwNzA0NDQ4MjBmYTRiZjEaCGV0aGVyZXVtIgx3YnRjLXNhdG9zaGkSlQEKUQpGCh8vY29zbW9zLmNyeXB0by5zZWNwMjU2azEuUHViS2V5EiMKIQPUmMSQ2WoB0eD589u7pruIZt2gbHT2DO3QSIPX0z8WXBIECgIIARiuCBJACgsKBHVheGwSAzY3NRDh8AUiLWF4ZWxhcjFwdTJzd2MwbjB0cmZ0bGRoejU3cHlxa3c2ZDg3aGFobjdnNjk3YxpANmM1rQE1P3hbVtuFoaQEpGpnBnlygbotxEA0qR/rmAwVRB+acJ6idoF1V0Qul5eSCpi1Z0TLLwQEMya4nMdl3g=="]`
     pub txs: Vec<String>,
 }
 
-#[derive(Deserialize, Serialize, Debug)]
+#[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct BlockHeaderVersion {
     /// Unknown. Eg: `"11"`
     pub block: String,
@@ -389,7 +532,7 @@ pub struct BlockLastCommitSignatures {
     pub signature: Option<String>,
 }
 
-#[derive(Deserialize, Serialize, Debug)]
+#[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct BlockLastCommit {
     /// The block height of the latest commit. Eg: `"4611327"`
     pub height: String,
@@ -399,4 +542,16 @@ pub struct BlockLastCommit {
     pub block_id: BlockId,
     /// Array of signatures.
     pub signatures: Vec<BlockLastCommitSignatures>,
+}
+
+#[derive(Deserialize, Serialize, Debug, Clone)]
+pub struct BlockResultTxResult {
+    pub code: i64,
+    pub data: String,
+    pub log: String,
+    pub info: String,
+    pub gas_wanted: String,
+    pub gas_used: String,
+    pub events: Vec<ResultBlockEvent>,
+    pub codespace: String,
 }

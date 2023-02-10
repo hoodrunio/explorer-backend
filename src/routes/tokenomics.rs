@@ -1,14 +1,16 @@
-use super::QueryParams;
-use crate::routes::{extract_chain, OutRestResponse, TNRAppError, TNRAppSuccessResponse};
-use crate::{
-    fetch::others::{PaginationConfig, Response},
-    state::State,
-};
 use actix_web::{
     get,
-    web::{Data, Json, Path, Query},
     Responder,
+    web::{Data, Path, Query},
 };
+
+use crate::{
+    fetch::others::PaginationConfig,
+    state::State,
+};
+use crate::routes::{extract_chain, TNRAppError, TNRAppSuccessResponse};
+
+use super::QueryParams;
 
 // ======== Tokenomic Methods ========
 
@@ -21,7 +23,7 @@ pub async fn supply(path: Path<(String, String)>, chains: Data<State>) -> Result
 }
 
 #[get("{chain}/supplies")]
-pub async fn supplies(path: Path<String>, chains: Data<State>, query: Query<QueryParams>) ->  Result<impl Responder, TNRAppError> {
+pub async fn supplies(path: Path<String>, chains: Data<State>, query: Query<QueryParams>) -> Result<impl Responder, TNRAppError> {
     let chain = path.into_inner();
 
     let config = PaginationConfig::new().limit(60).page(query.page.unwrap_or(1));
@@ -31,7 +33,7 @@ pub async fn supplies(path: Path<String>, chains: Data<State>, query: Query<Quer
 }
 
 #[get("{chain}/inflation")]
-pub async fn inflation(path: Path<String>, chains: Data<State>) ->  Result<impl Responder, TNRAppError> {
+pub async fn inflation(path: Path<String>, chains: Data<State>) -> Result<impl Responder, TNRAppError> {
     let chain = path.into_inner();
     let chain = extract_chain(&chain, chains)?;
     let data = chain.get_inflation_rate().await?;

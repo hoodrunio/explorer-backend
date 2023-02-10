@@ -6,7 +6,7 @@ impl Chain {
     }
 
     pub fn calc_amount_u128_to_f64(&self, amount: u128) -> f64 {
-        (amount / (self.config.decimals_pow) as u128) as f64 / 10000.0
+        (amount / (self.config.decimals_pow) as u128) as f64
     }
 
     pub fn _calc_amount_f64_to_u64(&self, amount: f64) -> u64 {
@@ -51,5 +51,9 @@ impl Chain {
             .map_err(|_| format!("Cannot parse delegator shares, {}.", validator_delegator_shares))?;
 
         Ok(self.calc_amount_u128_to_f64(formatted))
+    }
+
+    pub fn generate_heartbeat_id(&self, sender_address: String, height: u64) -> String {
+        format!("{}_{}", sender_address, height)
     }
 }

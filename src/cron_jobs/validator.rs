@@ -1,12 +1,11 @@
-use std::str::FromStr;
-use std::time::Duration;
-use tendermint::PublicKey;
-use futures::future::join_all;
+use std::collections::HashMap;
 
-use crate::database::{ValidatorForDb, VotingPowerForDb};
-use crate::utils::{convert_consensus_pubkey_to_consensus_address, convert_consensus_pubkey_to_hex_address, get_validator_logo};
+use mongodb::bson::doc;
+
 use crate::{chain::Chain, fetch::others::PaginationConfig};
+use crate::database::{ValidatorForDb, VotingPowerForDb};
 use crate::fetch::validators::ValidatorStatus;
+use crate::utils::{convert_consensus_pubkey_to_consensus_address, convert_consensus_pubkey_to_hex_address, get_validator_logo};
 
 impl Chain {
     pub async fn cron_job_validator(&self) -> Result<(), String> {
@@ -39,6 +38,16 @@ impl Chain {
                 Err(_) => 0.0
             };
 
+            let voter_address = match self.get_validator_voter_address(&validator.operator_address).await {
+                Ok(res) => res,
+                Err(_) => None
+            };
+
+            let supported_evm_chains = match self.get_supported_chains(&validator.operator_address).await {
+                Ok(res) => { Some(res) }
+                Err(_) => { None }
+            };
+
             let db_val = ValidatorForDb {
                 bonded_height: None,     // Find way to fetch and store.
                 change_24h: None,        // Find way to fetch and store
@@ -56,9 +65,53 @@ impl Chain {
                 delegator_shares: val_delegator_shares,
                 validator_commissions: validator.commission,
                 cumulative_bonded_tokens: None,
+                voter_address,
+                supported_evm_chains,
             };
 
             self.database.upsert_validator(db_val).await?;
+        }
+
+        Ok(())
+    }
+    pub async fn cron_job_val_supported_chains(&self) -> Result<(), String> {
+        if self.config.name != "axelar" {
+            return Ok(());
+        };
+        let validators = self.database.find_validators(Some(doc! {"$match":{"is_active":true}})).await?;
+        let supported_chains = self.get_evm_supported_chains().await?;
+        let mut chains_maintainers: HashMap<String, Vec<String>> = HashMap::new();
+
+        for supported_chain in supported_chains {
+            let maintainers = match self.get_evm_chain_maintainers(&supported_chain).await {
+                Ok(res) => res,
+                Err(_) => {
+                    tracing::error!("Could not fetched supported chain maintainers");
+                    continue;
+                }
+            };
+            chains_maintainers.insert(supported_chain.to_string(), maintainers);
+        }
+
+        for validator in validators {
+            let mut val_supported_chains: Vec<String> = vec![];
+            let operator_address = validator.operator_address.clone();
+            for (chain, maintainers) in &chains_maintainers {
+                let is_suppoerted = maintainers.contains(&operator_address);
+                if is_suppoerted {
+                    val_supported_chains.push(chain.clone());
+                }
+            };
+
+
+            match self.database.update_validator_supported_chains(&operator_address, val_supported_chains).await {
+                Ok(_) => {}
+                Err(e) => {
+                    tracing::error!("{}",e);
+                }
+            };
+
+            val_supported_chains = vec![];
         }
 
         Ok(())

@@ -1,12 +1,9 @@
-use std::fmt::format;
-use std::num::ParseFloatError;
-
 use chrono::DateTime;
 use serde::{Deserialize, Serialize};
 
+use crate::{chain::Chain, routes::OutRestResponse};
 use crate::fetch::blocks::BlockResp;
 use crate::fetch::params::ParamsResp;
-use crate::{chain::Chain, routes::OutRestResponse};
 
 impl Chain {
     /// Returns staking pool information.
@@ -110,7 +107,7 @@ impl Chain {
             Ok(value) => value - block_window_size,
             Err(_) => return Err("Parse Error".to_string()),
         };
-        let mut query = vec![("height", lower_block_height.to_string())];
+        let query = vec![("height", lower_block_height.to_string())];
         let lower_block_date_time = match self.rpc_request::<BlockResp>("/block", &query).await {
             Ok(res) => res.block.header.time,
             Err(error) => return Err(error),
@@ -131,12 +128,6 @@ impl Chain {
 pub struct CommunityPoolResp {
     /// Community pool.
     pub pool: Vec<DenomAmount>,
-}
-
-#[derive(Deserialize, Serialize, Debug)]
-pub struct PaginationDb {
-    pub page: u16,
-    pub total: u16,
 }
 
 #[derive(Deserialize, Serialize, Debug)]

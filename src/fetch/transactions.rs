@@ -2,18 +2,20 @@ use std::collections::HashMap;
 
 use chrono::DateTime;
 use futures::{
-    future::{join_all, BoxFuture},
+    future::{BoxFuture, join_all},
     FutureExt,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-use super::others::{DenomAmount, InternalDenomAmount, Pagination, PaginationConfig, PublicKey};
 use crate::{
     chain::Chain,
     routes::{calc_pages, OutRestResponse},
     utils::get_msg_name,
 };
+use crate::fetch::socket::EvmPollVote;
+
+use super::others::{DenomAmount, InternalDenomAmount, Pagination, PaginationConfig, PublicKey};
 
 impl Chain {
     /// Returns transaction by given hash.
@@ -97,6 +99,44 @@ impl Chain {
 
         Ok(OutRestResponse::new(txs, pages))
     }
+
+    pub async fn get_internal_txs_by_sender_height(&self, sender_address: &str, block_height: Option<u64>, config: PaginationConfig) -> Result<OutRestResponse<Vec<InternalTransaction>>, String> {
+        let mut query = vec![];
+
+        if let Some(block_height) = block_height {
+            query.push(("events", format!("tx.height={}", block_height)));
+        };
+
+        query.push(("events", format!("message.sender='{}'", sender_address)));
+        query.push(("pagination.reverse", format!("{}", config.is_reverse())));
+        query.push(("pagination.limit", format!("{}", config.get_limit())));
+        query.push(("pagination.count_total", "true".to_string()));
+        query.push(("pagination.offset", format!("{}", config.get_offset())));
+
+        let resp = self.rest_api_request::<TxsResp>("/cosmos/tx/v1beta1/txs", &query).await?;
+
+        let mut txs = vec![];
+
+        for i in 0..resp.txs.len() {
+            let (tx, tx_response) = (
+                resp.txs
+                    .get(i)
+                    .cloned()
+                    .ok_or_else(|| "The count of transactions and transaction responses aren't the same.".to_string())?,
+                resp.tx_responses
+                    .get(i)
+                    .cloned()
+                    .ok_or_else(|| "The count of transactions and transaction responses aren't the same.".to_string())?,
+            );
+
+            txs.push(InternalTransaction::new(tx, tx_response, self).await?)
+        }
+
+        let pages = calc_pages(resp.pagination.unwrap_or(Pagination::default()), config)?;
+
+        Ok(OutRestResponse::new(txs, pages))
+    }
+
 
     /// Returns transactions with given recipient.
     pub async fn get_txs_by_recipient(
@@ -222,6 +262,24 @@ impl Chain {
             .await?
             .try_into()
     }
+    pub async fn get_axelar_sender_heartbeat_info(&self, val_voter_address: &String, block_height: u64) -> Result<InternalAxelarHeartbeatInfo, String> {
+        match self.get_internal_txs_by_sender_height(&val_voter_address, Some(block_height), PaginationConfig::new().limit(1).page(1)).await {
+            Ok(txs_res) => {
+                for contents in txs_res.value {
+                    match contents.extract_axelar_heartbeat_info() {
+                        Some(res) => { return Ok(res); }
+                        None => {}
+                    };
+                };
+                let message = String::from("This is not an heartbeat tx");
+                Err(message)
+            }
+            Err(e) => {
+                tracing::error!("Could not fetched txs by sender");
+                Err(e)
+            }
+        }
+    }
 }
 
 #[derive(Deserialize, Serialize, Debug)]
@@ -277,6 +335,8 @@ pub struct InternalTransaction {
     pub raw: String,
     pub result: String,
     pub memo: String,
+    pub signatures: Vec<String>,
+    pub logs: Vec<TxResponseLog>,
     pub content: Vec<InternalTransactionContent>,
 }
 
@@ -367,13 +427,84 @@ impl InternalTransaction {
             } else {
                 "Failed".to_string()
             },
+            signatures: match tx_response.tx { TxsResponseTx::Tx { signatures, .. } => { signatures } },
             memo: tx.body.memo,
             raw: tx_response.raw_log,
             content,
             amount,
             r#type,
+            logs: tx_response.logs,
         })
     }
+    pub fn extract_axelar_heartbeat_info(&self) -> Option<InternalAxelarHeartbeatInfo> {
+        let mut res = None;
+        for content_item in &self.content {
+            if let InternalTransactionContent::Known(InternalTransactionContentKnowns::AxelarRefundRequest { sender: _, inner_message }) = content_item {
+                if let InnerMessage::Known(InnerMessageKnown::HeartBeatRequest { sender, key_ids }) = inner_message {
+                    res = Some(InternalAxelarHeartbeatInfo {
+                        sender: sender.clone(),
+                        key_ids: key_ids.clone(),
+                        signatures: self.signatures.clone(),
+                        tx_hash: self.hash.clone(),
+                        height: self.height.clone(),
+                        timestamp: self.time.clone(),
+                    });
+                    break;
+                }
+            }
+        }
+
+        res
+    }
+    pub fn is_evm_poll_failed(&self) -> bool {
+        let logs = &self.logs.clone();
+        match logs.into_iter().find(|log| { log.log == "failed" && log.log != "already confirmed" }) {
+            None => {}
+            Some(_) => { return true; }
+        };
+
+        for log in logs {
+            match log.events.clone().into_iter().find(|event| { event.r#type == "EVMEventFailed" }) {
+                None => {}
+                Some(_) => { return true; }
+            }
+        };
+
+        false
+    }
+
+    pub fn is_evm_poll_confirmation_tx(&self) -> bool {
+        let evm_confirmation_event_types = [
+            String::from("axelar.evm.v1beta1.EVMEventConfirmed"),
+            String::from("depositConfirmation"),
+            String::from("eventConfirmation"),
+            String::from("transferKeyConfirmation"),
+            String::from("tokenConfirmation"),
+            String::from("TokenSent"),
+            String::from("ContractCall"),
+        ];
+        let logs = &self.logs.clone();
+        for log in logs {
+            for event in &log.events {
+                let event_type = &event.r#type.clone();
+                if evm_confirmation_event_types.contains(event_type) {
+                    return true;
+                };
+            }
+        };
+
+        false
+    }
+}
+
+#[derive(Deserialize, Serialize, Debug, Clone)]
+pub struct InternalAxelarHeartbeatInfo {
+    pub sender: String,
+    pub key_ids: Vec<String>,
+    pub signatures: Vec<String>,
+    pub tx_hash: String,
+    pub height: u64,
+    pub timestamp: i64,
 }
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
@@ -457,6 +588,14 @@ pub enum InternalTransactionContentKnowns {
     #[serde(rename = "Ethereum Tx")]
     EthereumTx {
         hash: String,
+    },
+    RegisterProxy {
+        sender: String,
+        proxy_addr: String,
+    },
+    AxelarRefundRequest {
+        sender: String,
+        inner_message: InnerMessage,
     },
 }
 
@@ -734,6 +873,18 @@ impl TxsTransactionMessage {
                             },
                         })
                     }
+                    TxsTransactionMessageKnowns::RegisterProxy { sender, proxy_addr } => {
+                        InternalTransactionContent::Known(InternalTransactionContentKnowns::RegisterProxy { sender, proxy_addr })
+                    }
+                    TxsTransactionMessageKnowns::AxelarRegisterProxy { sender, proxy_addr } => {
+                        InternalTransactionContent::Known(InternalTransactionContentKnowns::RegisterProxy { sender, proxy_addr })
+                    }
+                    TxsTransactionMessageKnowns::AxelarRefundRequest { sender, inner_message } => {
+                        InternalTransactionContent::Known(InternalTransactionContentKnowns::AxelarRefundRequest {
+                            sender,
+                            inner_message,
+                        })
+                    }
                 },
                 TxsTransactionMessage::Unknown(mut keys_values) => {
                     let r#type = keys_values.remove("@type").map(|t| t.to_string()).unwrap_or("Unknown".to_string());
@@ -792,6 +943,9 @@ impl TxsTransactionMessage {
                     grant: _,
                 } => "Grant",
                 TxsTransactionMessageKnowns::Exec { grantee: _, msgs: _ } => "Exec",
+                TxsTransactionMessageKnowns::RegisterProxy { sender: _, proxy_addr: _ } => "RegisterProxy",
+                TxsTransactionMessageKnowns::AxelarRegisterProxy { sender: _, proxy_addr: _ } => "RegisterProxy",
+                TxsTransactionMessageKnowns::AxelarRefundRequest { sender: _, inner_message: _ } => "AxelarRefundRequest"
             }
                 .to_string(),
             TxsTransactionMessage::Unknown(keys_values) => keys_values
@@ -892,6 +1046,77 @@ pub enum TxsTransactionMessageKnowns {
         // Creating an enum for it is necessary if we need to show the data in the explorer.
         // data: UNKNOWN,
     },
+    #[serde(rename = "/snapshot.v1beta1.RegisterProxyRequest")]
+    RegisterProxy {
+        sender: String,
+        proxy_addr: String,
+    },
+    #[serde(rename = "/axelar.snapshot.v1beta1.RegisterProxyRequest")]
+    AxelarRegisterProxy {
+        sender: String,
+        proxy_addr: String,
+    },
+    #[serde(rename = "/axelar.reward.v1beta1.RefundMsgRequest")]
+    AxelarRefundRequest {
+        sender: String,
+        inner_message: InnerMessage,
+    },
+}
+
+
+#[derive(Deserialize, Serialize, Debug, Clone)]
+#[serde(untagged)]
+pub enum InnerMessage {
+    Known(InnerMessageKnown),
+    Unknown(HashMap<String, Value>),
+}
+
+#[derive(Deserialize, Serialize, Debug, Clone)]
+#[serde(tag = "@type")]
+pub enum InnerMessageKnown {
+    #[serde(rename = "/axelar.vote.v1beta1.VoteRequest")]
+    VoteRequest {
+        sender: String,
+        poll_id: String,
+        vote: AxelarVote,
+    },
+    #[serde(rename = "/axelar.tss.v1beta1.HeartBeatRequest")]
+    HeartBeatRequest {
+        sender: String,
+        key_ids: Vec<String>,
+    },
+}
+
+#[derive(Deserialize, Serialize, Debug, Clone)]
+#[serde(untagged)]
+pub enum AxelarVote {
+    Known(AxelarKnownVote),
+    Unknown(HashMap<String, Value>),
+}
+
+#[derive(Deserialize, Serialize, Debug, Clone)]
+#[serde(tag = "@type")]
+pub enum AxelarKnownVote {
+    #[serde(rename = "/axelar.evm.v1beta1.VoteEvents")]
+    VoteEvent {
+        chain: String,
+        events: Vec<HashMap<String, Value>>,
+    }
+}
+
+impl AxelarKnownVote {
+    pub fn evm_vote(&self) -> EvmPollVote {
+        match self {
+            AxelarKnownVote::VoteEvent { chain: _, events } => {
+                let vote = if !events.is_empty() {
+                    EvmPollVote::Yes
+                } else {
+                    EvmPollVote::No
+                };
+                vote
+            }
+        }
+    }
 }
 
 #[derive(Deserialize, Serialize, Debug)]
@@ -969,6 +1194,8 @@ pub struct TxResponse {
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct TxResponseLog {
+    /// Array of events.
+    pub log: String,
     /// Array of events.
     pub events: Vec<TxResponseEvent>,
 }

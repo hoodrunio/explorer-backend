@@ -1,21 +1,22 @@
 use chrono::{DateTime, Duration, Utc};
-use futures::{future::join_all, FutureExt};
+use futures::{future::join_all};
 use mongodb::bson::doc;
 use serde::{Deserialize, Serialize};
 use tokio::join;
+
+use crate::{
+    chain::Chain,
+    routes::{calc_pages, OutRestResponse},
+};
+use crate::database::{PaginationDb, ValidatorForDb};
+use crate::fetch::transactions::{InternalTransactionContent, InternalTransactionContentKnowns};
+use crate::routes::TNRAppError;
+use crate::utils::convert_consensus_pubkey_to_consensus_address;
 
 use super::{
     others::{DenomAmount, Pagination, PaginationConfig},
     transactions::{Tx, TxResponse, TxsResp, TxsTransactionMessage, TxsTransactionMessageKnowns},
 };
-use crate::{
-    chain::Chain,
-    routes::{calc_pages, OutRestResponse},
-};
-use crate::database::ValidatorForDb;
-use crate::utils::convert_consensus_pubkey_to_consensus_address;
-use crate::fetch::others::{PaginationDb, Response};
-use crate::routes::TNRAppError;
 
 impl Chain {
     /// Returns validator by given validator address.
@@ -446,7 +447,7 @@ impl Chain {
         let val_signing_info = val_signing_info_resp?.value;
         let slashing_params = slashing_params?.value;
 
-        Ok((1.0 - (val_signing_info.missed_blocks_counter as f64 / slashing_params.signed_blocks_window as f64)))
+        Ok(1.0 - (val_signing_info.missed_blocks_counter as f64 / slashing_params.signed_blocks_window as f64))
     }
 
     pub async fn get_validator_status(&self, validator: &ValidatorListValidator, consensus_address: &str) -> Result<ValidatorStatus, String> {
@@ -494,10 +495,50 @@ impl Chain {
         match potential_voting_power {
             Some(value) => {
                 let bonded_tokens = self.get_staking_pool().await?.value.bonded as f64;
-                Ok((((value / bonded_tokens) * 100.0) - current_voting_power_percentage))
+                Ok(((value / bonded_tokens) * 100.0) - current_voting_power_percentage)
             }
             None => Err("Could not calculate voting power change".to_string()),
         }
+    }
+
+    pub async fn get_validator_voter_address(&self, operator_address: &String) -> Result<Option<String>, TNRAppError> {
+        let mut result = None;
+        if self.config.name != "axelar" {
+            return Ok(result);
+        };
+
+        match self.database.find_validator(doc! {"operator_address": &operator_address}).await {
+            Ok(res) => {
+                match res.voter_address {
+                    Some(res) => return Ok(Some(res)),
+                    None => {}
+                }
+            }
+            Err(_) => {}
+        };
+
+        let mut query = vec![];
+        query.push(("events", format!("message.sender='{}'", operator_address)));
+        query.push(("events", format!("message.action='{}'", "RegisterProxy")));
+        let resp = self.archive_api_request::<TxsResp>("/cosmos/tx/v1beta1/txs", &query).await?;
+
+        for tx in resp.txs.iter() {
+            for message in &tx.body.messages {
+                let res = message.clone().to_internal(&self).await?;
+                match res {
+                    InternalTransactionContent::Known(
+                        InternalTransactionContentKnowns::RegisterProxy {
+                            sender: _,
+                            proxy_addr
+                        }) => {
+                        result = Some(proxy_addr);
+                    }
+                    _ => {}
+                }
+            }
+        };
+
+        Ok(result)
     }
 }
 
@@ -664,7 +705,7 @@ pub struct ValidatorListElement {
 }
 
 impl ValidatorListResp {
-    pub async fn from_db_list(mut other: ValidatorListDbResp, chain: &Chain) -> Result<Self, TNRAppError> {
+    pub async fn from_db_list(other: ValidatorListDbResp, chain: &Chain) -> Result<Self, TNRAppError> {
         let staking_pool_resp = chain.get_staking_pool().await?.value;
         let bonded_token = staking_pool_resp.bonded;
         let mut validators = vec![];
@@ -673,11 +714,11 @@ impl ValidatorListResp {
             let delegator_shares = v.delegator_shares;
             let uptime = v.uptime;
             let voting_power = delegator_shares as u64;
-            let voting_power_ratio = (delegator_shares / bonded_token as f64);
+            let voting_power_ratio = delegator_shares / bonded_token as f64;
             let rank = i + 1;
             let cumulative_bonded_tokens = v.cumulative_bonded_tokens.unwrap_or(0.0);
             let cumulative_share = cumulative_bonded_tokens / bonded_token as f64;
-            let mut missed_29k = 0;
+            let missed_29k = 0;
             if v.is_active {
                 //WARNING This request takes too much time can turn to a cron job
                 // missed_29k = chain.get_validator_signing_info(&v.consensus_address).await?.value.missed_blocks_counter;

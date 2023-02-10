@@ -1,7 +1,5 @@
-use mongodb::Client;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use std::sync::Arc;
 use versions::SemVer;
 
 use crate::database::DatabaseTR;
@@ -74,9 +72,10 @@ impl Chain {
             base_prefix: ic.prefix.unwrap_or_else(|| ic.name),
             main_denom,
             rpc_url: ic.rpc_url,
-            jsonrpc_url: ic.json_rpc,
+            jsonrpc_url: ic.jsonrpc_url,
             rest_url: ic.rest_url,
             wss_url: ic.wss_url,
+            archive_url: ic.archive_url,
             sdk_version,
             manual_versioning,
             decimals,
@@ -98,6 +97,7 @@ impl Chain {
         }
     }
 }
+
 /// The configuration of a chain.
 #[derive(Clone)]
 pub struct ChainConfig {
@@ -125,6 +125,8 @@ pub struct ChainConfig {
     pub rest_url: String,
     /// The Web Socket URL of the chain.
     pub wss_url: String,
+    /// The REST API Archive Node URL of the chain.
+    pub archive_url: String,
     /// The Cosmos SDK version of the chain.
     pub sdk_version: SemVer,
     /// Is the sdk version from the config or the actual chain
@@ -145,8 +147,9 @@ pub struct IntermediateChainConfig {
     pub rpc_url: String,
     pub rest_url: String,
     pub wss_url: String,
+    pub archive_url: String,
     pub decimals: Option<u8>,
     pub sdk_version: Option<SemVer>,
-    pub json_rpc: Option<String>,
+    pub jsonrpc_url: Option<String>,
     pub main_denom: Option<String>,
 }

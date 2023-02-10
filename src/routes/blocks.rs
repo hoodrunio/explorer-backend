@@ -1,8 +1,8 @@
-use crate::routes::{extract_chain, OutRestResponse, TNRAppError, TNRAppErrorResponse, TNRAppErrorType, TNRAppSuccessResponse};
+use crate::routes::{extract_chain, TNRAppError, TNRAppSuccessResponse};
 use crate::{fetch::others::Response, state::State};
 use actix_web::{
     get,
-    web::{Data, Json, Path},
+    web::{Data, Path},
     Responder,
 };
 

@@ -1,17 +1,18 @@
-use super::QueryParams;
-use crate::{
-    fetch::others::{PaginationConfig, Response},
-    state::State,
-};
 use actix_web::{
     get,
-    web::{Data, Json, Path, Query},
     Responder,
+    web::{Data, Path, Query},
 };
 use mongodb::bson::doc;
 
-use crate::fetch::validators::{ValidatorListResp};
+use crate::{
+    fetch::others::PaginationConfig,
+    state::State,
+};
+use crate::fetch::validators::ValidatorListResp;
 use crate::routes::{extract_chain, TNRAppError, TNRAppSuccessResponse};
+
+use super::QueryParams;
 
 // ======== Validator Methods ========
 

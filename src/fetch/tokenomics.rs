@@ -47,6 +47,19 @@ impl Chain {
         self.get_supply_by_denom(&self.config.main_denom).await
     }
 
+    pub async fn get_evm_supported_chains(&self) -> Result<Vec<String>, String> {
+        let resp = self.rest_api_request::<AxelarSupportedEvmChainsResponse>("/axelar/evm/v1beta1/chains", &[]).await?;
+
+        Ok(resp.chains)
+    }
+
+    pub async fn get_evm_chain_maintainers(&self, chain_name: &String) -> Result<Vec<String>, String> {
+        let path = format!("/axelar/nexus/v1beta1/chain_maintainers/{chain_name}");
+        let resp = self.archive_api_request::<AxelarEvmChainMaintainersResponse>(&path, &[]).await?;
+
+        Ok(resp.maintainers)
+    }
+
     /// Returns the minting inflation rate of native coin of the chain.
     pub async fn get_inflation_rate(&self) -> Result<OutRestResponse<f64>, String> {
         let default_return_value = 0.0;
@@ -63,7 +76,7 @@ impl Chain {
                 .await
                 .map(|res| res.inflation.parse::<f64>().unwrap_or(default_return_value))
         }
-        .unwrap_or(default_return_value);
+            .unwrap_or(default_return_value);
 
         //Axelar calculation different than others. That is why we are overriding inflation variable here.
         if self.config.name == "axelar" {
@@ -76,10 +89,9 @@ impl Chain {
                 .map(|res| res.param.get_parsed_value().unwrap_or(default_return_value))
                 .unwrap_or(default_return_value);
 
-            let external_chain_inflation = self
-                .rest_api_request::<AxelarSupportedEvmChainsResponse>("/axelar/evm/v1beta1/chains", &[])
+            let external_chain_inflation = self.get_evm_supported_chains()
                 .await
-                .map(|res| res.get_supported_evm_chains_length() * external_chain_voting_inflation_rate)
+                .map(|res| res.len() as f64 * external_chain_voting_inflation_rate)
                 .unwrap_or(default_return_value);
 
             inflation = external_chain_inflation + (inflation * 2.0);
@@ -145,4 +157,9 @@ impl AxelarSupportedEvmChainsResponse {
     pub fn get_supported_evm_chains_length(&self) -> f64 {
         self.chains.len() as f64
     }
+}
+
+#[derive(Deserialize, Serialize, Debug, PartialEq)]
+pub struct AxelarEvmChainMaintainersResponse {
+    maintainers: Vec<String>,
 }

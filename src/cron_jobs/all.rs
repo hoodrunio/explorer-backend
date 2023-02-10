@@ -20,6 +20,10 @@ impl Chain {
                     tracing::error!("params cronjob error: {error}")
                 };
 
+                if let Err(error) = clone_chain.cron_job_val_supported_chains().await {
+                    tracing::error!("validator supported chains error: {error}")
+                };
+
                 sleep(duration).await;
             }
         });

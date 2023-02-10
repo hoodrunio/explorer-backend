@@ -1,10 +1,5 @@
-use std::time::Duration;
-
-use futures::future::join_all;
-
+use crate::chain::Chain;
 use crate::database::{DistributionParamsForDb, GovParamsForDb, ParamsForDb, SlashingParamsForDb, StakingParamsForDb};
-use crate::utils::{convert_consensus_pubkey_to_hex_address, get_validator_logo};
-use crate::{chain::Chain, fetch::others::PaginationConfig};
 
 impl Chain {
     pub async fn cron_job_params(&self) -> Result<(), String> {
