@@ -1,11 +1,13 @@
 use std::collections::HashMap;
+
 use chrono::DateTime;
+use mongodb::bson::doc;
 use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::Value;
 
+use crate::{chain::Chain, routes::OutRestResponse};
 use crate::database::{BlockForDb, ValidatorForDb};
 use crate::utils::{Base64Convert, convert_tx_to_hex};
-use crate::{chain::Chain, routes::OutRestResponse};
 
 impl Chain {
     /// Returns the block at given height. Returns the latest block, if no height is given.
@@ -156,6 +158,34 @@ impl Chain {
     /// Returns the block headers between max and min height.
     pub async fn get_last_count_block(&self, count: u64) -> Result<Vec<BlockForDb>, String> {
         self.database.find_last_count_blocks(count).await
+    }
+
+    /// Returns the validator last count signed blocks.
+    pub async fn get_validator_last_signed_blocks(&self, operator_address: String, last_block_count: Option<u16>) -> Result<Vec<ValidatorSignatureListElement>, String> {
+        let default_last_block_count = 100;
+        let last_block_count = last_block_count.unwrap_or(default_last_block_count);
+
+        let validator = self.database.find_validator(doc! {"operator_address": operator_address}).await?;
+        let blocks = self.database.find_last_count_blocks(last_block_count as u64).await?;
+
+        let mut validator_signed_or_not_items = vec![];
+
+        for block in blocks {
+            let mut val_sign_list_el = ValidatorSignatureListElement::default();
+            val_sign_list_el.block_height(block.height);
+            match block.signatures.into_iter().find(|signature| { validator.hex_address == signature.validator_address }) {
+                None => {}
+                Some(signature) => {
+                    val_sign_list_el.validator_address(signature.validator_address);
+                    val_sign_list_el.missed(false);
+                    val_sign_list_el.timestamp(signature.timestamp);
+                }
+            };
+
+            validator_signed_or_not_items.push(val_sign_list_el);
+        };
+
+        Ok(validator_signed_or_not_items)
     }
 }
 
