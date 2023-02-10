@@ -560,3 +560,37 @@ pub struct BlockResultTxResult {
     pub events: Vec<ResultBlockEvent>,
     pub codespace: String,
 }
+
+#[derive(Deserialize, Serialize, Debug, Clone)]
+pub struct ValidatorSignatureListElement {
+    pub validator_address: String,
+    pub missed: bool,
+    pub block_height: u64,
+    pub timestamp: String,
+}
+
+impl ValidatorSignatureListElement {
+    pub fn validator_address(&mut self, validator_address: String) {
+        self.validator_address = validator_address;
+    }
+    pub fn block_height(&mut self, block_height: u64) {
+        self.block_height = block_height;
+    }
+    pub fn timestamp(&mut self, timestamp: String) {
+        self.timestamp = timestamp;
+    }
+    pub fn missed(&mut self, missed: bool) {
+        self.missed = missed;
+    }
+}
+
+impl Default for ValidatorSignatureListElement {
+    fn default() -> Self {
+        Self {
+            validator_address: "".to_string(),
+            missed: true,
+            block_height: 0,
+            timestamp: "".to_string(),
+        }
+    }
+}
