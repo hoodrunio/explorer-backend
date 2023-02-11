@@ -173,12 +173,16 @@ impl Chain {
         for block in blocks {
             let mut val_sign_list_el = ValidatorSignatureListElement::default();
             val_sign_list_el.block_height(block.height);
+            val_sign_list_el.block_time(block.timestamp);
+            val_sign_list_el.operator_address(validator.operator_address.clone());
             match block.signatures.into_iter().find(|signature| { validator.hex_address == signature.validator_address }) {
                 None => {}
                 Some(signature) => {
-                    val_sign_list_el.validator_address(signature.validator_address);
+                    let sign_time = DateTime::parse_from_rfc3339(&signature.timestamp)
+                        .map_err(|_| format!("Cannot parse signature time, '{}'", &signature.timestamp))?
+                        .timestamp_millis();
                     val_sign_list_el.missed(false);
-                    val_sign_list_el.timestamp(signature.timestamp);
+                    val_sign_list_el.sign_time(sign_time);
                 }
             };
 
@@ -593,21 +597,25 @@ pub struct BlockResultTxResult {
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct ValidatorSignatureListElement {
-    pub validator_address: String,
+    pub operator_address: String,
     pub missed: bool,
     pub block_height: u64,
-    pub timestamp: String,
+    pub block_time: Option<i64>,
+    pub sign_time: Option<i64>,
 }
 
 impl ValidatorSignatureListElement {
-    pub fn validator_address(&mut self, validator_address: String) {
-        self.validator_address = validator_address;
+    pub fn operator_address(&mut self, operator_address: String) {
+        self.operator_address = operator_address;
     }
     pub fn block_height(&mut self, block_height: u64) {
         self.block_height = block_height;
     }
-    pub fn timestamp(&mut self, timestamp: String) {
-        self.timestamp = timestamp;
+    pub fn sign_time(&mut self, sign_time: i64) {
+        self.sign_time = Some(sign_time);
+    }
+    pub fn block_time(&mut self, block_time: i64) {
+        self.block_time = Some(block_time);
     }
     pub fn missed(&mut self, missed: bool) {
         self.missed = missed;
@@ -617,10 +625,11 @@ impl ValidatorSignatureListElement {
 impl Default for ValidatorSignatureListElement {
     fn default() -> Self {
         Self {
-            validator_address: "".to_string(),
+            operator_address: "".to_string(),
             missed: true,
             block_height: 0,
-            timestamp: "".to_string(),
+            block_time: None,
+            sign_time: None,
         }
     }
 }
