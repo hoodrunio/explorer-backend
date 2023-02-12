@@ -631,10 +631,7 @@ impl NewBlockValue {
         for event in end_block_events {
             if event.r#type == "axelar.evm.v1beta1.PollCompleted" {
                 let completed_axelar_poll_info = self.extract_evm_poll_info(&event, PollStatus::Completed);
-                let ignore = match poll_completed_axelar_polls.clone().into_iter().find(|poll| poll.poll_id == completed_axelar_poll_info.poll_id) {
-                    None => { false }
-                    Some(_) => { true }
-                };
+                let ignore = poll_completed_axelar_polls.clone().into_iter().any(|poll| poll.poll_id == completed_axelar_poll_info.poll_id);
 
                 if !ignore {
                     poll_completed_axelar_polls.push(completed_axelar_poll_info);
