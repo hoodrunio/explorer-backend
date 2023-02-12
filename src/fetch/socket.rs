@@ -131,24 +131,6 @@ impl Chain {
                             // clone.store_new_tx(tx_item);
                         }
                         SocketResult::NonEmpty(SocketResultNonEmpty::Block { data }) => {
-                            if self.config.name == "axelar" {
-                                match &data.value.extract_evm_poll_completed_event() {
-                                    None => {}
-                                    Some(polls) => {
-                                        if !polls.completed_polls.is_empty() {
-                                            for completed_poll in polls.completed_polls.clone() {
-                                                match self.database.update_evm_poll_status(&completed_poll.poll_id, &PollStatus::Completed) { _ => {} }
-                                            };
-                                        }
-
-                                        if !polls.failed_polls.is_empty() {
-                                            for failed_poll in polls.failed_polls.clone() {
-                                                match self.database.update_evm_poll_status(&failed_poll.poll_id, &PollStatus::Failed) { _ => {} }
-                                            };
-                                        }
-                                    }
-                                };
-                            }
                             tracing::info!("wss: new block on {}", clone.config.name);
                             let data = data;
                             let current_resp = data.value;
@@ -231,12 +213,28 @@ impl Chain {
             write.send(AXELAR_SUB_CONFIRM_ERC20_DEPOSIT_TX.into()).await.map_err(|e| format!("Can't subscribe to AXELAR CONFIRM ERC20_DEPOSIT TX for {}: {e}", chain_name))?;
             write.send(AXELAR_SUB_CONFIRM_TRANSFER_KEY_TX.into()).await.map_err(|e| format!("Can't subscribe to AXELAR CONFIRM TRANSFER_KEY TX for {}: {e}", chain_name))?;
             write.send(AXELAR_SUB_CONFIRM_GATEWAY_TX.into()).await.map_err(|e| format!("Can't subscribe to AXELAR CONFIRM GATEWAY TX for {}: {e}", chain_name))?;
+            write.send(SUBSCRIBE_BLOCK.into()).await.map_err(|e| format!("Can't subscribe to SUBSCRIBE BLOCK for {}: {e}", chain_name))?;
 
             while let Some(msg) = read.next().await {
                 if let Ok(Message::Text(text_msg)) = msg {
                     match serde_json::from_str::<SocketMessage>(&text_msg) {
                         Ok(socket_msg) => {
                             match socket_msg.result {
+                                SocketResult::NonEmpty(SocketResultNonEmpty::Block { data }) => {
+                                    match &data.value.extract_evm_poll_completed_events() {
+                                        Some(polls) => {
+                                            if !polls.is_empty() {
+                                                for completed_poll in polls.clone() {
+                                                    match self.database.update_evm_poll_status(&completed_poll.poll_id, &completed_poll.poll_status).await {
+                                                        Ok(_) => {}
+                                                        Err(e) => { tracing::error!("Could not update evm poll cause of {}",e); }
+                                                    };
+                                                };
+                                            };
+                                        }
+                                        None => {}
+                                    };
+                                }
                                 SocketResult::NonEmpty(evm_poll_msg) => {
                                     let evm_poll_item = match evm_poll_msg.get_evm_poll_item(&self).await {
                                         Ok(res) => res,
