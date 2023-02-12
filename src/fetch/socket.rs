@@ -596,7 +596,7 @@ pub struct NewBlockValue {
 }
 
 impl NewBlockValue {
-    fn extract_evm_poll_info(&self, event: &ResultBlockEvent) -> AxelarCompletedPoll {
+    fn extract_evm_poll_info(&self, event: &ResultBlockEvent, status: PollStatus) -> AxelarCompletedPoll {
         let mut poll_id: String = String::from("");
         let mut chain: String = String::from("");
         let mut tx_id: String = String::from("");
@@ -617,57 +617,34 @@ impl NewBlockValue {
             chain,
             poll_id,
             tx_id,
+            poll_status: status,
         }
     }
 
-    pub fn extract_evm_poll_completed_event(&self) -> Option<AxelarCompletedPolls> {
+    pub fn extract_evm_poll_completed_events(&self) -> Option<Vec<AxelarCompletedPoll>> {
         let end_block_events = &self.result_end_block.events;
         if end_block_events.is_empty() {
             return None;
         };
-
-        let mut poll_failed_axelar_polls = vec![];
-        for event in end_block_events {
-            if event.r#type == "axelar.evm.v1beta1.NoEventsConfirmed" {
-                let axelar_poll_info = self.extract_evm_poll_info(&event);
-                poll_failed_axelar_polls.push(axelar_poll_info);
-            }
-        };
-
         let mut poll_completed_axelar_polls = vec![];
+
         for event in end_block_events {
             if event.r#type == "axelar.evm.v1beta1.PollCompleted" {
-                let mut ignore_current_poll = false;
-
-                let completed_axelar_poll_info = self.extract_evm_poll_info(&event);
-
-                for failed_poll_info in poll_failed_axelar_polls.clone() {
-                    if failed_poll_info.poll_id != completed_axelar_poll_info.poll_id {
-                        ignore_current_poll = true
-                    }
-                }
-
-                if !ignore_current_poll {
-                    poll_completed_axelar_polls.push(completed_axelar_poll_info);
-                };
-            }
+                let completed_axelar_poll_info = self.extract_evm_poll_info(&event, PollStatus::Completed);
+                poll_completed_axelar_polls.push(completed_axelar_poll_info);
+            };
+            if event.r#type == "axelar.evm.v1beta1.NoEventsConfirmed" {
+                let axelar_poll_info = self.extract_evm_poll_info(&event, PollStatus::Failed);
+                poll_completed_axelar_polls.push(axelar_poll_info);
+            };
         };
 
-        if poll_failed_axelar_polls.is_empty() && poll_completed_axelar_polls.is_empty() {
+        if poll_completed_axelar_polls.is_empty() {
             return None;
         }
 
-        return Some(AxelarCompletedPolls {
-            completed_polls: poll_completed_axelar_polls,
-            failed_polls: poll_failed_axelar_polls,
-        });
+        return Some(poll_completed_axelar_polls);
     }
-}
-
-#[derive(Deserialize, Debug, Clone)]
-pub struct AxelarCompletedPolls {
-    completed_polls: Vec<AxelarCompletedPoll>,
-    failed_polls: Vec<AxelarCompletedPoll>,
 }
 
 #[derive(Deserialize, Debug, Clone)]
@@ -675,6 +652,7 @@ pub struct AxelarCompletedPoll {
     pub chain: String,
     pub poll_id: String,
     pub tx_id: String,
+    pub poll_status: PollStatus,
 }
 
 #[derive(Deserialize)]
