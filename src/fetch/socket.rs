@@ -131,24 +131,6 @@ impl Chain {
                             // clone.store_new_tx(tx_item);
                         }
                         SocketResult::NonEmpty(SocketResultNonEmpty::Block { data }) => {
-                            if self.config.name == "axelar" {
-                                match &data.value.extract_evm_poll_completed_event() {
-                                    None => {}
-                                    Some(polls) => {
-                                        if !polls.completed_polls.is_empty() {
-                                            for completed_poll in polls.completed_polls.clone() {
-                                                match self.database.update_evm_poll_status(&completed_poll.poll_id, &PollStatus::Completed) { _ => {} }
-                                            };
-                                        }
-
-                                        if !polls.failed_polls.is_empty() {
-                                            for failed_poll in polls.failed_polls.clone() {
-                                                match self.database.update_evm_poll_status(&failed_poll.poll_id, &PollStatus::Failed) { _ => {} }
-                                            };
-                                        }
-                                    }
-                                };
-                            }
                             tracing::info!("wss: new block on {}", clone.config.name);
                             let data = data;
                             let current_resp = data.value;
@@ -231,12 +213,28 @@ impl Chain {
             write.send(AXELAR_SUB_CONFIRM_ERC20_DEPOSIT_TX.into()).await.map_err(|e| format!("Can't subscribe to AXELAR CONFIRM ERC20_DEPOSIT TX for {}: {e}", chain_name))?;
             write.send(AXELAR_SUB_CONFIRM_TRANSFER_KEY_TX.into()).await.map_err(|e| format!("Can't subscribe to AXELAR CONFIRM TRANSFER_KEY TX for {}: {e}", chain_name))?;
             write.send(AXELAR_SUB_CONFIRM_GATEWAY_TX.into()).await.map_err(|e| format!("Can't subscribe to AXELAR CONFIRM GATEWAY TX for {}: {e}", chain_name))?;
+            write.send(SUBSCRIBE_BLOCK.into()).await.map_err(|e| format!("Can't subscribe to SUBSCRIBE BLOCK for {}: {e}", chain_name))?;
 
             while let Some(msg) = read.next().await {
                 if let Ok(Message::Text(text_msg)) = msg {
                     match serde_json::from_str::<SocketMessage>(&text_msg) {
                         Ok(socket_msg) => {
                             match socket_msg.result {
+                                SocketResult::NonEmpty(SocketResultNonEmpty::Block { data }) => {
+                                    match &data.value.extract_evm_poll_completed_events() {
+                                        Some(polls) => {
+                                            if !polls.is_empty() {
+                                                for completed_poll in polls.clone() {
+                                                    match self.database.update_evm_poll_status(&completed_poll.poll_id, &completed_poll.poll_status).await {
+                                                        Ok(_) => {}
+                                                        Err(e) => { tracing::error!("Could not update evm poll cause of {}",e); }
+                                                    };
+                                                };
+                                            };
+                                        }
+                                        None => {}
+                                    };
+                                }
                                 SocketResult::NonEmpty(evm_poll_msg) => {
                                     let evm_poll_item = match evm_poll_msg.get_evm_poll_item(&self).await {
                                         Ok(res) => res,
@@ -598,7 +596,7 @@ pub struct NewBlockValue {
 }
 
 impl NewBlockValue {
-    fn extract_evm_poll_info(&self, event: &ResultBlockEvent) -> AxelarCompletedPoll {
+    fn extract_evm_poll_info(&self, event: &ResultBlockEvent, status: PollStatus) -> AxelarCompletedPoll {
         let mut poll_id: String = String::from("");
         let mut chain: String = String::from("");
         let mut tx_id: String = String::from("");
@@ -619,57 +617,38 @@ impl NewBlockValue {
             chain,
             poll_id,
             tx_id,
+            poll_status: status,
         }
     }
 
-    pub fn extract_evm_poll_completed_event(&self) -> Option<AxelarCompletedPolls> {
+    pub fn extract_evm_poll_completed_events(&self) -> Option<Vec<AxelarCompletedPoll>> {
         let end_block_events = &self.result_end_block.events;
         if end_block_events.is_empty() {
             return None;
         };
+        let mut poll_completed_axelar_polls: Vec<AxelarCompletedPoll> = vec![];
 
-        let mut poll_failed_axelar_polls = vec![];
-        for event in end_block_events {
-            if event.r#type == "axelar.evm.v1beta1.NoEventsConfirmed" {
-                let axelar_poll_info = self.extract_evm_poll_info(&event);
-                poll_failed_axelar_polls.push(axelar_poll_info);
-            }
-        };
-
-        let mut poll_completed_axelar_polls = vec![];
         for event in end_block_events {
             if event.r#type == "axelar.evm.v1beta1.PollCompleted" {
-                let mut ignore_current_poll = false;
+                let completed_axelar_poll_info = self.extract_evm_poll_info(&event, PollStatus::Completed);
+                let ignore = poll_completed_axelar_polls.clone().into_iter().any(|poll| poll.poll_id == completed_axelar_poll_info.poll_id);
 
-                let completed_axelar_poll_info = self.extract_evm_poll_info(&event);
-
-                for failed_poll_info in poll_failed_axelar_polls.clone() {
-                    if failed_poll_info.poll_id != completed_axelar_poll_info.poll_id {
-                        ignore_current_poll = true
-                    }
-                }
-
-                if !ignore_current_poll {
+                if !ignore {
                     poll_completed_axelar_polls.push(completed_axelar_poll_info);
                 };
-            }
+            };
+            if event.r#type == "axelar.evm.v1beta1.NoEventsConfirmed" {
+                let axelar_poll_info = self.extract_evm_poll_info(&event, PollStatus::Failed);
+                poll_completed_axelar_polls.push(axelar_poll_info);
+            };
         };
 
-        if poll_failed_axelar_polls.is_empty() && poll_completed_axelar_polls.is_empty() {
+        if poll_completed_axelar_polls.is_empty() {
             return None;
         }
 
-        return Some(AxelarCompletedPolls {
-            completed_polls: poll_completed_axelar_polls,
-            failed_polls: poll_failed_axelar_polls,
-        });
+        return Some(poll_completed_axelar_polls);
     }
-}
-
-#[derive(Deserialize, Debug, Clone)]
-pub struct AxelarCompletedPolls {
-    completed_polls: Vec<AxelarCompletedPoll>,
-    failed_polls: Vec<AxelarCompletedPoll>,
 }
 
 #[derive(Deserialize, Debug, Clone)]
@@ -677,6 +656,7 @@ pub struct AxelarCompletedPoll {
     pub chain: String,
     pub poll_id: String,
     pub tx_id: String,
+    pub poll_status: PollStatus,
 }
 
 #[derive(Deserialize)]
