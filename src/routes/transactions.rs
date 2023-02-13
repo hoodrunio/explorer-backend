@@ -10,7 +10,7 @@ use crate::{
     fetch::others::PaginationConfig,
     state::State,
 };
-use crate::routes::{extract_chain, QueryParams, TNRAppError, TNRAppSuccessResponse};
+use crate::routes::{extract_chain, LastCountListsQueryParams, QueryParams, TNRAppError, TNRAppSuccessResponse};
 
 // ======== Transaction Methods ========
 
@@ -70,18 +70,13 @@ pub async fn txs_of_recipient(path: Path<(String, String)>, chains: Data<State>,
 }
 
 #[get("{chain}/last-txs")]
-pub async fn last_txs(path: Path<String>, chains: Data<State>, query: Query<LastTxsQueryParams>) -> Result<impl Responder, TNRAppError> {
+pub async fn last_txs(path: Path<String>, chains: Data<State>, query: Query<LastCountListsQueryParams>) -> Result<impl Responder, TNRAppError> {
     let chain = path.into_inner();
 
     let default_count = 10;
-    let count = query.tx_count.unwrap_or(default_count);
+    let count = query.count.unwrap_or(default_count);
 
     let chain = extract_chain(&chain, chains)?;
-    let data = chain.get_last_count_txs_from_db(Some(count)).await?;
+    let data = chain.get_last_txs_from_db(count).await?;
     Ok(TNRAppSuccessResponse::new(data))
-}
-
-#[derive(Deserialize)]
-pub struct LastTxsQueryParams {
-    pub tx_count: Option<u16>,
 }
