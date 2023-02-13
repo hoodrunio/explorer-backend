@@ -5,7 +5,7 @@ use mongodb::{
 };
 use mongodb::bson::{from_document, to_bson, to_document};
 
-use crate::database::{EvmPollForDb, EvmPollParticipantForDb, HeartbeatForDb, ListDbResult, PaginationDb};
+use crate::database::{EvmPollForDb, EvmPollParticipantForDb, HeartbeatForDb, ListDbResult, PaginationDb, TransactionForDb};
 use crate::database::blocks::Block;
 use crate::database::params::{HistoricalValidatorData, VotingPower};
 use crate::fetch::evm::{EvmPollListDbResp, EvmSupportedChains, PollStatus};
@@ -64,6 +64,15 @@ impl DatabaseTR {
     /// ```
     fn validators_collection(&self) -> Collection<Validator> {
         self.db().collection("validators")
+    }
+
+    /// Returns the transactions collection.
+    /// # Usage
+    /// ```rs
+    /// let collection = database.transactions_collection();
+    /// ```
+    fn transactions_collection(&self) -> Collection<TransactionForDb> {
+        self.db().collection("transactions")
     }
 
     /// Returns the chains collection.
