@@ -187,6 +187,29 @@ impl DatabaseTR {
         }
     }
 
+    /// Finds a transaction from the transactions collection.
+    /// # Usage
+    /// ```rs
+    /// database.find_transactions(query).await;
+    /// ```
+    pub async fn find_transactions(&self, pipeline: Vec<Document>) -> Result<Vec<TransactionForDb>, String> {
+        let mut pipeline_docs = vec![];
+
+        let sort_pipe = doc! { "$sort": {"time": -1} };
+
+        pipeline_docs.push(sort_pipe);
+        pipeline_docs.extend(pipeline);
+
+        let mut results = self.transactions_collection().aggregate(pipeline_docs, None).await.map_err(|e| format!("{}", e.to_string()))?;
+
+        let mut res: Vec<TransactionForDb> = vec![];
+        while let Some(result) = results.next().await {
+            res.push(from_document(result.map_err(|e| format!("{}", e.to_string()))?).map_err(|e| format!("{}", e.to_string()))?);
+        };
+
+        Ok(res)
+    }
+
     /// Adds new block item to the blocks collection
     /// # Usage
     /// ```rs
