@@ -5,6 +5,7 @@ use futures::{
     future::{BoxFuture, join_all},
     FutureExt,
 };
+use mongodb::bson::doc;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
@@ -13,6 +14,7 @@ use crate::{
     routes::{calc_pages, OutRestResponse},
     utils::get_msg_name,
 };
+use crate::database::TransactionForDb;
 use crate::fetch::socket::EvmPollVote;
 
 use super::others::{DenomAmount, InternalDenomAmount, Pagination, PaginationConfig, PublicKey};
@@ -251,6 +253,14 @@ impl Chain {
 
         Ok(OutRestResponse::new(txs, pages))
     }
+
+    /// Returns transactions from db.
+    pub async fn get_last_txs_from_db(&self, count: u16) -> Result<Vec<TransactionForDb>, String> {
+        let txs = self.database.find_last_count_transactions(None, count).await?;
+
+        Ok(txs)
+    }
+
 
     /// Returns the EVM TX response by given hash. Only works for Evmos chain.
     ///

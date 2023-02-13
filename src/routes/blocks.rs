@@ -7,7 +7,7 @@ use actix_web::web::Query;
 use serde::Deserialize;
 
 use crate::{fetch::others::Response, state::State};
-use crate::routes::{extract_chain, TNRAppError, TNRAppSuccessResponse};
+use crate::routes::{extract_chain, LastCountListsQueryParams, TNRAppError, TNRAppSuccessResponse};
 
 // ====== Block Methods ======
 
@@ -55,26 +55,24 @@ pub async fn latest_headers(path: Path<String>, chains: Data<State>) -> Result<i
     Ok(TNRAppSuccessResponse::new(data))
 }
 
-#[get("{chain}/last-ten-blocks")]
-pub async fn last_ten_blocks(path: Path<String>, chains: Data<State>) -> Result<impl Responder, TNRAppError> {
+#[get("{chain}/last-blocks")]
+pub async fn last_blocks(path: Path<String>, chains: Data<State>, query: Query<LastCountListsQueryParams>) -> Result<impl Responder, TNRAppError> {
     let chain = path.into_inner();
 
+    let default_count = 10;
+    let count = query.count.unwrap_or(default_count);
     let chain = extract_chain(&chain, chains)?;
-    let data = chain.get_last_count_block(10).await?;
+    let data = chain.get_last_blocks_from_db(count).await?;
     Ok(TNRAppSuccessResponse::new(data))
 }
 
 #[get("{chain}/validator/last_signed_blocks/{operator_address}")]
-pub async fn validator_last_signed_blocks(path: Path<(String, String)>, chains: Data<State>, query: Query<ValSignedBlocksQueryParams>) -> Result<impl Responder, TNRAppError> {
+pub async fn validator_last_signed_blocks(path: Path<(String, String)>, chains: Data<State>, query: Query<LastCountListsQueryParams>) -> Result<impl Responder, TNRAppError> {
     let (chain, operator_address) = path.into_inner();
 
+    let default_count = 100;
+    let count: u16 = query.count.unwrap_or(default_count);
     let chain = extract_chain(&chain, chains)?;
-    let block_count: u16 = query.block_count.unwrap_or(100);
-    let data = chain.get_validator_last_signed_blocks(operator_address, Some(block_count)).await?;
+    let data = chain.get_validator_last_signed_blocks(operator_address, Some(count)).await?;
     Ok(TNRAppSuccessResponse::new(data))
-}
-
-#[derive(Deserialize)]
-pub struct ValSignedBlocksQueryParams {
-    pub block_count: Option<u16>,
 }

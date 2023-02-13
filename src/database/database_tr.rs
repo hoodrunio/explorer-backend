@@ -5,7 +5,7 @@ use mongodb::{
 };
 use mongodb::bson::{from_document, to_bson, to_document};
 
-use crate::database::{EvmPollForDb, EvmPollParticipantForDb, HeartbeatForDb, ListDbResult, PaginationDb};
+use crate::database::{EvmPollForDb, EvmPollParticipantForDb, HeartbeatForDb, ListDbResult, PaginationDb, TransactionForDb};
 use crate::database::blocks::Block;
 use crate::database::params::{HistoricalValidatorData, VotingPower};
 use crate::fetch::evm::{EvmPollListDbResp, EvmSupportedChains, PollStatus};
@@ -64,6 +64,15 @@ impl DatabaseTR {
     /// ```
     fn validators_collection(&self) -> Collection<Validator> {
         self.db().collection("validators")
+    }
+
+    /// Returns the transactions collection.
+    /// # Usage
+    /// ```rs
+    /// let collection = database.transactions_collection();
+    /// ```
+    fn transactions_collection(&self) -> Collection<TransactionForDb> {
+        self.db().collection("transactions")
     }
 
     /// Returns the chains collection.
@@ -166,6 +175,47 @@ impl DatabaseTR {
         Ok(())
     }
 
+    /// Adds a new transaction to the transactions collection of the database.
+    /// # Usage
+    /// ```rs
+    /// database.add_transaction(transaction).await;
+    /// ```
+    pub async fn add_transaction(&self, transaction: TransactionForDb) -> Result<(), String> {
+        match self.transactions_collection().insert_one(transaction, None).await {
+            Ok(_) => Ok(()),
+            Err(_) => Err("Cannot save the transaction.".into()),
+        }
+    }
+
+    /// Finds a counted transaction from the transactions collection.
+    /// # Usage
+    /// ```rs
+    /// database.find_last_count_transactions(vec<doc!{}>,10).await;
+    /// ```
+    pub async fn find_last_count_transactions(&self, pipeline: Option<Vec<Document>>, count: u16) -> Result<Vec<TransactionForDb>, String> {
+        let mut pipeline_docs = vec![];
+
+        let sort_pipe = doc! { "$sort": {"time": -1} };
+        let limit_pipe = doc! { "$limit": count as i64 };
+
+        pipeline_docs.push(sort_pipe);
+
+        if let Some(pipeline) = pipeline {
+            pipeline_docs.extend(pipeline);
+        };
+
+        pipeline_docs.push(limit_pipe);
+
+        let mut results = self.transactions_collection().aggregate(pipeline_docs, None).await.map_err(|e| format!("{}", e.to_string()))?;
+
+        let mut res: Vec<TransactionForDb> = vec![];
+        while let Some(result) = results.next().await {
+            res.push(from_document(result.map_err(|e| format!("{}", e.to_string()))?).map_err(|e| format!("{}", e.to_string()))?);
+        };
+
+        Ok(res)
+    }
+
     /// Adds new block item to the blocks collection
     /// # Usage
     /// ```rs
@@ -180,21 +230,26 @@ impl DatabaseTR {
         }
     }
 
-    /// Finds blocks in the blocks collection
+    /// Finds counted blocks in the blocks collection
     /// # Usage
     /// ```rs
-    /// database.find_blocks(doc!{}).await;
+    /// database.find_last_count_blocks(vec<doc!{}>,10).await;
     /// ```
-    pub async fn find_last_count_blocks(&self, count: u64) -> Result<Vec<Block>, String> {
-        let mut pipeline = vec![];
+    pub async fn find_last_count_blocks(&self, pipeline: Option<Vec<Document>>, count: u16) -> Result<Vec<Block>, String> {
+        let mut pipeline_docs = vec![];
 
         let sort_pipe = doc! { "$sort": {"height": -1} };
         let limit_pipe = doc! { "$limit": count as i64 };
 
-        pipeline.push(sort_pipe);
-        pipeline.push(limit_pipe);
+        pipeline_docs.push(sort_pipe);
 
-        let mut results = self.blocks_collection().aggregate(pipeline, None).await.map_err(|e| format!("{}", e.to_string()))?;
+        if let Some(pipeline) = pipeline {
+            pipeline_docs.extend(pipeline);
+        };
+
+        pipeline_docs.push(limit_pipe);
+        dbg!(&pipeline_docs);
+        let mut results = self.blocks_collection().aggregate(pipeline_docs, None).await.map_err(|e| format!("{}", e.to_string()))?;
 
         let mut res: Vec<Block> = vec![];
         while let Some(result) = results.next().await {

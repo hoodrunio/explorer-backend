@@ -127,7 +127,7 @@ impl Chain {
                             };
 
                             tx.send((self.config.name.clone(), WsEvent::NewTX(tx_item.clone()))).ok();
-                            // STORE TXS TO MONGO_DB HERE
+                            let _ = self.database.add_transaction(tx_item.into()).await;
                             // clone.store_new_tx(tx_item);
                         }
                         SocketResult::NonEmpty(SocketResultNonEmpty::Block { data }) => {
