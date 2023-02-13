@@ -85,7 +85,7 @@ pub async fn start_web_server() -> std::io::Result<()> {
             .service(routes::delegator_withdraw_address)
             .service(routes::inflation)
             .service(routes::last_ten_blocks)
-            .service(routes::last_ten_txs)
+            .service(routes::last_txs)
             .service(routes::params)
             .service(routes::proposal_deposit)
             .service(routes::proposal_deposits)
