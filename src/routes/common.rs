@@ -15,6 +15,11 @@ pub struct QueryParams {
     pub limit: Option<u16>,
 }
 
+#[derive(Deserialize)]
+pub struct LastCountListsQueryParams {
+    pub count: Option<u16>,
+}
+
 #[derive(Serialize)]
 pub struct OutRestResponse<T> {
     pub value: T,
