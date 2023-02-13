@@ -155,9 +155,11 @@ impl Chain {
         self.get_blockchain(Some(min_height), Some(max_height)).await
     }
 
-    /// Returns the block headers between max and min height.
-    pub async fn get_last_count_block(&self, count: u64) -> Result<Vec<BlockForDb>, String> {
-        self.database.find_last_count_blocks(count).await
+    /// Returns the counted blocks.
+    pub async fn get_last_blocks_from_db(&self, count: u16) -> Result<Vec<BlockForDb>, String> {
+        let blocks = self.database.find_last_count_blocks(None, count).await?;
+
+        Ok(blocks)
     }
 
     /// Returns the validator last count signed blocks.
@@ -166,7 +168,7 @@ impl Chain {
         let last_block_count = last_block_count.unwrap_or(default_last_block_count);
 
         let validator = self.database.find_validator(doc! {"operator_address": operator_address}).await?;
-        let blocks = self.database.find_last_count_blocks(last_block_count as u64).await?;
+        let blocks = self.database.find_last_count_blocks(None, last_block_count).await?;
 
         let mut validator_signed_or_not_items = vec![];
 

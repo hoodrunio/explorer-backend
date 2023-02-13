@@ -255,14 +255,8 @@ impl Chain {
     }
 
     /// Returns transactions from db.
-    pub async fn get_last_count_txs_from_db(&self, count: Option<u16>) -> Result<Vec<TransactionForDb>, String> {
-        let mut pipeline = vec![];
-        if let Some(tx_count) = count {
-            let limit_pipe = doc! { "$limit": tx_count as i64 };
-            pipeline.push(limit_pipe);
-        }
-
-        let txs = self.database.find_transactions(pipeline).await?;
+    pub async fn get_last_txs_from_db(&self, count: u16) -> Result<Vec<TransactionForDb>, String> {
+        let txs = self.database.find_last_count_transactions(None, count).await?;
 
         Ok(txs)
     }
