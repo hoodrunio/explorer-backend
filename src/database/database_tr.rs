@@ -175,6 +175,18 @@ impl DatabaseTR {
         Ok(())
     }
 
+    /// Adds a new transaction to the transactions collection of the database.
+    /// # Usage
+    /// ```rs
+    /// database.add_transaction(transaction).await;
+    /// ```
+    pub async fn add_transaction(&self, transaction: TransactionForDb) -> Result<(), String> {
+        match self.transactions_collection().insert_one(transaction, None).await {
+            Ok(_) => Ok(()),
+            Err(_) => Err("Cannot save the transaction.".into()),
+        }
+    }
+
     /// Adds new block item to the blocks collection
     /// # Usage
     /// ```rs
