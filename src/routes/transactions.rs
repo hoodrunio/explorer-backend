@@ -4,6 +4,7 @@ use actix_web::{
     web::{Data, Path},
 };
 use actix_web::web::Query;
+use serde::Deserialize;
 
 use crate::{
     fetch::others::PaginationConfig,
@@ -68,16 +69,19 @@ pub async fn txs_of_recipient(path: Path<(String, String)>, chains: Data<State>,
     Ok(TNRAppSuccessResponse::new(data))
 }
 
-#[get("{chain}/last-ten-txs")]
-pub async fn last_ten_txs(path: Path<String>, chains: Data<State>) -> Result<impl Responder, TNRAppError> {
+#[get("{chain}/last-txs")]
+pub async fn last_txs(path: Path<String>, chains: Data<State>, query: Query<LastTxsQueryParams>) -> Result<impl Responder, TNRAppError> {
     let chain = path.into_inner();
 
-    let _chain = extract_chain(&chain, chains)?;
-    let data = "Storing txs in the database is not implemented yet.".to_string();
+    let default_count = 10;
+    let count = query.tx_count.unwrap_or(default_count);
 
-    // match chain.inner.data.last_ten_txs.queue.lock() {
-    //     Ok(last_ten_txs) => Response::Success(OutRestResponse::new(Json(last_ten_txs.clone()), 0)),
-    //     _ => Response::Error("An internal error occured.".to_string()),
-    // },
+    let chain = extract_chain(&chain, chains)?;
+    let data = chain.get_last_count_txs_from_db(Some(count)).await?;
     Ok(TNRAppSuccessResponse::new(data))
+}
+
+#[derive(Deserialize)]
+pub struct LastTxsQueryParams {
+    pub tx_count: Option<u16>,
 }
