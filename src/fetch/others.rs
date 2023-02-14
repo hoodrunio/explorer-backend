@@ -157,7 +157,23 @@ pub struct InternalDenomAmount {
     /// The name of the token. Eg: `"uatom"`
     pub denom: String,
     /// The amount of the token. Eg: `450000`
-    pub amount: u128,
+    pub amount: f64,
+}
+
+impl InternalDenomAmount {
+    pub async fn from_chain_denom_amount(chain: &Chain, denom_amount: &DenomAmount) -> Result<InternalDenomAmount, String> {
+        let amount = chain.calc_amount_f64_to_f64(
+            denom_amount
+                .amount
+                .parse::<f64>()
+                .map_err(|_| format!("Cannot parse amount, '{}'.", &denom_amount.amount))?,
+        );
+
+        Ok(InternalDenomAmount {
+            denom: denom_amount.denom.clone(),
+            amount,
+        })
+    }
 }
 
 #[derive(Deserialize, Serialize, Debug)]
@@ -168,7 +184,7 @@ pub struct AnnualProvisions {
 impl TryFrom<DenomAmount> for InternalDenomAmount {
     type Error = String;
     fn try_from(value: DenomAmount) -> Result<Self, Self::Error> {
-        let amount: u128 = match value.amount.parse() {
+        let amount: f64 = match value.amount.parse() {
             Ok(v) => v,
             Err(_) => return Err(format!("Cannot parse amount, '{}'.", value.amount)),
         };
