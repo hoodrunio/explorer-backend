@@ -51,7 +51,6 @@ impl Chain {
                     let path = format!("/cosmos/tx/v1beta1/txs/{hash}");
 
                     let resp = self.rest_api_request::<TxResp>(&path, &[]).await?;
-
                     let tx = InternalTransaction::new(resp.tx, resp.tx_response, self).await?;
 
                     Ok(OutRestResponse::new(tx, 0))
@@ -342,12 +341,12 @@ pub struct InternalTransaction {
     pub fee: f64,
     pub gas_wanted: u64,
     pub gas_used: u64,
-    pub raw: String,
     pub result: String,
     pub memo: String,
     pub signatures: Vec<String>,
-    pub logs: Vec<TxResponseLog>,
     pub content: Vec<InternalTransactionContent>,
+    pub logs: Vec<TxResponseLog>,
+    pub raw: String,
 }
 
 impl InternalTransaction {
@@ -564,13 +563,13 @@ pub enum InternalTransactionContentKnowns {
         delegator_address: String,
         validator_name: String,
         validator_address: String,
-        amount: f64,
+        amount: InternalDenomAmount,
     },
     Undelegate {
         delegator_address: String,
         validator_name: String,
         validator_address: String,
-        amount: f64,
+        amount: InternalDenomAmount,
     },
     #[serde(rename = "Withdraw Delegator Reward")]
     WithdrawDelegatorReward {
@@ -584,7 +583,7 @@ pub enum InternalTransactionContentKnowns {
         validator_from_address: String,
         validator_to_name: String,
         validator_to_address: String,
-        amount: f64,
+        amount: InternalDenomAmount,
     },
     Revoke {
         granter_address: String,
@@ -744,12 +743,7 @@ impl TxsTransactionMessage {
                         delegator_address,
                         validator_name: chain.database.find_validator_by_operator_addr(&validator_address.clone()).await?.name,
                         validator_address,
-                        amount: chain.calc_amount_u128_to_f64(
-                            amount
-                                .amount
-                                .parse::<u128>()
-                                .map_err(|_| format!("Cannot parse delegation amount, '{}'.", amount.amount))?,
-                        ),
+                        amount: InternalDenomAmount::from_chain_denom_amount(&chain, &amount).await?,
                     }),
 
                     TxsTransactionMessageKnowns::Redelegate {
@@ -763,12 +757,7 @@ impl TxsTransactionMessage {
                         validator_from_address: validator_src_address,
                         validator_to_name: chain.database.find_validator_by_operator_addr(&validator_dst_address.clone()).await?.name,
                         validator_to_address: validator_dst_address,
-                        amount: chain.calc_amount_u128_to_f64(
-                            amount
-                                .amount
-                                .parse::<u128>()
-                                .map_err(|_| format!("Cannot parse delegation amount, '{}'.", amount.amount))?,
-                        ),
+                        amount: InternalDenomAmount::from_chain_denom_amount(&chain, &amount).await?,
                     }),
 
                     TxsTransactionMessageKnowns::Revoke {
@@ -787,7 +776,8 @@ impl TxsTransactionMessage {
                         let mut amounts = vec![];
 
                         for denom_amount in amount {
-                            amounts.push(denom_amount.try_into()?)
+                            amounts.push(InternalDenomAmount::from_chain_denom_amount(&chain, &denom_amount).await?)
+                            //TODO check if it is native token if it is we can convert with decimal pow if not get related token decimal count.
                             // We don't work with decimals here, cuz there might be a token which is not the same with the native coin of the chain.
                             // If this situation is highly unlikely to be happen, you can just convert `amounts` to `f64` and just store the amount (in native coin, others wo't be supported).
                         }
@@ -807,12 +797,7 @@ impl TxsTransactionMessage {
                         delegator_address,
                         validator_name: chain.database.find_validator_by_operator_addr(&validator_address.clone()).await?.name,
                         validator_address,
-                        amount: chain.calc_amount_u128_to_f64(
-                            amount
-                                .amount
-                                .parse::<u128>()
-                                .map_err(|_| format!("Cannot parse undelegation amount, '{}'.", amount.amount))?,
-                        ),
+                        amount: InternalDenomAmount::from_chain_denom_amount(&chain, &amount).await?,
                     }),
 
                     TxsTransactionMessageKnowns::Vote { proposal_id, voter, option } => {
