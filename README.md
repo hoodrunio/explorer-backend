@@ -14,11 +14,10 @@
 
 # To-do
 - **APR** calculation. (✅)
-- **Indexing** special chain specific data. in progress (🚧)
-- EVM TX support - decode ethabi func/specs. 
+- EVM TX support - decode ethabi func/specs. in progress (🚧)
 - Consensus address conversation from pubkey. (✅)
-- Axelar EVM-poll/heartbeats features - under development (🚧)
-- Add validator signature route. - **it is only stored in the database atm.** (🚧)
+- Axelar EVM-poll/heartbeats features. (✅)
+- Add validator signature route. (✅)
 - Add uptime calculation. (✅)
 - **Database** implementation to store important stuff. (✅)
 - **WebSocket** interface to provide multiple events to subscribe dynamic data. (✅)
