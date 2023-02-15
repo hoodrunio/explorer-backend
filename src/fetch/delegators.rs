@@ -85,14 +85,14 @@ pub struct InternalDelegatorReward {
 impl InternalDelegatorReward {
     fn new(delegator_rwd: DelegatorReward, chain: &Chain) -> Self {
         let reward = match delegator_rwd.reward.get(0) {
-            Some(denom_amount) => chain.calc_amount_u128_to_f64(
+            Some(denom_amount) => chain.calc_amount_f64_to_f64(
                 denom_amount
                     .amount
                     .split_once('.')
                     .map(|(pri, _)| pri)
                     .unwrap_or(&denom_amount.amount)
-                    .parse::<u128>()
-                    .unwrap_or(0),
+                    .parse::<f64>()
+                    .unwrap_or(0.0),
             ),
             None => 0.00,
         };
