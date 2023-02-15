@@ -2,6 +2,7 @@ axelar:
   name: axelar
   epoch: false
   gecko: axelar
+  symbol: AXL
   denom: uaxl
   # prefix: axelar
   logo: https://assets.coingecko.com/coins/images/24489/large/tsYr25vB_400x400.jpg
@@ -17,6 +18,7 @@ evmos:
   name: evmos
   epoch: true
   gecko: evmos
+  symbol: EVMOS
   denom: aevmos
   # prefix: evmos
   logo: https://assets.coingecko.com/coins/images/24023/large/evmos.png
@@ -32,6 +34,7 @@ osmosis:
   name: osmosis
   epoch: true
   gecko: osmosis
+  symbol: OSMO
   denom: uosmo
   prefix: osmo
   logo: https://assets.coingecko.com/coins/images/16724/large/osmo.png
@@ -47,6 +50,7 @@ umee:
   name: umee
   epoch: false
   gecko: umee
+  symbol: UMEE
   denom: uumee
   # prefix: umee
   logo: https://assets.coingecko.com/coins/images/20635/small/Asset_19.png
@@ -62,6 +66,7 @@ secret:
   name: secret
   epoch: false
   gecko: secret
+  symbol: SCRT
   denom: usecret
   # prefix: secret
   logo: https://assets.coingecko.com/coins/images/20635/small/Asset_19.png
@@ -77,6 +82,7 @@ quicksilver:
   name: quicksilver
   epoch: false
   gecko: quicksilver
+  symbol: QCK
   denom: uqck
   # prefix: secret
   logo: https://raw.githubusercontent.com/testnetrunn/explorer-assets/main/mainnet/quicksilver/black-quicksilver.png

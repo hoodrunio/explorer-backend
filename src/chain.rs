@@ -70,6 +70,7 @@ impl Chain {
             epoch: ic.epoch.unwrap_or(false),
             gecko: ic.gecko,
             base_prefix: ic.prefix.unwrap_or_else(|| ic.name),
+            symbol: ic.symbol,
             main_denom,
             rpc_url: ic.rpc_url,
             jsonrpc_url: ic.jsonrpc_url,
@@ -111,6 +112,8 @@ pub struct ChainConfig {
     pub gecko: Option<String>,
     /// The base prefix of the chain.
     pub base_prefix: String,
+    ///The Symbol of the chain token
+    pub symbol: String,
     /// The valoper prefix of the chain.
     // pub valoper_prefix: String,
     /// The cons prefix of the chain.
@@ -144,6 +147,7 @@ pub struct IntermediateChainConfig {
     pub epoch: Option<bool>,
     pub gecko: Option<String>,
     pub prefix: Option<String>,
+    pub symbol: String,
     pub rpc_url: String,
     pub rest_url: String,
     pub wss_url: String,
