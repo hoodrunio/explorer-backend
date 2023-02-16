@@ -80,7 +80,6 @@ impl Chain {
             ) {
                 redelegations.push({
                     let redelegation_resp_entry = redelegation_response
-                        .redelegation
                         .entries
                         .get(0)
                         .ok_or_else(|| "There is no redelegation entry.".to_string())?;
@@ -276,7 +275,7 @@ pub struct RedelegationResponse {
     /// Delegation.
     pub redelegation: Redelegation,
     /// Amount and denom.
-    pub entries: Vec<RedelegationEntry>,
+    pub entries: Vec<RedelegationResponseEntry>,
 }
 
 #[derive(Deserialize, Serialize, Debug)]
@@ -288,7 +287,7 @@ pub struct Redelegation {
     /// Validator destination address. Eg: `""`
     pub validator_dst_address: String,
     /// Array of redelegation entries.
-    pub entries: Vec<RedelegationResponseEntry>,
+    pub entries: Option<Vec<RedelegationResponseEntry>>,
 }
 
 #[derive(Deserialize, Serialize, Debug)]
@@ -302,7 +301,7 @@ pub struct RedelegationResponseEntry {
 #[derive(Deserialize, Serialize, Debug)]
 pub struct RedelegationEntry {
     /// Redelagation creation height. Eg: `"524000"`
-    pub creation_height: String,
+    pub creation_height: u64,
     /// Redelagation competion time. Eg: `"2022-11-06T00:14:50.583Z"`
     pub completion_time: String,
     /// Redelagation inital balance. Eg: `""`
@@ -328,9 +327,7 @@ impl TryFrom<RedelegationEntry> for InternalRedelegationEntry {
     fn try_from(value: RedelegationEntry) -> Result<Self, Self::Error> {
         Ok(Self {
             creation_height: value
-                .creation_height
-                .parse()
-                .map_err(|_| format!("Cannot parse redelegation creation height, '{}'.", value.creation_height))?,
+                .creation_height,
             completion_time: DateTime::parse_from_rfc3339(&value.completion_time)
                 .map_err(|_| format!("Cannot parse redelegation completion datetime, '{}'.", value.completion_time))?
                 .timestamp_millis(),
