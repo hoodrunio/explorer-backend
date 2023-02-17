@@ -4,12 +4,13 @@ use actix_web::{
     web::{Data, Path, Query},
 };
 use mongodb::bson::doc;
+use serde::Deserialize;
 
 use crate::{
     fetch::others::PaginationConfig,
     state::State,
 };
-use crate::fetch::validators::ValidatorListResp;
+use crate::fetch::validators::{ValidatorListResp, ValidatorRedelegationQuery};
 use crate::routes::{extract_chain, TNRAppError, TNRAppSuccessResponse};
 
 use super::QueryParams;
@@ -48,13 +49,14 @@ pub async fn validator_unbondings(path: Path<(String, String)>, chains: Data<Sta
 }
 
 #[get("{chain}/validator-redelegations/{address}")]
-pub async fn validator_redelegations(path: Path<(String, String)>, chains: Data<State>, query: Query<QueryParams>) -> Result<impl Responder, TNRAppError> {
+pub async fn validator_redelegations(path: Path<(String, String)>, chains: Data<State>, query: Query<ValidatorRedelegationQueryParams>) -> Result<impl Responder, TNRAppError> {
     let (chain, validator_addr) = path.into_inner();
 
-    let config = PaginationConfig::new().limit(6).page(query.page.unwrap_or(1));
+    let config = PaginationConfig::new().limit(query.limit.unwrap_or(10)).page(query.page.unwrap_or(1));
 
     let chain = extract_chain(&chain, chains)?;
-    let data = chain.get_validator_redelegations(&validator_addr, config).await?;
+    let query_config = ValidatorRedelegationQuery { source: query.source, destination: query.destination };
+    let data = chain.get_validator_redelegations(&validator_addr, config, query_config).await?;
     Ok(TNRAppSuccessResponse::new(data))
 }
 
@@ -152,4 +154,12 @@ pub async fn validator_set(path: Path<String>, chains: Data<State>) -> Result<im
     let chain = extract_chain(&chain, chains)?;
     let data = chain.get_validator_set().await?;
     Ok(TNRAppSuccessResponse::new(data))
+}
+
+#[derive(Deserialize)]
+pub struct ValidatorRedelegationQueryParams {
+    pub page: Option<u8>,
+    pub limit: Option<u16>,
+    pub source: Option<bool>,
+    pub destination: Option<bool>,
 }
