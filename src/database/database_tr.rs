@@ -248,7 +248,6 @@ impl DatabaseTR {
         };
 
         pipeline_docs.push(limit_pipe);
-        dbg!(&pipeline_docs);
         let mut results = self.blocks_collection().aggregate(pipeline_docs, None).await.map_err(|e| format!("{}", e.to_string()))?;
 
         let mut res: Vec<Block> = vec![];
