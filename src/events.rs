@@ -36,23 +36,17 @@ pub async fn handle_connection(tx: Sender<(String, WsEvent)>, raw_stream: TcpStr
             return Err(ErrorResponse::new(Some("No chain specified".to_string())));
         };
 
-        dbg!("path");
         if !chains.contains(&chain) {
             return Err(ErrorResponse::new(Some("Chain is not found".to_string())));
         }
-        dbg!("chain");
 
         let Some(query) = request.uri().query() else {
             return Err(ErrorResponse::new(Some("Please provide the subjects as parameters".to_string())));
         };
 
-        dbg!("query");
-
         let Ok(parsed) = dbg!(serde_querystring::from_str::<SubscriptionMode>(query, ParseMode::UrlEncoded)) else {
             return Err(ErrorResponse::new(Some("Invalid query parameters".to_string())));
         };
-
-        dbg!("parse");
 
         tx_config.send((chain.to_string(), parsed)).ok();
 

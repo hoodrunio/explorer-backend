@@ -293,14 +293,14 @@ impl Chain {
                                     let tx = match voted_tx.fetch_tx(&self).await {
                                         Ok(res) => res,
                                         Err(e) => {
-                                            dbg!("Axelar evm poll vote tx fetcher error {}",&e);
+                                            tracing::error!("Axelar evm poll vote tx fetcher error {}",&e);
                                             continue;
                                         }
                                     };
                                     let tx_content = match tx.content.get(0) {
                                         Some(res) => res,
                                         None => {
-                                            dbg!("Axelar evm poll tx does not have content which hash is {}", &tx_hash);
+                                            tracing::error!("Axelar evm poll tx does not have content which hash is {}", &tx_hash);
                                             continue;
                                         }
                                     };

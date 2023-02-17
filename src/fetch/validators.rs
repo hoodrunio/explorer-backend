@@ -1,5 +1,5 @@
 use chrono::{DateTime, Duration, Utc};
-use futures::{future::join_all};
+use futures::future::join_all;
 use mongodb::bson::doc;
 use serde::{Deserialize, Serialize};
 use tokio::join;
@@ -122,15 +122,32 @@ impl Chain {
         &self,
         validator_addr: &str,
         config: PaginationConfig,
+        query_config: ValidatorRedelegationQuery,
     ) -> Result<OutRestResponse<Vec<InternalRedelegation>>, String> {
         let mut query = vec![];
-        query.push(("events", format!("redelegate.source_validator='{}'", validator_addr)));
+        let is_destination = query_config.destination.unwrap_or(false);
+        let is_source = query_config.source.unwrap_or(false);
+
+        if let Err(message) = query_config.validate() {
+            return Err(message);
+        };
+
+        if is_source {
+            query.push(("events", format!("redelegate.source_validator='{}'", validator_addr)));
+        };
+        if is_destination {
+            query.push(("events", format!("redelegate.destination_validator='{}'", validator_addr)));
+        };
+
         query.push(("message.action", "'/cosmos.staking.v1beta1.MsgBeginRedelegate'".to_string()));
         query.push(("pagination.reverse", format!("{}", config.is_reverse())));
         query.push(("pagination.limit", format!("{}", config.get_limit())));
         query.push(("pagination.count_total", "true".to_string()));
         query.push(("pagination.offset", format!("{}", config.get_offset())));
-        query.push(("order_by", "ORDER_BY_DESC".to_string()));
+
+        if self.config.name != "evmos" {
+            query.push(("order_by", "ORDER_BY_DESC".to_string()));
+        };
 
         let resp = self.rest_api_request::<TxsResp>("/cosmos/tx/v1beta1/txs", &query).await?;
 
@@ -1012,5 +1029,20 @@ impl ValidatorStatus {
             ValidatorStatus::Tombstoned => "Tombstoned",
             ValidatorStatus::Unknown(unknown_string) => unknown_string
         }
+    }
+}
+
+#[derive(Deserialize, Serialize)]
+pub struct ValidatorRedelegationQuery {
+    pub source: Option<bool>,
+    pub destination: Option<bool>,
+}
+
+impl ValidatorRedelegationQuery {
+    pub fn validate(&self) -> Result<(), String> {
+        let error_message = Err(String::from("Please specify only one validator address type at once"));
+        let is_source = self.source.unwrap_or(false);
+        let is_destination = self.destination.unwrap_or(false);
+        if (is_source && is_destination) || (!is_source && !is_destination) { return error_message; } else { Ok(()) }
     }
 }
