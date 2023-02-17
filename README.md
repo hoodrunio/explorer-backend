@@ -27,12 +27,61 @@
 # Usage
 > If you don't have Rust installed, follow the instructions at [rust-lang.org](https://www.rust-lang.org/tools/install).
 
-- Clone the repository by typing this in terminal: `git clone https://github.com/testnetrunn/explorer-backend.git`
-- Set working directory to the project by typing this in terminal: `cd explorer-backend`
-- Run the project by typing this in terminal: `cargo run --release`
+- Clone the repository 
+```
+git clone https://github.com/testnetrunn/explorer-backend.git
+cd explorer-backend
+```
+- Run the project by typing this in terminal
+```
+cargo run --release
+```
+- Install MongoDB
+> Original resources can be found [here.](https://www.mongodb.com/docs/manual/tutorial/install-mongodb-on-ubuntu).
+
+```
+wget -qO - https://www.mongodb.org/static/pgp/server-6.0.asc | sudo apt-key add -
+echo "deb [ arch=amd64,arm64 ] https://repo.mongodb.org/apt/ubuntu focal/mongodb-org/6.0 multiverse" | sudo tee /etc/apt/sources.list.d/mongodb-org-6.0.list
+sudo apt-get update
+sudo apt-get install -y mongodb-org
+sudo systemctl start mongod
+```
+
 - Go to [`src/routes/`](https://github.com/testnetrunn/explorer-backend/tree/main/src/routes) folder, and pick any of the files inside.
 - Each function represents a different path.
 - Test by visiting paths with a browser.
+
+For production, you might consider proxy. 
+Here is an example for nginx:
+
+```
+server {
+    listen 80;
+    listen 443;
+
+    server_name example.com;
+    location / {
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection upgrade;
+        proxy_redirect                      off;
+        proxy_set_header Host               $host;
+        proxy_set_header X-Real-IP          $remote_addr;
+        proxy_set_header X-Forwarded-For    $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto  $scheme;
+      proxy_pass      http://127.0.0.1:8080;
+       }
+    location /socket {
+        proxy_read_timeout 600s;
+        rewrite  ^/socket/(.*) /$1 break;
+        proxy_connect_timeout 175s;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "Upgrade";
+        proxy_set_header Host $host;
+        proxy_pass http://127.0.0.1:8081;
+    }
+}
+```
 
 # Development
 
