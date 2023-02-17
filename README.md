@@ -32,10 +32,7 @@
 git clone https://github.com/testnetrunn/explorer-backend.git
 cd explorer-backend
 ```
-- Run the project by typing this in terminal
-```
-cargo run --release
-```
+
 - Install MongoDB
 > Original resources can be found [here.](https://www.mongodb.com/docs/manual/tutorial/install-mongodb-on-ubuntu).
 
@@ -46,7 +43,10 @@ sudo apt-get update
 sudo apt-get install -y mongodb-org
 sudo systemctl start mongod
 ```
-
+- Run the project by typing this in terminal
+```
+cargo run --release
+```
 - Go to [`src/routes/`](https://github.com/testnetrunn/explorer-backend/tree/main/src/routes) folder, and pick any of the files inside.
 - Each function represents a different path.
 - Test by visiting paths with a browser.
