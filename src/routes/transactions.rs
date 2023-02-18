@@ -20,7 +20,7 @@ pub async fn tx_by_hash(path: Path<(String, String)>, chains: Data<State>) -> Re
 
     let chain = extract_chain(&chain, chains)?;
     let data = chain.get_tx_by_hash(&hash).await?;
-    Ok(TNRAppSuccessResponse::new(data))
+    Ok(TNRAppSuccessResponse::new(data, None))
 }
 
 #[get("{chain}/txs-on-latest-block")]
@@ -31,7 +31,7 @@ pub async fn txs_on_latest_block(path: Path<String>, chains: Data<State>, query:
 
     let chain = extract_chain(&chain, chains)?;
     let data = chain.get_txs_by_height(None, config).await?;
-    Ok(TNRAppSuccessResponse::new(data))
+    Ok(TNRAppSuccessResponse::new(data, None))
 }
 
 #[get("{chain}/txs-by-height/{heigth}")]
@@ -42,7 +42,7 @@ pub async fn txs_by_height(path: Path<(String, u64)>, chains: Data<State>, query
 
     let chain = extract_chain(&chain, chains)?;
     let data = chain.get_txs_by_height(Some(height), config).await?;
-    Ok(TNRAppSuccessResponse::new(data))
+    Ok(TNRAppSuccessResponse::new(data, None))
 }
 
 #[get("{chain}/txs-of-sender/{address}")]
@@ -53,7 +53,7 @@ pub async fn txs_of_sender(path: Path<(String, String)>, chains: Data<State>, qu
 
     let chain = extract_chain(&chain, chains)?;
     let data = chain.get_txs_by_sender(&sender_addr, config).await?;
-    Ok(TNRAppSuccessResponse::new(data))
+    Ok(TNRAppSuccessResponse::new(data, None))
 }
 
 #[get("{chain}/txs-of-recipient/{address}")]
@@ -66,7 +66,7 @@ pub async fn txs_of_recipient(path: Path<(String, String)>, chains: Data<State>,
     let data = chain
         .get_txs_by_recipient(&recipient_addr, config)
         .await?;
-    Ok(TNRAppSuccessResponse::new(data))
+    Ok(TNRAppSuccessResponse::new(data, None))
 }
 
 #[get("{chain}/last-txs")]
@@ -78,5 +78,5 @@ pub async fn last_txs(path: Path<String>, chains: Data<State>, query: Query<Last
 
     let chain = extract_chain(&chain, chains)?;
     let data = chain.get_last_txs_from_db(count).await?;
-    Ok(TNRAppSuccessResponse::new(data))
+    Ok(TNRAppSuccessResponse::new(data, None))
 }

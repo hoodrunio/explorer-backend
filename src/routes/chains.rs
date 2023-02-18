@@ -26,5 +26,5 @@ pub async fn chains(state: Data<State>) -> Result<impl Responder, TNRAppError> {
         })
         .collect::<Vec<Chain>>();
 
-    Ok(TNRAppSuccessResponse::new(chains))
+    Ok(TNRAppSuccessResponse::new(chains, None))
 }

@@ -15,5 +15,5 @@ pub async fn community_pool(path: Path<String>, chains: Data<State>) -> Result<i
 
     let chain = extract_chain(&chain, chains)?;
     let data = chain.get_community_pool().await?;
-    Ok(TNRAppSuccessResponse::new(data))
+    Ok(TNRAppSuccessResponse::new(data, None))
 }

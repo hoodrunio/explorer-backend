@@ -15,7 +15,7 @@ pub async fn delegator_rewards(path: Path<(String, String)>, chains: Data<State>
 
     let chain = extract_chain(&chain, chains)?;
     let data = chain.get_delegator_rewards(&delegator_addr).await?;
-    Ok(TNRAppSuccessResponse::new(data))
+    Ok(TNRAppSuccessResponse::new(data, None))
 }
 
 #[get("{chain}/delegator-withdraw-address/{address}")]
@@ -24,5 +24,5 @@ pub async fn delegator_withdraw_address(path: Path<(String, String)>, chains: Da
 
     let chain = extract_chain(&chain, chains)?;
     let data = chain.get_delegator_withdraw_address(&delegator_addr).await?;
-    Ok(TNRAppSuccessResponse::new(data))
+    Ok(TNRAppSuccessResponse::new(data, None))
 }

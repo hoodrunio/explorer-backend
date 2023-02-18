@@ -16,5 +16,5 @@ pub async fn params(path: Path<String>, chains: Data<State>) -> Result<impl Resp
     let chain = extract_chain(&chain, chains)?;
     // Database can be used.
     let data = chain.get_params_all().await?;
-    Ok(TNRAppSuccessResponse::new(data))
+    Ok(TNRAppSuccessResponse::new(data ,None))
 }

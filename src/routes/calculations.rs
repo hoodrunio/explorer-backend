@@ -15,5 +15,5 @@ pub async fn calculations(path: Path<String>, chains: Data<State>) -> Result<imp
     let chain = extract_chain(&chain, chains)?;
     // Database can be used.
     let data = chain.get_apr().await?;
-    Ok(TNRAppSuccessResponse::new(data))
+    Ok(TNRAppSuccessResponse::new(data, None))
 }

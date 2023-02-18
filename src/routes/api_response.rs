@@ -2,9 +2,9 @@ use actix_web::body::BoxBody;
 use actix_web::http::header::ContentType;
 use actix_web::http::StatusCode;
 use actix_web::{HttpRequest, HttpResponse, Responder, ResponseError};
-use serde::Serialize;
 use std::fmt;
 use std::string::ParseError;
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug)]
 pub enum TNRAppErrorType {
@@ -86,14 +86,67 @@ impl ResponseError for TNRAppError {
     }
 }
 
+
 #[derive(Serialize)]
 pub struct TNRAppSuccessResponse<T> {
     pub data: T,
+    pub pagination: Option<PaginationData>
 }
 
 impl<T> TNRAppSuccessResponse<T> {
-    pub fn new(data: T) -> Self {
-        Self { data }
+    pub fn new(data: T, pagination: Option<PaginationData>) -> Self<> {
+        Self {
+            data,
+            pagination
+        }
+    }
+
+    pub fn cursor(data: T, cursor: Option<String>, limit: u64, dir: Option<PaginationDirection>) -> Self<> {
+        let dir = dir.unwrap_or_default();
+
+        Self {
+            data,
+            pagination: Some(PaginationData {
+                cursor,
+                limit,
+                dir,
+                ..Default::default()
+            })
+        }
+    }
+
+    pub fn offset(data: T, offset: u64, limit: u64, dir: Option<PaginationDirection>) -> Self<> {
+        let dir = dir.unwrap_or_default();
+
+        Self {
+            data,
+            pagination: Some(PaginationData {
+                offset: Some(offset),
+                limit,
+                dir,
+                ..Default::default()
+            })
+        }
+    }
+}
+
+#[derive(Default, Debug, Clone, Deserialize, Serialize)]
+pub struct PaginationData {
+    pub cursor: Option<String>,
+    pub offset: Option<u64>,
+    pub limit: u64,
+    pub dir: PaginationDirection
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub enum PaginationDirection {
+    Next,
+    Prev
+}
+
+impl Default for PaginationDirection {
+    fn default() -> Self {
+        Self::Next
     }
 }
 

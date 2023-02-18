@@ -1,6 +1,7 @@
 use actix_web::web::Data;
+use mongodb::bson::doc;
+use mongodb::options::FindOptions;
 use serde::{Deserialize, Serialize};
-
 use crate::chain::Chain;
 use crate::fetch::amount_util::{ChainAmountItemBuilder, TnrDecimal};
 use crate::fetch::others::{Pagination, PaginationConfig};
@@ -27,6 +28,14 @@ pub struct OutRestResponse<T> {
     pub value: T,
     /// The count of the pages.
     pub pages: u8,
+}
+
+pub fn create_options(limit: i64, skip: Option<u64>) -> FindOptions {
+    FindOptions::builder()
+        .limit(Some(limit))
+        .skip(skip)
+        .sort(doc! ( "_id": 1 ))
+        .build()
 }
 
 impl<T> OutRestResponse<T> {

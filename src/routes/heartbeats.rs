@@ -38,7 +38,7 @@ pub async fn validator_hearbeats(path: Path<(String, String)>, chains: Data<Stat
         to.clone())?;
 
     let data = chain.get_val_heartbeats(operator_address, heartbeats_query, config).await?;
-    Ok(TNRAppSuccessResponse::new(data))
+    Ok(TNRAppSuccessResponse::new(data, None))
 }
 
 #[get("{chain}/heartbeats")]
@@ -55,7 +55,7 @@ pub async fn hearbeats(path: Path<String>, chains: Data<State>, query: Query<Que
 
     let list_from_db = chain.database.find_paginated_heartbeats(vec![doc! {"$match":{"sender": {"$exists":true }}}], config).await?;
     let data = HeartbeatsListResp::from_db_list(list_from_db)?;
-    Ok(TNRAppSuccessResponse::new(data))
+    Ok(TNRAppSuccessResponse::new(data, None))
 }
 
 
