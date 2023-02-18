@@ -36,7 +36,8 @@ versions = { version = "4.1.0", features = ["serde"] }
 bech32 = "0.9.1"
 dashmap = "5.4.0"
 serde-querystring = "0.1.0"
-rust_decimal = { version = "1.28.1", features = ["serde-float", "serde-str", "serde-arbitrary-precision"] }
+mongodb-cursor-pagination = { git = "https://github.com/testnetrunn/mongodb-cursor-pagination.git" }
+rust_decimal = "1.28.1"
 
 [build-dependencies]
 serde = { version = "1.0.147", features = ["derive"] }

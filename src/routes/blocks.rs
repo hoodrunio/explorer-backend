@@ -16,7 +16,7 @@ pub async fn block_by_height(path: Path<(String, u64)>, chains: Data<State>) -> 
 
     let chain = extract_chain(&chain, chains)?;
     let data = chain.get_block_by_height(Some(height)).await?;
-    Ok(TNRAppSuccessResponse::new(data))
+    Ok(TNRAppSuccessResponse::new(data, None))
 }
 
 #[get("{chain}/block-by-hash/{hash}")]
@@ -25,7 +25,7 @@ pub async fn block_by_hash(path: Path<(String, String)>, chains: Data<State>) ->
 
     let chain = extract_chain(&chain, chains)?;
     let data = chain.get_block_by_hash(&hash).await?;
-    Ok(TNRAppSuccessResponse::new(data))
+    Ok(TNRAppSuccessResponse::new(data, None))
 }
 
 /// Example: http://localhost:8080/axelar/block-headers/2500-2520
@@ -42,7 +42,7 @@ pub async fn headers_by_heights(path: Path<(String, String)>, chains: Data<State
         },
         None => Response::Error(format!("{} is mistaken!", min_and_max_height)),
     };
-    Ok(TNRAppSuccessResponse::new(data))
+    Ok(TNRAppSuccessResponse::new(data, None))
 }
 
 #[get("{chain}/latest-block-headers")]
@@ -51,7 +51,7 @@ pub async fn latest_headers(path: Path<String>, chains: Data<State>) -> Result<i
 
     let chain = extract_chain(&chain, chains)?;
     let data = chain.get_block_headers_last_20().await?;
-    Ok(TNRAppSuccessResponse::new(data))
+    Ok(TNRAppSuccessResponse::new(data, None))
 }
 
 #[get("{chain}/last-blocks")]
@@ -62,7 +62,7 @@ pub async fn last_blocks(path: Path<String>, chains: Data<State>, query: Query<L
     let count = query.count.unwrap_or(default_count);
     let chain = extract_chain(&chain, chains)?;
     let data = chain.get_last_blocks_from_db(count).await?;
-    Ok(TNRAppSuccessResponse::new(data))
+    Ok(TNRAppSuccessResponse::new(data, None))
 }
 
 #[get("{chain}/validator/last_signed_blocks/{operator_address}")]
@@ -77,5 +77,5 @@ pub async fn validator_last_signed_blocks(
     let count: u16 = query.count.unwrap_or(default_count);
     let chain = extract_chain(&chain, chains)?;
     let data = chain.get_validator_last_signed_blocks(operator_address, Some(count)).await?;
-    Ok(TNRAppSuccessResponse::new(data))
+    Ok(TNRAppSuccessResponse::new(data, None))
 }

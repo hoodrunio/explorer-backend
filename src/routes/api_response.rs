@@ -2,9 +2,10 @@ use actix_web::body::BoxBody;
 use actix_web::http::header::ContentType;
 use actix_web::http::StatusCode;
 use actix_web::{HttpRequest, HttpResponse, Responder, ResponseError};
-use serde::Serialize;
 use std::fmt;
 use std::string::ParseError;
+use mongodb_cursor_pagination::CursorDirections;
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug)]
 pub enum TNRAppErrorType {
@@ -86,14 +87,75 @@ impl ResponseError for TNRAppError {
     }
 }
 
+
 #[derive(Serialize)]
 pub struct TNRAppSuccessResponse<T> {
     pub data: T,
+    pub pagination: Option<PaginationData>
 }
 
 impl<T> TNRAppSuccessResponse<T> {
-    pub fn new(data: T) -> Self {
-        Self { data }
+    pub fn new(data: T, pagination: Option<PaginationData>) -> Self<> {
+        Self {
+            data,
+            pagination
+        }
+    }
+
+    pub fn cursor(data: T, cursor: Option<String>, limit: u64, dir: Option<PaginationDirection>) -> Self<> {
+        let direction = dir.unwrap_or_default();
+
+        Self {
+            data,
+            pagination: Some(PaginationData {
+                cursor,
+                limit: Some(limit),
+                direction: Some(direction),
+                ..Default::default()
+            })
+        }
+    }
+
+    pub fn offset(data: T, offset: u64, limit: u64, dir: Option<PaginationDirection>) -> Self<> {
+
+        Self {
+            data,
+            pagination: Some(PaginationData {
+                offset: Some(offset),
+                limit: Some(limit),
+                direction: Some(dir.unwrap_or_default()),
+                ..Default::default()
+            })
+        }
+    }
+}
+
+#[derive(Default, Debug, Clone, Deserialize, Serialize)]
+pub struct PaginationData {
+    pub cursor: Option<String>,
+    pub offset: Option<u64>,
+    pub limit: Option<u64>,
+    pub direction: Option<PaginationDirection>,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub enum PaginationDirection {
+    Next,
+    Prev
+}
+
+impl Into<CursorDirections> for PaginationDirection {
+    fn into(self) -> CursorDirections {
+        match self {
+            PaginationDirection::Next => CursorDirections::Next,
+            PaginationDirection::Prev => CursorDirections::Previous,
+        }
+    }
+}
+
+impl Default for PaginationDirection {
+    fn default() -> Self {
+        Self::Next
     }
 }
 

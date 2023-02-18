@@ -15,5 +15,5 @@ pub async fn account(path: Path<(String, String)>, chains: Data<State>) -> Resul
     let (chain, account_address) = path.into_inner();
     let chain = extract_chain(&chain, chains)?;
     let data = chain.get_account_info(&account_address).await?;
-    Ok(TNRAppSuccessResponse::new(data))
+    Ok(TNRAppSuccessResponse::new(data, None))
 }

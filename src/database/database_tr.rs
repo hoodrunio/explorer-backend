@@ -1,9 +1,11 @@
 use futures::StreamExt;
-use mongodb::bson::{from_document, to_bson, to_document};
 use mongodb::{
     bson::{doc, Document},
     Client, Collection, Database,
 };
+use mongodb::bson::{from_document, to_bson, to_document};
+use mongodb::options::FindOptions;
+use mongodb_cursor_pagination::{FindResult, PaginatedCursor};
 
 use crate::database::blocks::Block;
 use crate::database::params::{HistoricalValidatorData, VotingPower};
@@ -13,6 +15,7 @@ use crate::database::{
 use crate::fetch::evm::{EvmPollListDbResp, EvmSupportedChains, PollStatus};
 use crate::fetch::others::PaginationConfig;
 use crate::fetch::validators::ValidatorListDbResp;
+use crate::routes::{PaginationData, TNRAppSuccessResponse};
 
 use super::{params::Params, validators::Validator};
 
@@ -392,49 +395,20 @@ impl DatabaseTR {
     /// ```rs
     /// database.find_paginated_evm_polls(evm_poll).await;
     /// ```
-    pub async fn find_paginated_evm_polls(&self, pipe: Option<Document>, config: PaginationConfig) -> Result<EvmPollListDbResp, String> {
-        let mut pipeline: Vec<Document> = vec![];
+    pub async fn find_paginated_evm_polls(&self, pipe: Option<Document>, config: Option<PaginationData>) -> Result<ListDbResult<EvmPollForDb>, String> {
 
-        let filter = pipe.clone();
-        match filter {
-            None => {}
-            Some(val) => pipeline.push(val),
-        };
+        let config = config.unwrap_or_default();
+        let options = FindOptions::builder()
+            .limit(config.limit.map(|l| l as i64))
+            .sort(doc! { "poll_id": -1})
+            .build();
 
-        let sort = doc! {
-            "$sort": {
-                "poll_id": -1
-            }
-        };
+        let results: FindResult<EvmPollForDb> = PaginatedCursor::new(Some(options), config.cursor, config.direction.map(|d| d.into()))
+            .find(&self.db().collection("evm_polls"), None)
+            .await.map_err(|e| format!("{}", e.to_string()))?;
 
-        let page = config.get_page() as f32;
-        let limit = config.get_limit() as f32;
-        let skip_count = config.get_offset() as f32;
-        let limit_pipe = doc! { "$limit": limit };
-        let skip_pipe = doc! {
-            "$skip": skip_count
-        };
 
-        pipeline.push(sort);
-        pipeline.push(skip_pipe);
-        pipeline.push(limit_pipe);
-
-        let mut results = self.evm_poll_collection().aggregate(pipeline, None).await.map_err(|e| format!("{}", e))?;
-        let count_cursor = self.evm_poll_collection().aggregate(pipe, None).await.map_err(|e| format!("{}", e))?;
-        let count = count_cursor.count().await;
-
-        let mut res: Vec<EvmPollForDb> = vec![];
-        while let Some(result) = results.next().await {
-            res.push(from_document(result.map_err(|e| format!("{}", e))?).map_err(|e| format!("{}", e))?);
-        }
-
-        Ok(EvmPollListDbResp {
-            polls: res,
-            pagination: PaginationDb {
-                page: page as u16,
-                total: count as u16,
-            },
-        })
+        Ok(ListDbResult::from(results))
     }
 
     /// Finds evm_polls with pagination option
@@ -562,53 +536,20 @@ impl DatabaseTR {
     /// ```rs
     /// let hearbeats = database.find_heartbeats(doc!{"$match":{"voter_address":"axelar1k3h51l35g5hb3lh4kjg34"}}).await;
     /// ```
-    pub async fn find_paginated_heartbeats(
-        &self,
-        q_pipeline: Vec<Document>,
-        config: PaginationConfig,
-    ) -> Result<ListDbResult<HeartbeatForDb>, String> {
-        let mut pipeline = q_pipeline.clone();
-        let page = config.get_page() as f32;
-        let limit = config.get_limit() as f32;
-        let skip_count = config.get_offset() as f32;
-        let limit_pipe = doc! { "$limit": limit };
-        let skip_pipe = doc! {
-            "$skip": skip_count
-        };
+    pub async fn find_paginated_heartbeats(&self, filter: Option<Document>, config: Option<PaginationData>) -> Result<ListDbResult<HeartbeatForDb>, String> {
+        let config = config.unwrap_or_default();
 
-        let sort = doc! {
-            "$sort": {
-                "period_height": -1
-            }
-        };
-        pipeline.push(sort);
-        pipeline.push(skip_pipe);
-        pipeline.push(limit_pipe);
+        let options = FindOptions::builder()
+            .limit(config.limit.map(|l| l as i64).unwrap_or_else(|| 20))
+            .sort(doc! { "period_height": -1})
+            .build();
 
-        let mut results = self
-            .heartbeat_collection()
-            .aggregate(pipeline, None)
-            .await
-            .map_err(|e| format!("{}", e))?;
-        let count_cursor = self
-            .heartbeat_collection()
-            .aggregate(q_pipeline, None)
-            .await
-            .map_err(|e| format!("{}", e))?;
-        let count = count_cursor.count().await;
+        let results: FindResult<HeartbeatForDb> = PaginatedCursor::new(Some(options), config.cursor, config.direction.map(|d| d.into()))
+            .find(&self.db().collection("heartbeats"), None)
+            .await.map_err(|e| format!("{}", e.to_string()))?;
 
-        let mut res: Vec<HeartbeatForDb> = vec![];
-        while let Some(result) = results.next().await {
-            res.push(from_document(result.map_err(|e| format!("{}", e))?).map_err(|e| format!("{}", e))?);
-        }
 
-        Ok(ListDbResult {
-            list: res,
-            pagination: PaginationDb {
-                page: page as u16,
-                total: count as u16,
-            },
-        })
+        Ok(ListDbResult::from(results))
     }
 
     /// Finds a validator by given document.
