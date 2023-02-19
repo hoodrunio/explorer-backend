@@ -1,7 +1,11 @@
+pub mod amount_util;
 pub mod apr;
+pub mod assets;
 pub mod blocks;
 pub mod delegations;
 pub mod delegators;
+pub mod evm;
+pub mod heartbeats;
 pub mod others;
 pub mod params;
 pub mod proposals;
@@ -11,5 +15,3 @@ pub mod tokenomics;
 pub mod transactions;
 pub mod utils;
 pub mod validators;
-pub mod evm;
-pub mod heartbeats;
