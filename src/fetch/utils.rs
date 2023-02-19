@@ -1,4 +1,10 @@
+use rust_decimal::prelude::FromPrimitive;
+
 use crate::chain::Chain;
+
+use crate::routes::ChainAmountItem;
+
+use super::amount_util::TnrDecimal;
 
 impl Chain {
     pub fn calc_amount_u128_to_u64(&self, amount: u128) -> u64 {
@@ -15,6 +21,31 @@ impl Chain {
 
     pub fn calc_amount_f64_to_f64(&self, amount: f64) -> f64 {
         amount / (self.config.decimals_pow as f64 * 10000.0)
+    }
+
+    pub fn calc_tnr_decimal_amount(&self, amount: TnrDecimal, decimal: Option<i64>) -> TnrDecimal {
+        let main_decimal = match decimal {
+            Some(res) => 10_u64.pow(res as u32) as f64,
+            None => self.config.decimals_pow as f64 * 10000.0,
+        };
+        let other = TnrDecimal::from_f64(main_decimal).unwrap_or(TnrDecimal::ONE);
+        amount.checked_div(other).unwrap_or(TnrDecimal::ZERO)
+    }
+
+    /// Returns the amount parsed.
+    /// # Usage
+    /// ```rs
+    /// // 0.030437
+    /// let amount = self.string_amount_parser("30437.0000").await;
+    /// ```
+    pub async fn string_amount_parser(&self, string_amount: String, ticker: Option<String>) -> Result<ChainAmountItem, String> {
+        let float_amount = TnrDecimal::from_str_exact(&string_amount).unwrap_or(TnrDecimal::ZERO);
+
+        let ticker = match ticker {
+            None => self.config.main_symbol.clone(),
+            Some(some) => some,
+        };
+        Ok(ChainAmountItem::new(float_amount, ticker, self.clone()).await)
     }
 
     /// Returns the amount parsed.
