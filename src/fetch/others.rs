@@ -1,9 +1,9 @@
 use chrono::DateTime;
 use serde::{Deserialize, Serialize};
 
-use crate::{chain::Chain, routes::OutRestResponse};
 use crate::fetch::blocks::BlockResp;
 use crate::fetch::params::ParamsResp;
+use crate::{chain::Chain, routes::OutRestResponse};
 
 impl Chain {
     /// Returns staking pool information.
@@ -140,7 +140,10 @@ pub struct Pagination {
 
 impl Default for Pagination {
     fn default() -> Self {
-        Self { next_key: None, total: "0".to_string() }
+        Self {
+            next_key: None,
+            total: "0".to_string(),
+        }
     }
 }
 
