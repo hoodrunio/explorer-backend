@@ -1,8 +1,8 @@
 use std::collections::HashSet;
 
 use actix_cors::Cors;
-use actix_web::{App, get, HttpServer, Responder, web};
 use actix_web::web::Json;
+use actix_web::{get, web, App, HttpServer, Responder};
 use tokio::sync::broadcast::channel;
 use tracing_actix_web::TracingLogger;
 use web::Data;
@@ -47,13 +47,12 @@ pub async fn start_web_server() -> std::io::Result<()> {
         };
     });
 
-
     if let Ok(axelar) = state.get("axelar") {
         let tx_clone = tx.clone();
         tokio::spawn(async move {
             match Chain::sub_axelar_events(axelar, tx_clone).await {
                 Ok(_) => {}
-                Err(e) => tracing::info!("Error axelar evm polls flow {}",e),
+                Err(e) => tracing::info!("Error axelar evm polls flow {}", e),
             };
         });
     };
@@ -135,8 +134,8 @@ pub async fn start_web_server() -> std::io::Result<()> {
             .service(routes::validator_hearbeats)
             .service(routes::hearbeats)
     })
-        .bind(("127.0.0.1", 8080))
-        .unwrap()
-        .run()
-        .await
+    .bind(("127.0.0.1", 8080))
+    .unwrap()
+    .run()
+    .await
 }
