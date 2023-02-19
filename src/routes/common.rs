@@ -1,7 +1,9 @@
 use actix_web::web::Data;
-use crate::fetch::others::{Pagination, PaginationConfig};
 use serde::{Deserialize, Serialize};
+
 use crate::chain::Chain;
+use crate::fetch::amount_util::{ChainAmountItemBuilder, TnrDecimal};
+use crate::fetch::others::{Pagination, PaginationConfig};
 use crate::routes::{TNRAppError, TNRAppErrorType};
 use crate::state::State;
 
@@ -57,12 +59,40 @@ pub fn calc_pages(pagination: Pagination, config: PaginationConfig) -> Result<u8
     }
 }
 
-
 pub fn extract_chain(chain: &str, chains: Data<State>) -> Result<Chain, TNRAppError> {
-    chains.get(chain).map_err(|_| {
-        TNRAppError {
-            message: Some(format!("Chain could not found {}", chain)),
-            error_type: TNRAppErrorType::MessageError,
-        }
+    chains.get(chain).map_err(|_| TNRAppError {
+        message: Some(format!("Chain could not found {}", chain)),
+        error_type: TNRAppErrorType::MessageError,
     })
+}
+
+#[derive(Deserialize, Serialize, Debug, Clone, PartialEq)]
+pub struct ChainAmountItem {
+    #[serde(with = "rust_decimal::serde::float")]
+    pub amount: TnrDecimal,
+    pub ticker: String,
+}
+
+impl Default for ChainAmountItem {
+    fn default() -> Self {
+        Self {
+            amount: TnrDecimal::ZERO,
+            ticker: String::from(""),
+        }
+    }
+}
+
+impl ChainAmountItem {
+    pub async fn new(amount: TnrDecimal, ticker: String, chain: Chain) -> Self {
+        match ChainAmountItemBuilder::new()
+            .chain(chain)
+            .amount(amount)
+            .token(ticker.clone())
+            .build()
+            .await
+        {
+            Ok(res) => res,
+            Err(_) => Self { amount, ticker },
+        }
+    }
 }
