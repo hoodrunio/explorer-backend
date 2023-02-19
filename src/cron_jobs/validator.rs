@@ -110,8 +110,6 @@ impl Chain {
                     tracing::error!("{}",e);
                 }
             };
-
-            val_supported_chains = vec![];
         }
 
         Ok(())
