@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use super::others::{DenomAmount, Pagination, PaginationConfig};
 use crate::{
     chain::Chain,
-    routes::{calc_pages, OutRestResponse},
+    routes::{calc_pages, ChainAmountItem, OutRestResponse},
 };
 
 impl Chain {
@@ -62,13 +62,22 @@ impl Chain {
 
         let resp = self.rest_api_request::<ProposalsDetailsResp>(&path, &[]).await?;
 
+        let raw_total_deposit = resp
+            .proposal
+            .total_deposit
+            .get(0)
+            .map(|da| da.amount.to_string())
+            .unwrap_or("0.0".to_string());
+
+        let total_deposit = self.string_amount_parser(raw_total_deposit, None).await?;
+
         let proposal = InternalProposal {
             proposal_id: resp
                 .proposal
                 .proposal_id
                 .parse()
                 .map_err(|_| format!("Proposal ID cannot be parsed, '{}'.", resp.proposal.proposal_id))?,
-            content: InternalProposalContent::try_from_with(resp.proposal.content, |a| self.calc_amount_u128_to_f64(a))?,
+            content: InternalProposalContent::try_from_with(resp.proposal.content, self).await?,
             status: match resp.proposal.status.as_ref() {
                 "PROPOSAL_STATUS_PASSED" => "Passed",
                 "PROPOSAL_STATUS_REJECTED" => "Rejected",
@@ -86,12 +95,7 @@ impl Chain {
             deposit_end_time: DateTime::parse_from_rfc3339(&resp.proposal.deposit_end_time)
                 .map_err(|_| format!("Cannot parse proposal deposit end time, '{}'", resp.proposal.deposit_end_time))?
                 .timestamp_millis(),
-            total_deposit: resp
-                .proposal
-                .total_deposit
-                .get(0)
-                .and_then(|td| td.amount.parse::<f64>().map(|amount| self.calc_amount_f64_to_f64(amount)).ok())
-                .unwrap_or(0.0),
+            total_deposit,
             voting_start_time: DateTime::parse_from_rfc3339(&resp.proposal.voting_start_time)
                 .map_err(|_| format!("Cannot parse proposal voting start time, '{}'", resp.proposal.voting_start_time))?
                 .timestamp_millis(),
@@ -407,7 +411,7 @@ pub struct InternalProposal {
     /// Proposal deposit deadline timestamp in milliseconds.
     pub deposit_end_time: i64,
     /// Proposal total deposit in the native coin of the chain..
-    pub total_deposit: f64,
+    pub total_deposit: ChainAmountItem,
     /// Proposal voting start timestamp in milliseconds.
     pub voting_start_time: i64,
     /// Proposal voting start timestamp in milliseconds.
@@ -460,7 +464,7 @@ pub enum ProposalContent {
 }
 
 impl InternalProposalContent {
-    fn try_from_with(value: ProposalContentWithUnknown, self_calc_u128_to_f64: impl Fn(u128) -> f64) -> Result<Self, String> {
+    async fn try_from_with(value: ProposalContentWithUnknown, chain: &Chain) -> Result<Self, String> {
         Ok(match value {
             ProposalContentWithUnknown::KnownProposal(proposal_content) => match proposal_content {
                 ProposalContent::ClientUpdate {
@@ -480,17 +484,18 @@ impl InternalProposalContent {
                     description,
                     recipient,
                     amount,
-                } => Self::CommunityPoolSpend {
-                    r#type: "CommunityPoolSpendProposal".into(),
-                    title,
-                    description,
-                    recipient,
-                    amount: amount
-                        .get(0)
-                        .map(|da| da.amount.to_string())
-                        .and_then(|amount| amount.parse::<u128>().ok().map(|amount| self_calc_u128_to_f64(amount)))
-                        .unwrap_or(0.0),
-                },
+                } => {
+                    let amount_string = amount.get(0).map(|da| da.amount.to_string()).unwrap_or("0.0".to_string());
+
+                    let amount = chain.string_amount_parser(amount_string, None).await?;
+                    Self::CommunityPoolSpend {
+                        r#type: "CommunityPoolSpendProposal".into(),
+                        title,
+                        description,
+                        recipient,
+                        amount,
+                    }
+                }
                 ProposalContent::ParameterChange { title, description, changes } => Self::ParameterChange {
                     r#type: "ParameterChangeProposal".into(),
                     title,
@@ -543,7 +548,7 @@ pub enum InternalProposalContent {
         title: String,
         description: String,
         recipient: String,
-        amount: f64,
+        amount: ChainAmountItem,
     },
     ParameterChange {
         r#type: String,

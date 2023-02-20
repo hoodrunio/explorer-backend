@@ -2,22 +2,22 @@ use std::collections::HashMap;
 
 use chrono::DateTime;
 use futures::{
-    future::{BoxFuture, join_all},
+    future::{join_all, BoxFuture},
     FutureExt,
 };
 use mongodb::bson::doc;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
+use crate::fetch::socket::EvmPollVote;
 use crate::{
     chain::Chain,
     routes::{calc_pages, OutRestResponse},
     utils::get_msg_name,
 };
-use crate::database::TransactionForDb;
-use crate::fetch::socket::EvmPollVote;
+use crate::{database::TransactionForDb, routes::ChainAmountItem};
 
-use super::others::{DenomAmount, InternalDenomAmount, Pagination, PaginationConfig, PublicKey};
+use super::others::{DenomAmount, Pagination, PaginationConfig, PublicKey};
 
 impl Chain {
     /// Returns transaction by given hash.
@@ -93,7 +93,7 @@ impl Chain {
                     .ok_or_else(|| "The count of transactions and transaction responses aren't the same.".to_string())?,
             );
 
-            txs.push(TransactionItem::new(tx, tx_response, self)?)
+            txs.push(TransactionItem::new(tx, tx_response, self).await?)
         }
 
         let pages = calc_pages(resp.pagination.unwrap_or(Pagination::default()), config)?;
@@ -101,7 +101,12 @@ impl Chain {
         Ok(OutRestResponse::new(txs, pages))
     }
 
-    pub async fn get_internal_txs_by_sender_height(&self, sender_address: &str, block_height: Option<u64>, config: PaginationConfig) -> Result<OutRestResponse<Vec<InternalTransaction>>, String> {
+    pub async fn get_internal_txs_by_sender_height(
+        &self,
+        sender_address: &str,
+        block_height: Option<u64>,
+        config: PaginationConfig,
+    ) -> Result<OutRestResponse<Vec<InternalTransaction>>, String> {
         let mut query = vec![];
 
         if let Some(block_height) = block_height {
@@ -138,7 +143,6 @@ impl Chain {
         Ok(OutRestResponse::new(txs, pages))
     }
 
-
     /// Returns transactions with given recipient.
     pub async fn get_txs_by_recipient(
         &self,
@@ -167,7 +171,7 @@ impl Chain {
                     .ok_or_else(|| "The count of transactions and transaction responses aren't the same.".to_string())?,
             );
 
-            txs.push(TransactionItem::new(tx, tx_response, self)?)
+            txs.push(TransactionItem::new(tx, tx_response, self).await?)
         }
 
         let pages = calc_pages(resp.pagination.unwrap_or(Pagination::default()), config)?;
@@ -245,7 +249,7 @@ impl Chain {
                     .ok_or_else(|| "The count of transactions and transaction responses aren't the same.".to_string())?,
             );
 
-            txs.push(TransactionItem::new(tx, tx_response, self)?)
+            txs.push(TransactionItem::new(tx, tx_response, self).await?)
         }
 
         let pages = calc_pages(resp.pagination.unwrap_or(Pagination::default()), config)?;
@@ -260,7 +264,6 @@ impl Chain {
         Ok(txs)
     }
 
-
     /// Returns the EVM TX response by given hash. Only works for Evmos chain.
     ///
     /// The hash must start with `"0x..."`.
@@ -268,18 +271,24 @@ impl Chain {
         self.jsonrpc_request::<EvmTxResp>(format!(
             r#"{{"method":"eth_getTransactionByHash","params":["{hash}"],"id":1,"jsonrpc":"2.0"}}"#
         ))
-            .await?
-            .try_into()
+        .await?
+        .try_into()
     }
-    pub async fn get_axelar_sender_heartbeat_info(&self, val_voter_address: &String, block_height: u64) -> Result<InternalAxelarHeartbeatInfo, String> {
-        match self.get_internal_txs_by_sender_height(&val_voter_address, Some(block_height), PaginationConfig::new().limit(1).page(1)).await {
+    pub async fn get_axelar_sender_heartbeat_info(
+        &self,
+        val_voter_address: &String,
+        block_height: u64,
+    ) -> Result<InternalAxelarHeartbeatInfo, String> {
+        match self
+            .get_internal_txs_by_sender_height(val_voter_address, Some(block_height), PaginationConfig::new().limit(1).page(1))
+            .await
+        {
             Ok(txs_res) => {
                 for contents in txs_res.value {
-                    match contents.extract_axelar_heartbeat_info() {
-                        Some(res) => { return Ok(res); }
-                        None => {}
+                    if let Some(res) = contents.extract_axelar_heartbeat_info() {
+                        return Ok(res);
                     };
-                };
+                }
                 let message = String::from("This is not an heartbeat tx");
                 Err(message)
             }
@@ -335,10 +344,10 @@ pub struct EvmTxResp {
 pub struct InternalTransaction {
     pub hash: String,
     pub r#type: String,
-    pub amount: f64,
+    pub amount: ChainAmountItem,
     pub height: u64,
     pub time: i64,
-    pub fee: f64,
+    pub fee: ChainAmountItem,
     pub gas_wanted: u64,
     pub gas_used: u64,
     pub result: String,
@@ -360,7 +369,7 @@ impl InternalTransaction {
             .map(|msg| msg.get_type())
             .ok_or_else(|| format!("There is no TX type, '{}'.", tx_response.txhash))?;
 
-        let amount = tx
+        let denom_amount = tx
             .body
             .messages
             .get(0)
@@ -370,28 +379,39 @@ impl InternalTransaction {
                         delegator_address: _,
                         validator_address: _,
                         amount,
-                    } => chain._get_amount(&amount.amount),
+                    } => Some(amount),
                     TxsTransactionMessageKnowns::Redelegate {
                         delegator_address: _,
                         validator_src_address: _,
                         validator_dst_address: _,
                         amount,
-                    } => chain._get_amount(&amount.amount),
+                    } => Some(amount),
                     TxsTransactionMessageKnowns::Send {
                         from_address: _,
                         to_address: _,
                         amount,
-                    } => amount.get(0).map(|amount| chain._get_amount(&amount.amount)).unwrap_or(0.00),
+                    } => amount.get(0),
                     TxsTransactionMessageKnowns::Undelegate {
                         delegator_address: _,
                         validator_address: _,
                         amount,
-                    } => chain._get_amount(&amount.amount),
-                    _ => 0.00,
+                    } => Some(amount),
+                    _ => None,
                 },
-                _ => 0.00,
+                _ => None,
             })
             .ok_or_else(|| format!("There is no TX type, '{}'.", tx_response.txhash))?;
+
+        let amount = match denom_amount {
+            Some(amount_denom) => match chain
+                .string_amount_parser(amount_denom.amount.clone(), Some(amount_denom.denom.clone()))
+                .await
+            {
+                Ok(res) => res,
+                Err(err) => return Err(format!("Cannot parse transaction amount, '{}'.", err)),
+            },
+            None => ChainAmountItem::default(),
+        };
 
         for message in tx.body.messages {
             jobs.push(async move { message.to_internal(chain).await })
@@ -414,15 +434,17 @@ impl InternalTransaction {
             time: DateTime::parse_from_rfc3339(&tx_response.timestamp)
                 .map_err(|_| format!("Cannot parse transaction timestamp, '{}'.", tx_response.timestamp))?
                 .timestamp_millis(),
-            fee: tx
-                .auth_info
-                .fee
-                .amount
-                .get(0)
-                .map(|ad| ad.amount.to_string())
-                .and_then(|amount| amount.parse::<u128>().ok())
-                .map(|amount| chain.calc_amount_u128_to_f64(amount))
-                .unwrap_or(0.0),
+            fee: chain
+                .string_amount_parser(
+                    tx.auth_info
+                        .fee
+                        .amount
+                        .get(0)
+                        .map(|ad| ad.amount.to_string())
+                        .unwrap_or(String::from("0.0")),
+                    None,
+                )
+                .await?,
             gas_wanted: tx_response
                 .gas_wanted
                 .parse::<u64>()
@@ -436,7 +458,9 @@ impl InternalTransaction {
             } else {
                 "Failed".to_string()
             },
-            signatures: match tx_response.tx { TxsResponseTx::Tx { signatures, .. } => { signatures } },
+            signatures: match tx_response.tx {
+                TxsResponseTx::Tx { signatures, .. } => signatures,
+            },
             memo: tx.body.memo,
             raw: tx_response.raw_log,
             content,
@@ -448,15 +472,17 @@ impl InternalTransaction {
     pub fn extract_axelar_heartbeat_info(&self) -> Option<InternalAxelarHeartbeatInfo> {
         let mut res = None;
         for content_item in &self.content {
-            if let InternalTransactionContent::Known(InternalTransactionContentKnowns::AxelarRefundRequest { sender: _, inner_message }) = content_item {
+            if let InternalTransactionContent::Known(InternalTransactionContentKnowns::AxelarRefundRequest { sender: _, inner_message }) =
+                content_item
+            {
                 if let InnerMessage::Known(InnerMessageKnown::HeartBeatRequest { sender, key_ids }) = inner_message {
                     res = Some(InternalAxelarHeartbeatInfo {
                         sender: sender.clone(),
                         key_ids: key_ids.clone(),
                         signatures: self.signatures.clone(),
                         tx_hash: self.hash.clone(),
-                        height: self.height.clone(),
-                        timestamp: self.time.clone(),
+                        height: self.height,
+                        timestamp: self.time,
                     });
                     break;
                 }
@@ -467,17 +493,21 @@ impl InternalTransaction {
     }
     pub fn is_evm_poll_failed(&self) -> bool {
         let logs = &self.logs.clone();
-        match logs.into_iter().find(|log| { log.log == "failed" && log.log != "already confirmed" }) {
+        match logs.into_iter().find(|log| log.log == "failed" && log.log != "already confirmed") {
             None => {}
-            Some(_) => { return true; }
+            Some(_) => {
+                return true;
+            }
         };
 
         for log in logs {
-            match log.events.clone().into_iter().find(|event| { event.r#type == "EVMEventFailed" }) {
+            match log.events.clone().into_iter().find(|event| event.r#type == "EVMEventFailed") {
                 None => {}
-                Some(_) => { return true; }
+                Some(_) => {
+                    return true;
+                }
             }
-        };
+        }
 
         false
     }
@@ -500,7 +530,7 @@ impl InternalTransaction {
                     return true;
                 };
             }
-        };
+        }
 
         false
     }
@@ -521,8 +551,8 @@ pub struct TransactionItem {
     pub height: u64,
     pub r#type: String,
     pub hash: String,
-    pub amount: f64,
-    pub fee: f64,
+    pub amount: ChainAmountItem,
+    pub fee: ChainAmountItem,
     pub result: String,
     pub time: i64,
 }
@@ -557,19 +587,19 @@ pub enum InternalTransactionContentKnowns {
     Send {
         from_address: String,
         to_address: String,
-        amounts: Vec<InternalDenomAmount>,
+        amounts: Vec<ChainAmountItem>,
     },
     Delegate {
         delegator_address: String,
         validator_name: String,
         validator_address: String,
-        amount: InternalDenomAmount,
+        amount: ChainAmountItem,
     },
     Undelegate {
         delegator_address: String,
         validator_name: String,
         validator_address: String,
-        amount: InternalDenomAmount,
+        amount: ChainAmountItem,
     },
     #[serde(rename = "Withdraw Delegator Reward")]
     WithdrawDelegatorReward {
@@ -583,7 +613,7 @@ pub enum InternalTransactionContentKnowns {
         validator_from_address: String,
         validator_to_name: String,
         validator_to_address: String,
-        amount: InternalDenomAmount,
+        amount: ChainAmountItem,
     },
     Revoke {
         granter_address: String,
@@ -623,7 +653,60 @@ impl From<InternalTransaction> for TransactionItem {
 }
 
 impl TransactionItem {
-    fn new(tx: &Tx, tx_response: &TxResponse, chain: &Chain) -> Result<Self, String> {
+    async fn new(tx: &Tx, tx_response: &TxResponse, chain: &Chain) -> Result<Self, String> {
+        let fee_amount = tx
+            .auth_info
+            .fee
+            .amount
+            .get(0)
+            .map(|ad| ad.amount.to_string())
+            .unwrap_or(String::from("0.0"));
+
+        let fee = chain.string_amount_parser(fee_amount, None).await?;
+        let denom_amount = tx
+            .body
+            .messages
+            .get(0)
+            .map(|msg| match msg {
+                TxsTransactionMessage::Known(msg) => match msg {
+                    TxsTransactionMessageKnowns::Delegate {
+                        delegator_address: _,
+                        validator_address: _,
+                        amount,
+                    } => Some(amount),
+                    TxsTransactionMessageKnowns::Redelegate {
+                        delegator_address: _,
+                        validator_src_address: _,
+                        validator_dst_address: _,
+                        amount,
+                    } => Some(amount),
+                    TxsTransactionMessageKnowns::Send {
+                        from_address: _,
+                        to_address: _,
+                        amount,
+                    } => amount.get(0),
+                    TxsTransactionMessageKnowns::Undelegate {
+                        delegator_address: _,
+                        validator_address: _,
+                        amount,
+                    } => Some(amount),
+                    _ => None,
+                },
+                _ => None,
+            })
+            .ok_or_else(|| format!("There is no TX type, '{}'.", tx_response.txhash))?;
+
+        let amount = match denom_amount {
+            Some(amount_denom) => match chain
+                .string_amount_parser(amount_denom.amount.clone(), Some(amount_denom.denom.clone()))
+                .await
+            {
+                Ok(res) => res,
+                Err(err) => return Err(format!("Cannot parse transaction amount, '{}'.", err)),
+            },
+            None => ChainAmountItem::default(),
+        };
+
         Ok(Self {
             height: tx_response
                 .height
@@ -636,47 +719,8 @@ impl TransactionItem {
                 .map(|msg| msg.get_type())
                 .ok_or_else(|| format!("There is no TX type, '{}'.", tx_response.txhash))?,
             hash: tx_response.txhash.to_string(),
-            amount: tx
-                .body
-                .messages
-                .get(0)
-                .map(|msg| match msg {
-                    TxsTransactionMessage::Known(msg) => match msg {
-                        TxsTransactionMessageKnowns::Delegate {
-                            delegator_address: _,
-                            validator_address: _,
-                            amount,
-                        } => chain._get_amount(&amount.amount),
-                        TxsTransactionMessageKnowns::Redelegate {
-                            delegator_address: _,
-                            validator_src_address: _,
-                            validator_dst_address: _,
-                            amount,
-                        } => chain._get_amount(&amount.amount),
-                        TxsTransactionMessageKnowns::Send {
-                            from_address: _,
-                            to_address: _,
-                            amount,
-                        } => amount.get(0).map(|amount| chain._get_amount(&amount.amount)).unwrap_or(0.00),
-                        TxsTransactionMessageKnowns::Undelegate {
-                            delegator_address: _,
-                            validator_address: _,
-                            amount,
-                        } => chain._get_amount(&amount.amount),
-                        _ => 0.00,
-                    },
-                    _ => 0.00,
-                })
-                .ok_or_else(|| format!("There is no TX type, '{}'.", tx_response.txhash))?,
-            fee: tx
-                .auth_info
-                .fee
-                .amount
-                .get(0)
-                .map(|ad| ad.amount.to_string())
-                .and_then(|amount| amount.parse::<u128>().ok())
-                .map(|amount| chain.calc_amount_u128_to_f64(amount))
-                .unwrap_or(0.0),
+            amount,
+            fee,
             result: if tx_response.raw_log.starts_with('[') || tx_response.raw_log.starts_with('{') {
                 "Success".to_string()
             } else {
@@ -743,7 +787,7 @@ impl TxsTransactionMessage {
                         delegator_address,
                         validator_name: chain.database.find_validator_by_operator_addr(&validator_address.clone()).await?.name,
                         validator_address,
-                        amount: InternalDenomAmount::from_chain_denom_amount(&chain, &amount).await?,
+                        amount: chain.string_amount_parser(amount.amount.clone(), Some(amount.denom.clone())).await?,
                     }),
 
                     TxsTransactionMessageKnowns::Redelegate {
@@ -757,7 +801,7 @@ impl TxsTransactionMessage {
                         validator_from_address: validator_src_address,
                         validator_to_name: chain.database.find_validator_by_operator_addr(&validator_dst_address.clone()).await?.name,
                         validator_to_address: validator_dst_address,
-                        amount: InternalDenomAmount::from_chain_denom_amount(&chain, &amount).await?,
+                        amount: chain.string_amount_parser(amount.amount.clone(), Some(amount.denom.clone())).await?,
                     }),
 
                     TxsTransactionMessageKnowns::Revoke {
@@ -776,7 +820,11 @@ impl TxsTransactionMessage {
                         let mut amounts = vec![];
 
                         for denom_amount in amount {
-                            amounts.push(InternalDenomAmount::from_chain_denom_amount(&chain, &denom_amount).await?)
+                            amounts.push(
+                                chain
+                                    .string_amount_parser(denom_amount.amount.clone(), Some(denom_amount.denom.clone()))
+                                    .await?,
+                            )
                             //TODO check if it is native token if it is we can convert with decimal pow if not get related token decimal count.
                             // We don't work with decimals here, cuz there might be a token which is not the same with the native coin of the chain.
                             // If this situation is highly unlikely to be happen, you can just convert `amounts` to `f64` and just store the amount (in native coin, others wo't be supported).
@@ -797,7 +845,7 @@ impl TxsTransactionMessage {
                         delegator_address,
                         validator_name: chain.database.find_validator_by_operator_addr(&validator_address.clone()).await?.name,
                         validator_address,
-                        amount: InternalDenomAmount::from_chain_denom_amount(&chain, &amount).await?,
+                        amount: chain.string_amount_parser(amount.amount.clone(), Some(amount.denom.clone())).await?,
                     }),
 
                     TxsTransactionMessageKnowns::Vote { proposal_id, voter, option } => {
@@ -814,7 +862,7 @@ impl TxsTransactionMessage {
                                 "VOTE_OPTION_NO_WITH_VETO" => "Veto",
                                 _ => "Unknown",
                             }
-                                .to_string(),
+                            .to_string(),
                         })
                     }
 
@@ -875,10 +923,7 @@ impl TxsTransactionMessage {
                         InternalTransactionContent::Known(InternalTransactionContentKnowns::RegisterProxy { sender, proxy_addr })
                     }
                     TxsTransactionMessageKnowns::AxelarRefundRequest { sender, inner_message } => {
-                        InternalTransactionContent::Known(InternalTransactionContentKnowns::AxelarRefundRequest {
-                            sender,
-                            inner_message,
-                        })
+                        InternalTransactionContent::Known(InternalTransactionContentKnowns::AxelarRefundRequest { sender, inner_message })
                     }
                 },
                 TxsTransactionMessage::Unknown(mut keys_values) => {
@@ -890,7 +935,7 @@ impl TxsTransactionMessage {
                 }
             })
         }
-            .boxed()
+        .boxed()
     }
 
     /// Return the type of message.
@@ -940,9 +985,9 @@ impl TxsTransactionMessage {
                 TxsTransactionMessageKnowns::Exec { grantee: _, msgs: _ } => "Exec",
                 TxsTransactionMessageKnowns::RegisterProxy { sender: _, proxy_addr: _ } => "RegisterProxy",
                 TxsTransactionMessageKnowns::AxelarRegisterProxy { sender: _, proxy_addr: _ } => "RegisterProxy",
-                TxsTransactionMessageKnowns::AxelarRefundRequest { sender: _, inner_message: _ } => "AxelarRefundRequest"
+                TxsTransactionMessageKnowns::AxelarRefundRequest { sender: _, inner_message: _ } => "AxelarRefundRequest",
             }
-                .to_string(),
+            .to_string(),
             TxsTransactionMessage::Unknown(keys_values) => keys_values
                 .get("@type")
                 .cloned()
@@ -1042,22 +1087,12 @@ pub enum TxsTransactionMessageKnowns {
         // data: UNKNOWN,
     },
     #[serde(rename = "/snapshot.v1beta1.RegisterProxyRequest")]
-    RegisterProxy {
-        sender: String,
-        proxy_addr: String,
-    },
+    RegisterProxy { sender: String, proxy_addr: String },
     #[serde(rename = "/axelar.snapshot.v1beta1.RegisterProxyRequest")]
-    AxelarRegisterProxy {
-        sender: String,
-        proxy_addr: String,
-    },
+    AxelarRegisterProxy { sender: String, proxy_addr: String },
     #[serde(rename = "/axelar.reward.v1beta1.RefundMsgRequest")]
-    AxelarRefundRequest {
-        sender: String,
-        inner_message: InnerMessage,
-    },
+    AxelarRefundRequest { sender: String, inner_message: InnerMessage },
 }
-
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
 #[serde(untagged)]
@@ -1070,16 +1105,9 @@ pub enum InnerMessage {
 #[serde(tag = "@type")]
 pub enum InnerMessageKnown {
     #[serde(rename = "/axelar.vote.v1beta1.VoteRequest")]
-    VoteRequest {
-        sender: String,
-        poll_id: String,
-        vote: AxelarVote,
-    },
+    VoteRequest { sender: String, poll_id: String, vote: AxelarVote },
     #[serde(rename = "/axelar.tss.v1beta1.HeartBeatRequest")]
-    HeartBeatRequest {
-        sender: String,
-        key_ids: Vec<String>,
-    },
+    HeartBeatRequest { sender: String, key_ids: Vec<String> },
 }
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
@@ -1093,22 +1121,18 @@ pub enum AxelarVote {
 #[serde(tag = "@type")]
 pub enum AxelarKnownVote {
     #[serde(rename = "/axelar.evm.v1beta1.VoteEvents")]
-    VoteEvent {
-        chain: String,
-        events: Vec<HashMap<String, Value>>,
-    }
+    VoteEvent { chain: String, events: Vec<HashMap<String, Value>> },
 }
 
 impl AxelarKnownVote {
     pub fn evm_vote(&self) -> EvmPollVote {
         match self {
             AxelarKnownVote::VoteEvent { chain: _, events } => {
-                let vote = if !events.is_empty() {
+                if !events.is_empty() {
                     EvmPollVote::Yes
                 } else {
                     EvmPollVote::No
-                };
-                vote
+                }
             }
         }
     }

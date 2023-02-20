@@ -29,7 +29,7 @@ async fn get_sdk_ver(rest_url: &str, client: reqwest::Client) -> Result<SemVer, 
         .map(|s| SemVer::parse(&s[1..]).map(|(_, v)| v))
         .transpose()
         .map_err(|e| format!("manually set the version for '{rest_url}: {e}'"))?
-        .ok_or(format!("version info not found"))
+        .ok_or("version info not found".to_string())
 }
 
 async fn get_main_denom(rest_url: &str, client: reqwest::Client) -> Result<String, String> {
@@ -44,7 +44,7 @@ async fn get_main_denom(rest_url: &str, client: reqwest::Client) -> Result<Strin
 
     value["params"]["bond_denom"]
         .as_str()
-        .ok_or(format!("bond_demon not found"))
+        .ok_or("bond_demon not found".to_string())
         .map(str::to_string)
 }
 
@@ -60,7 +60,7 @@ impl Chain {
         };
 
         let main_denom = match ic.main_denom {
-            Some(denom) => denom.to_string(),
+            Some(denom) => denom,
             None => get_main_denom(&ic.rest_url, client.clone()).await?,
         };
 
@@ -69,7 +69,7 @@ impl Chain {
             logo: ic.logo,
             epoch: ic.epoch.unwrap_or(false),
             gecko: ic.gecko,
-            base_prefix: ic.prefix.unwrap_or_else(|| ic.name),
+            base_prefix: ic.prefix.unwrap_or(ic.name),
             main_symbol: ic.symbol,
             rpc_url: ic.rpc_url,
             jsonrpc_url: ic.jsonrpc_url,

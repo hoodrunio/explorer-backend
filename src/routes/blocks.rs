@@ -1,13 +1,12 @@
+use actix_web::web::Query;
 use actix_web::{
     get,
-    Responder,
     web::{Data, Path},
+    Responder,
 };
-use actix_web::web::Query;
-use serde::Deserialize;
 
-use crate::{fetch::others::Response, state::State};
 use crate::routes::{extract_chain, LastCountListsQueryParams, TNRAppError, TNRAppSuccessResponse};
+use crate::{fetch::others::Response, state::State};
 
 // ====== Block Methods ======
 
@@ -67,7 +66,11 @@ pub async fn last_blocks(path: Path<String>, chains: Data<State>, query: Query<L
 }
 
 #[get("{chain}/validator/last_signed_blocks/{operator_address}")]
-pub async fn validator_last_signed_blocks(path: Path<(String, String)>, chains: Data<State>, query: Query<LastCountListsQueryParams>) -> Result<impl Responder, TNRAppError> {
+pub async fn validator_last_signed_blocks(
+    path: Path<(String, String)>,
+    chains: Data<State>,
+    query: Query<LastCountListsQueryParams>,
+) -> Result<impl Responder, TNRAppError> {
     let (chain, operator_address) = path.into_inner();
 
     let default_count = 100;
