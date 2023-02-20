@@ -66,7 +66,7 @@ pub struct Primary {
 
 /// Converts consensus public key to hex address for finding the associated operator address.
 pub fn convert_consensus_pubkey_to_hex_address(consensus_pubkey: &str) -> Option<String> {
-    let hex = base64_to_hex(&consensus_pubkey).unwrap();
+    let hex = base64_to_hex(consensus_pubkey).unwrap();
     if hex.len() < 40 {
         None
     } else {
@@ -76,7 +76,7 @@ pub fn convert_consensus_pubkey_to_hex_address(consensus_pubkey: &str) -> Option
 
 /// Converts tx base64 to hex address.
 pub fn convert_tx_to_hex(tx_base64: &str) -> Option<String> {
-    base64_to_hex(&tx_base64)
+    base64_to_hex(tx_base64)
 }
 
 fn base64_to_hex(base64: &str) -> Option<String> {
@@ -115,7 +115,7 @@ pub fn convert_consensus_pubkey_to_consensus_address(address: &str, prefix: &str
             .to_base32(),
         bech32::Variant::Bech32,
     )
-        .unwrap()
+    .unwrap()
 }
 
 pub trait Base64Convert {
@@ -125,11 +125,9 @@ pub trait Base64Convert {
 impl Base64Convert for String {
     fn base64_to_string(&self) -> Self {
         let default_res = String::from("");
-        match decode_from_base64(self.to_string()) {
-            Ok(decode) => {
-                String::from_utf8(decode).unwrap_or(default_res)
-            }
-            Err(_) => { default_res }
+        match decode_from_base64(self) {
+            Ok(decode) => String::from_utf8(decode).unwrap_or(default_res),
+            Err(_) => default_res,
         }
     }
 }

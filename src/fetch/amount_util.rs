@@ -34,7 +34,7 @@ impl ChainAmountItemBuilder {
     }
 
     pub async fn build(&self) -> Result<ChainAmountItem, String> {
-        let mut amount = self.amount.clone();
+        let mut amount = self.amount;
         let mut ticker = self.ticker.clone();
 
         if let Some(chain) = &self.chain {

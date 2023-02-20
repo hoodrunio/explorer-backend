@@ -1,7 +1,9 @@
 use serde::{Deserialize, Serialize};
 
-use super::others::DenomAmount;
+use crate::routes::ChainAmountItem;
 use crate::{chain::Chain, routes::OutRestResponse};
+
+use super::others::DenomAmount;
 
 impl Chain {
     /// Returns the withdraw address by given delegator address.
@@ -21,7 +23,7 @@ impl Chain {
 
         let resp = self.rest_api_request::<DelegatorRewardsResp>(&path, &[]).await?;
 
-        let delegator_rewards = InternalDelegatorRewards::new(resp, self);
+        let delegator_rewards = InternalDelegatorRewards::new(resp, self).await?;
 
         Ok(OutRestResponse::new(delegator_rewards, 0))
     }
@@ -40,31 +42,31 @@ pub struct InternalDelegatorRewards {
     /// Array of rewards.
     pub rewards: Vec<InternalDelegatorReward>,
     /// Array of amounts and denoms.
-    pub total: f64,
+    pub total: ChainAmountItem,
 }
 
 impl InternalDelegatorRewards {
-    fn new(dlg_rwd_resp: DelegatorRewardsResp, chain: &Chain) -> Self {
+    async fn new(dlg_rwd_resp: DelegatorRewardsResp, chain: &Chain) -> Result<Self, String> {
+        let default_reward = ChainAmountItem::default();
         let mut rewards = vec![];
 
         for reward in dlg_rwd_resp.rewards {
-            rewards.push(InternalDelegatorReward::new(reward, chain));
+            rewards.push(InternalDelegatorReward::new(reward, chain).await?);
         }
 
         let total = match dlg_rwd_resp.total.get(0) {
-            Some(denom_amount) => chain.calc_amount_u128_to_f64(
-                denom_amount
-                    .amount
-                    .split_once('.')
-                    .map(|(pri, _)| pri)
-                    .unwrap_or(&denom_amount.amount)
-                    .parse::<u128>()
-                    .unwrap_or(0),
-            ),
-            None => 0.00,
+            Some(denom_amount) => {
+                let amount = denom_amount.amount.split_once('.').map(|(pri, _)| pri).unwrap_or(&denom_amount.amount);
+
+                chain
+                    .string_amount_parser(String::from(amount), Some(denom_amount.denom.clone()))
+                    .await
+                    .unwrap_or(default_reward)
+            }
+            None => default_reward,
         };
 
-        Self { total, rewards }
+        Ok(Self { total, rewards })
     }
 }
 
@@ -79,28 +81,28 @@ pub struct DelegatorReward {
 #[derive(Deserialize, Serialize, Debug)]
 pub struct InternalDelegatorReward {
     pub validator_address: String,
-    pub reward: f64,
+    pub reward: ChainAmountItem,
 }
 
 impl InternalDelegatorReward {
-    fn new(delegator_rwd: DelegatorReward, chain: &Chain) -> Self {
+    async fn new(delegator_rwd: DelegatorReward, chain: &Chain) -> Result<Self, String> {
+        let default_reward = ChainAmountItem::default();
         let reward = match delegator_rwd.reward.get(0) {
-            Some(denom_amount) => chain.calc_amount_f64_to_f64(
-                denom_amount
-                    .amount
-                    .split_once('.')
-                    .map(|(pri, _)| pri)
-                    .unwrap_or(&denom_amount.amount)
-                    .parse::<f64>()
-                    .unwrap_or(0.0),
-            ),
-            None => 0.00,
+            Some(denom_amount) => {
+                let amount = denom_amount.amount.split_once('.').map(|(pri, _)| pri).unwrap_or(&denom_amount.amount);
+
+                chain
+                    .string_amount_parser(String::from(amount), Some(denom_amount.denom.clone()))
+                    .await
+                    .unwrap_or(default_reward)
+            }
+            None => default_reward,
         };
 
-        Self {
+        Ok(Self {
             validator_address: delegator_rwd.validator_address,
             reward,
-        }
+        })
     }
 }
 
