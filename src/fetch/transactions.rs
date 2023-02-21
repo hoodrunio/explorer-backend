@@ -6,14 +6,14 @@ use futures::{
     FutureExt,
 };
 use mongodb::bson::doc;
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::Value;
 
 use crate::fetch::socket::EvmPollVote;
 use crate::{
     chain::Chain,
     routes::{calc_pages, OutRestResponse},
-    utils::get_msg_name,
+    utils::{get_msg_name, Base64Convert},
 };
 use crate::{database::TransactionForDb, routes::ChainAmountItem};
 
@@ -628,6 +628,17 @@ pub enum InternalTransactionContentKnowns {
     EthereumTx {
         hash: String,
     },
+    IBCUpdateClient {
+        signer: String,
+        client_id: String,
+        header: HashMap<String, Value>,
+    },
+    IBCReceived {
+        packet: TxsTransactionMessagePacket,
+        proof_commitment: String,
+        proof_height: RevisionHeight,
+        signer: String,
+    },
     RegisterProxy {
         sender: String,
         proxy_addr: String,
@@ -925,6 +936,20 @@ impl TxsTransactionMessage {
                     TxsTransactionMessageKnowns::AxelarRefundRequest { sender, inner_message } => {
                         InternalTransactionContent::Known(InternalTransactionContentKnowns::AxelarRefundRequest { sender, inner_message })
                     }
+                    TxsTransactionMessageKnowns::IBCUpdateClient { signer, client_id, header } => {
+                        InternalTransactionContent::Known(InternalTransactionContentKnowns::IBCUpdateClient { signer, client_id, header })
+                    }
+                    TxsTransactionMessageKnowns::IBCReceived {
+                        packet,
+                        proof_commitment,
+                        proof_height,
+                        signer,
+                    } => InternalTransactionContent::Known(InternalTransactionContentKnowns::IBCReceived {
+                        packet,
+                        proof_commitment,
+                        proof_height,
+                        signer,
+                    }),
                 },
                 TxsTransactionMessage::Unknown(mut keys_values) => {
                     let r#type = keys_values.remove("@type").map(|t| t.to_string()).unwrap_or("Unknown".to_string());
@@ -986,6 +1011,17 @@ impl TxsTransactionMessage {
                 TxsTransactionMessageKnowns::RegisterProxy { sender: _, proxy_addr: _ } => "RegisterProxy",
                 TxsTransactionMessageKnowns::AxelarRegisterProxy { sender: _, proxy_addr: _ } => "RegisterProxy",
                 TxsTransactionMessageKnowns::AxelarRefundRequest { sender: _, inner_message: _ } => "AxelarRefundRequest",
+                TxsTransactionMessageKnowns::IBCUpdateClient {
+                    signer: _,
+                    client_id: _,
+                    header: _,
+                } => "IBCUpdateClient",
+                TxsTransactionMessageKnowns::IBCReceived {
+                    packet: _,
+                    proof_commitment: _,
+                    proof_height: _,
+                    signer: _,
+                } => "IBCReceived",
             }
             .to_string(),
             TxsTransactionMessage::Unknown(keys_values) => keys_values
@@ -1088,6 +1124,23 @@ pub enum TxsTransactionMessageKnowns {
     },
     #[serde(rename = "/snapshot.v1beta1.RegisterProxyRequest")]
     RegisterProxy { sender: String, proxy_addr: String },
+
+    //IBC Messages
+    #[serde(rename = "/ibc.core.client.v1.MsgUpdateClient")]
+    IBCUpdateClient {
+        signer: String,
+        client_id: String,
+        header: HashMap<String, Value>,
+    },
+    #[serde(rename = "/ibc.core.channel.v1.MsgRecvPacket")]
+    IBCReceived {
+        packet: TxsTransactionMessagePacket,
+        proof_commitment: String,
+        proof_height: RevisionHeight,
+        signer: String,
+    },
+
+    //Axelar Messages
     #[serde(rename = "/axelar.snapshot.v1beta1.RegisterProxyRequest")]
     AxelarRegisterProxy { sender: String, proxy_addr: String },
     #[serde(rename = "/axelar.reward.v1beta1.RefundMsgRequest")]
@@ -1144,7 +1197,7 @@ pub struct IbcAcknowledgementPacket {
     pub source_channel: String,
 }
 
-#[derive(Deserialize, Serialize, Debug)]
+#[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct TimeoutHeight {
     /// Timeout revision number. Eg: `"1"`
     pub revision_number: String,
@@ -1316,7 +1369,7 @@ pub struct TxResp {
     pub tx_response: TxResponse,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct TxsTransactionMessagePacket {
     #[serde(rename = "data", deserialize_with = "from_base64")]
     data: String,
@@ -1352,7 +1405,7 @@ where
     Ok(String::base64_to_string(&String::from(s)))
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct RevisionHeight {
     #[serde(rename = "revision_number")]
     revision_number: String,
