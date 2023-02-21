@@ -1,5 +1,7 @@
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
+use std::{collections::BTreeMap, fmt::Display};
+use blockscout_display_bytes::Bytes as DisplayBytes;
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct Params {
@@ -81,4 +83,37 @@ impl Default for VotingPower {
             ts: Utc::now().timestamp_millis(),
         }
     }
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+pub struct ContractData {
+    pub contract_address: String,
+    pub result: VerificationResult
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(tag = "type", rename_all = "snake_case")]
+pub enum BytecodePart {
+    Main { data: DisplayBytes },
+    Meta { data: DisplayBytes },
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+pub struct VerificationResult {
+    pub file_name: String,
+    pub contract_name: String,
+    pub compiler_version: String,
+    pub evm_version: String,
+    pub constructor_arguments: Option<DisplayBytes>,
+    pub optimization: Option<bool>,
+    pub optimization_runs: Option<usize>,
+    pub contract_libraries: BTreeMap<String, String>,
+    pub abi: Option<String>,
+    pub sources: BTreeMap<String, String>,
+    pub compiler_settings: String,
+
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub local_creation_input_parts: Option<Vec<BytecodePart>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub local_deployed_bytecode_parts: Option<Vec<BytecodePart>>,
 }
