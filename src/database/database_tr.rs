@@ -7,7 +7,7 @@ use mongodb::bson::{from_document, to_bson, to_document};
 
 use crate::database::{EvmPollForDb, EvmPollParticipantForDb, HeartbeatForDb, ListDbResult, PaginationDb, TransactionForDb};
 use crate::database::blocks::Block;
-use crate::database::params::{HistoricalValidatorData, VotingPower};
+use crate::database::params::{HistoricalValidatorData, VotingPower, ContractData};
 use crate::fetch::evm::{EvmPollListDbResp, EvmSupportedChains, PollStatus};
 use crate::fetch::others::PaginationConfig;
 use crate::fetch::validators::ValidatorListDbResp;
@@ -18,7 +18,7 @@ use super::{chains::Chain, params::Params, validators::Validator};
 #[derive(Clone)]
 pub struct DatabaseTR {
     /// The MongoDB client that works with a MongoDB instance.
-    mongo: Client,
+    mongo: Client,  
 
     /// Database name and chain name are the same.
     db_name: String,
@@ -127,6 +127,15 @@ impl DatabaseTR {
     /// ```
     fn heartbeat_collection(&self) -> Collection<HeartbeatForDb> {
         self.db().collection("heartbeats")
+    }
+
+    /// Returns the cvr collection that means contract verify result
+    /// # Usage
+    /// ```rs
+    /// let collection = database.contract_collection();
+    /// ```
+    fn contract_data_collection(&self) -> Collection<ContractData> {
+        self.db().collection("cvr")
     }
 
     /// Adds a new validator to the validators collection of the database.
@@ -248,6 +257,7 @@ impl DatabaseTR {
         };
 
         pipeline_docs.push(limit_pipe);
+        dbg!(&pipeline_docs);
         let mut results = self.blocks_collection().aggregate(pipeline_docs, None).await.map_err(|e| format!("{}", e.to_string()))?;
 
         let mut res: Vec<Block> = vec![];
@@ -692,4 +702,29 @@ impl DatabaseTR {
     pub async fn find_historical_data_by_operator_address(&self, operator_address: &str) -> Result<HistoricalValidatorData, String> {
         self.find_historical_data(doc! {"operator_address":operator_address}).await
     }
+
+    ///Finds a contract data by given document.
+    /// # Usage
+    /// ```rs
+    /// database.find_contract_data(doc).await;
+    /// ```
+    pub async fn find_contract_data(&self, doc: Document) -> Result<ContractData, String> {
+        match self.db().collection("cvr").find_one(doc, None).await {
+            Ok(potential_contract_data) => match potential_contract_data {
+                Some(contract_data) => Ok(contract_data),
+                None => Err("No contract by given address is found.".into()),
+            },
+            Err(_) => Err("Cannot make request to DB.".into()),
+        }
+    }
+
+    /// Finds a contract data by given operator_address/
+    /// # Usage
+    /// ```us
+    /// database.find_contract_data_by_contract_address(contract_address).await;
+    /// ```
+    pub async fn find_contract_data_by_contract_address(&self, contract_address: &str) -> Result<ContractData, String> {
+        self.find_contract_data(doc! {"contract_address":contract_address}).await
+    }
 }
+
