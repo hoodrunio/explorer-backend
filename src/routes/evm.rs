@@ -6,6 +6,7 @@ use actix_web::{
 use actix_web::web::Query;
 use mongodb::bson::doc;
 use mongodb::options::FindOptions;
+use crate::database::EvmPollForDb;
 
 use crate::state::State;
 use crate::fetch::evm::{EvmPollListResp, EvmVotesListResp};
@@ -15,7 +16,7 @@ use crate::routes::{create_options, extract_chain, PaginationData, QueryParams, 
 // ====== Evm Methods ======
 
 #[get("{chain}/evm/polls")]
-pub async fn evm_polls(path: Path<String>, chains: Data<State>, query: Query<PaginationData>) -> Result<impl Responder, TNRAppError> {
+pub async fn evm_polls(path: Path<String>, chains: Data<State>, query: Query<PaginationData>) -> Result<TNRAppSuccessResponse<Vec<EvmPollForDb>>, TNRAppError> {
     let chain = path.into_inner();
 
     let chain = extract_chain(&chain, chains)?;
@@ -25,7 +26,7 @@ pub async fn evm_polls(path: Path<String>, chains: Data<State>, query: Query<Pag
     };
 
     let evm_polls_from_db = chain.database.find_paginated_evm_polls(None, Some(query.0)).await?;
-    Ok(evm_polls_from_db)
+    Ok(TNRAppSuccessResponse::from(evm_polls_from_db))
 }
 
 #[get("{chain}/evm/poll/{poll_id}")]
@@ -43,7 +44,7 @@ pub async fn evm_poll(path: Path<(String, String)>, chains: Data<State>) -> Resu
 }
 
 #[get("{chain}/evm/votes/{operator_address}")]
-pub async fn evm_validator_votes(path: Path<(String, String)>, chains: Data<State>, query: Query<QueryParams>) -> Result<impl Responder, TNRAppError> {
+pub async fn evm_validator_votes(path: Path<(String, String)>, chains: Data<State>, query: Query<QueryParams>) -> Result<TNRAppSuccessResponse<Vec<EvmPollForDb>>, TNRAppError> {
     let (chain, operator_address) = path.into_inner();
 
     let chain = extract_chain(&chain, chains)?;
@@ -55,7 +56,7 @@ pub async fn evm_validator_votes(path: Path<(String, String)>, chains: Data<Stat
     let config = PaginationConfig::new().limit(query.limit.unwrap_or(20)).page(query.page.unwrap_or(1));
 
     let val_evm_polls_from_db = chain.database.find_paginated_evm_polls(Some(doc! {"$match":{"participants":{"$elemMatch":{"operator_address":operator_address.clone()}}}}), None).await?;
-    Ok(val_evm_polls_from_db)
+    Ok(TNRAppSuccessResponse::from(val_evm_polls_from_db))
 }
 
 #[get("{chain}/evm/validator/supported_chains/{operator_address}")]
