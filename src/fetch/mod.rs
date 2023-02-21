@@ -13,3 +13,4 @@ pub mod utils;
 pub mod validators;
 pub mod evm;
 pub mod heartbeats;
+pub mod contract;

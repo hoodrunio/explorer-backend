@@ -16,6 +16,7 @@ mod chains;
 mod api_response;
 mod evm;
 mod heartbeats;
+mod contract;
 
 pub use blocks::*;
 pub use calculations::*;
@@ -35,3 +36,4 @@ pub use chains::*;
 pub use api_response::*;
 pub use evm::*;
 pub use heartbeats::*;
+pub use contract::*;

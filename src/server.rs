@@ -134,8 +134,9 @@ pub async fn start_web_server() -> std::io::Result<()> {
             .service(routes::evm_val_supported_chains)
             .service(routes::validator_hearbeats)
             .service(routes::hearbeats)
+            .service(routes::contract_by_hash)
     })
-        .bind(("127.0.0.1", 8080))
+        .bind(("0.0.0.0", 3000))
         .unwrap()
         .run()
         .await
