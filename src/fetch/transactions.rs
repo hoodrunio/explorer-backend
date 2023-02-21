@@ -1372,28 +1372,28 @@ pub struct TxResp {
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct TxsTransactionMessagePacket {
     #[serde(rename = "data", deserialize_with = "from_base64")]
-    data: String,
+    pub data: String,
 
     #[serde(rename = "source_port")]
-    source_port: String,
+    pub source_port: String,
 
     #[serde(rename = "destination_channel")]
-    destination_channel: String,
+    pub destination_channel: String,
 
     #[serde(rename = "destination_port")]
-    destination_port: String,
+    pub destination_port: String,
 
     #[serde(rename = "timeout_timestamp")]
-    timeout_timestamp: String,
+    pub timeout_timestamp: String,
 
     #[serde(rename = "timeout_height")]
-    timeout_height: TimeoutHeight,
+    pub timeout_height: TimeoutHeight,
 
     #[serde(rename = "source_channel")]
-    source_channel: String,
+    pub source_channel: String,
 
     #[serde(rename = "sequence")]
-    sequence: String,
+    pub sequence: String,
 }
 
 pub fn from_base64<'de, D>(deserializer: D) -> Result<String, D::Error>
@@ -1408,8 +1408,8 @@ where
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct RevisionHeight {
     #[serde(rename = "revision_number")]
-    revision_number: String,
+    pub revision_number: String,
 
     #[serde(rename = "revision_height")]
-    revision_height: String,
+    pub revision_height: String,
 }
