@@ -1315,3 +1315,39 @@ pub struct TxResp {
     pub tx: Tx,
     pub tx_response: TxResponse,
 }
+
+#[derive(Serialize, Deserialize)]
+pub struct TxsTransactionMessagePacket {
+    #[serde(rename = "data", deserialize_with = "from_base64")]
+    data: String,
+
+    #[serde(rename = "source_port")]
+    source_port: String,
+
+    #[serde(rename = "destination_channel")]
+    destination_channel: String,
+
+    #[serde(rename = "destination_port")]
+    destination_port: String,
+
+    #[serde(rename = "timeout_timestamp")]
+    timeout_timestamp: String,
+
+    #[serde(rename = "timeout_height")]
+    timeout_height: TimeoutHeight,
+
+    #[serde(rename = "source_channel")]
+    source_channel: String,
+
+    #[serde(rename = "sequence")]
+    sequence: String,
+}
+
+pub fn from_base64<'de, D>(deserializer: D) -> Result<String, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let s: &str = Deserialize::deserialize(deserializer)?;
+
+    Ok(String::base64_to_string(&String::from(s)))
+}
