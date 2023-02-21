@@ -646,6 +646,19 @@ pub enum InternalTransactionContentKnowns {
         sender: String,
         receiver: String,
     },
+    IBCAcknowledgement {
+        sequence: String,
+        source_port: String,
+        source_channel: String,
+        destination_port: String,
+        destination_channel: String,
+        signer: String,
+        amount: ChainAmountItem,
+        origin_amount: String,
+        origin_denom: String,
+        sender: String,
+        receiver: String,
+    },
     RegisterProxy {
         sender: String,
         proxy_addr: String,
@@ -972,6 +985,33 @@ impl TxsTransactionMessage {
                             amount,
                         })
                     }
+                    TxsTransactionMessageKnowns::IBCAcknowledgement {
+                        packet,
+                        proof_acked: _,
+                        acknowledgement: _,
+                        proof_height: _,
+                        signer,
+                    } => {
+                        let amount_data = serde_json::from_str::<TransactionMessagePacketAmount>(&packet.data)
+                            .map_err(|e| format!("Cannot parse packet data, {}. Error {}.", packet.data, e))?;
+                        let amount = chain
+                            .string_amount_parser(amount_data.amount.clone(), Some(amount_data.denom.clone()))
+                            .await?;
+
+                        InternalTransactionContent::Known(InternalTransactionContentKnowns::IBCAcknowledgement {
+                            sequence: packet.sequence,
+                            source_port: packet.source_port,
+                            source_channel: packet.source_channel,
+                            destination_port: packet.destination_port,
+                            destination_channel: packet.destination_channel,
+                            origin_amount: amount_data.amount,
+                            origin_denom: amount_data.denom,
+                            sender: amount_data.sender,
+                            receiver: amount_data.receiver,
+                            signer,
+                            amount,
+                        })
+                    }
                 },
                 TxsTransactionMessage::Unknown(mut keys_values) => {
                     let r#type = keys_values.remove("@type").map(|t| t.to_string()).unwrap_or("Unknown".to_string());
@@ -989,61 +1029,22 @@ impl TxsTransactionMessage {
     pub fn get_type(&self) -> String {
         match self {
             TxsTransactionMessage::Known(msg) => match msg {
-                TxsTransactionMessageKnowns::Delegate {
-                    delegator_address: _,
-                    validator_address: _,
-                    amount: _,
-                } => "Delegate",
-                TxsTransactionMessageKnowns::Redelegate {
-                    delegator_address: _,
-                    validator_src_address: _,
-                    validator_dst_address: _,
-                    amount: _,
-                } => "Redelegate",
-                TxsTransactionMessageKnowns::Revoke {
-                    granter_address: _,
-                    grantee_address: _,
-                } => "Revoke",
-                TxsTransactionMessageKnowns::Send {
-                    from_address: _,
-                    to_address: _,
-                    amount: _,
-                } => "Send",
-                TxsTransactionMessageKnowns::Undelegate {
-                    delegator_address: _,
-                    validator_address: _,
-                    amount: _,
-                } => "Undelegate",
-                TxsTransactionMessageKnowns::Vote {
-                    proposal_id: _,
-                    voter: _,
-                    option: _,
-                } => "Vote",
-                TxsTransactionMessageKnowns::WithdrawDelegatorReward {
-                    delegator_address: _,
-                    validator_address: _,
-                } => "Withdraw Delegator Rewards",
-                TxsTransactionMessageKnowns::EthereumTx { hash: _ } => "Ethereum Tx",
-                TxsTransactionMessageKnowns::Grant {
-                    granter: _,
-                    grantee: _,
-                    grant: _,
-                } => "Grant",
-                TxsTransactionMessageKnowns::Exec { grantee: _, msgs: _ } => "Exec",
-                TxsTransactionMessageKnowns::RegisterProxy { sender: _, proxy_addr: _ } => "RegisterProxy",
-                TxsTransactionMessageKnowns::AxelarRegisterProxy { sender: _, proxy_addr: _ } => "RegisterProxy",
-                TxsTransactionMessageKnowns::AxelarRefundRequest { sender: _, inner_message: _ } => "AxelarRefundRequest",
-                TxsTransactionMessageKnowns::IBCUpdateClient {
-                    signer: _,
-                    client_id: _,
-                    header: _,
-                } => "IBCUpdateClient",
-                TxsTransactionMessageKnowns::IBCReceived {
-                    packet: _,
-                    proof_commitment: _,
-                    proof_height: _,
-                    signer: _,
-                } => "IBCReceived",
+                TxsTransactionMessageKnowns::Delegate { .. } => "Delegate",
+                TxsTransactionMessageKnowns::Redelegate { .. } => "Redelegate",
+                TxsTransactionMessageKnowns::Revoke { .. } => "Revoke",
+                TxsTransactionMessageKnowns::Send { .. } => "Send",
+                TxsTransactionMessageKnowns::Undelegate { .. } => "Undelegate",
+                TxsTransactionMessageKnowns::Vote { .. } => "Vote",
+                TxsTransactionMessageKnowns::WithdrawDelegatorReward { .. } => "Withdraw Delegator Rewards",
+                TxsTransactionMessageKnowns::EthereumTx { .. } => "Ethereum Tx",
+                TxsTransactionMessageKnowns::Grant { .. } => "Grant",
+                TxsTransactionMessageKnowns::Exec { .. } => "Exec",
+                TxsTransactionMessageKnowns::RegisterProxy { .. } => "RegisterProxy",
+                TxsTransactionMessageKnowns::AxelarRegisterProxy { .. } => "RegisterProxy",
+                TxsTransactionMessageKnowns::AxelarRefundRequest { .. } => "AxelarRefundRequest",
+                TxsTransactionMessageKnowns::IBCUpdateClient { .. } => "IBCUpdateClient",
+                TxsTransactionMessageKnowns::IBCReceived { .. } => "IBCReceived",
+                TxsTransactionMessageKnowns::IBCAcknowledgement { .. } => "IBCAcknowledgement",
             }
             .to_string(),
             TxsTransactionMessage::Unknown(keys_values) => keys_values
@@ -1158,6 +1159,15 @@ pub enum TxsTransactionMessageKnowns {
     IBCReceived {
         packet: TxsTransactionMessagePacket,
         proof_commitment: String,
+        proof_height: RevisionHeight,
+        signer: String,
+    },
+
+    #[serde(rename = "/ibc.core.channel.v1.MsgAcknowledgement")]
+    IBCAcknowledgement {
+        packet: TxsTransactionMessagePacket,
+        proof_acked: String,
+        acknowledgement: String,
         proof_height: RevisionHeight,
         signer: String,
     },
