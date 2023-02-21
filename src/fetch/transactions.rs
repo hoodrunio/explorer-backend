@@ -1071,7 +1071,7 @@ impl TxsTransactionMessage {
             TxsTransactionMessage::Unknown(keys_values) => keys_values
                 .get("@type")
                 .cloned()
-                .map(|r#type| get_msg_name(r#type.to_string().as_ref()))
+                .map(|r#type| get_msg_name(r#type.as_str().unwrap_or_else(|| "Unknown")))
                 .unwrap_or("Unknown".to_string()),
         }
     }

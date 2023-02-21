@@ -104,6 +104,8 @@ pub fn get_msg_name(msg: &str) -> String {
         .map(|ch| if ch.is_uppercase() { format!(" {ch}") } else { ch.to_string() })
         .collect::<Vec<_>>()
         .join("")
+        .trim_start()
+        .to_string()
 }
 
 /// Converts consensus pubkey to consensus address.
