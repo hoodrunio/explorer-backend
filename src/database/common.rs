@@ -1,7 +1,6 @@
 use mongodb_cursor_pagination::FindResult;
 use serde::{Deserialize, Serialize};
-use crate::routes::PaginationData;
-use crate::routes::PaginationDirection::Next;
+use crate::routes::{PaginationData, PaginationDirection};
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct ListDbResult<T> {
@@ -13,19 +12,19 @@ pub struct ListDbResult<T> {
 
 impl<T> From<FindResult<T>> for ListDbResult<T> {
     fn from(value: FindResult<T>) -> Self {
-        let len = value.items.len() as u64;
+        let pagination = PaginationData {
+            cursor: value.page_info.next_cursor,
+            limit: Some(value.items.len() as u64),
+            direction: Some(PaginationDirection::Next),
+            ..Default::default()
+        };
+
         Self {
             list: value.items,
-            pagination: PaginationData {
-                cursor: value.page_info.next_cursor,
-                offset: None,
-                limit: Some(len),
-                direction: Some(Next),
-            },
+            pagination,
         }
     }
 }
-
 
 #[derive(Deserialize, Serialize, Debug)]
 pub struct PaginationDb {

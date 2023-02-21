@@ -1,15 +1,16 @@
-use actix_web::web::Query;
 use actix_web::{
     get,
-    web::{Data, Path},
     Responder,
+    web::{Data, Path},
 };
+use actix_web::web::Query;
 use mongodb::bson::doc;
+use mongodb::options::FindOptions;
 use crate::database::EvmPollForDb;
 
+use crate::state::State;
 use crate::fetch::evm::{EvmPollListResp, EvmVotesListResp};
 use crate::fetch::others::PaginationConfig;
-use crate::state::State;
 use crate::routes::{create_options, extract_chain, PaginationData, QueryParams, TNRAppError, TNRAppSuccessResponse};
 
 // ====== Evm Methods ======
@@ -35,7 +36,7 @@ pub async fn evm_poll(path: Path<(String, String)>, chains: Data<State>) -> Resu
     let chain = extract_chain(&chain, chains)?;
 
     if &chain.config.name != "axelar" {
-        return Err(TNRAppError::from(format!("Evm polls not supported for {}", &chain.config.name)));
+        return Err(TNRAppError::from(String::from(format!("Evm polls not supported for {}", &chain.config.name))));
     };
 
     let data = chain.get_evm_poll(&poll_id).await?;

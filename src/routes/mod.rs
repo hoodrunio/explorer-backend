@@ -1,3 +1,4 @@
+mod account;
 mod api_response;
 mod blocks;
 mod calculations;

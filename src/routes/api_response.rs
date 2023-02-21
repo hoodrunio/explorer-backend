@@ -1,11 +1,12 @@
 use actix_web::body::BoxBody;
 use actix_web::http::header::ContentType;
+use mongodb_cursor_pagination::{CursorDirections, PageInfo};
 use actix_web::http::StatusCode;
 use actix_web::{HttpRequest, HttpResponse, Responder, ResponseError};
 use std::fmt;
 use std::string::ParseError;
-use mongodb_cursor_pagination::CursorDirections;
 use serde::{Deserialize, Serialize};
+use crate::database::ListDbResult;
 
 #[derive(Debug)]
 pub enum TNRAppErrorType {
@@ -94,6 +95,15 @@ pub struct TNRAppSuccessResponse<T> {
     pub pagination: Option<PaginationData>
 }
 
+impl<T> From<ListDbResult<T>> for TNRAppSuccessResponse<Vec<T>> {
+    fn from(value: ListDbResult<T>) -> Self {
+        Self {
+            data: value.list,
+            pagination: Some(value.pagination),
+        }
+    }
+}
+
 impl<T> TNRAppSuccessResponse<T> {
     pub fn new(data: T, pagination: Option<PaginationData>) -> Self<> {
         Self {
@@ -102,35 +112,33 @@ impl<T> TNRAppSuccessResponse<T> {
         }
     }
 
-    pub fn cursor(data: T, cursor: Option<String>, limit: u64, dir: Option<PaginationDirection>) -> Self<> {
-        let direction = dir.unwrap_or_default();
+    pub fn cursor(data: T, cursor: Option<String>, limit: u64, direction: Option<PaginationDirection>) -> Self<> {
 
         Self {
             data,
             pagination: Some(PaginationData {
                 cursor,
                 limit: Some(limit),
-                direction: Some(direction),
+                direction: Some(direction.unwrap_or_default()),
                 ..Default::default()
             })
         }
     }
 
-    pub fn offset(data: T, offset: u64, limit: u64, dir: Option<PaginationDirection>) -> Self<> {
-
+    pub fn offset(data: T, offset: u64, limit: u64, direction: Option<PaginationDirection>) -> Self<> {
         Self {
             data,
             pagination: Some(PaginationData {
                 offset: Some(offset),
                 limit: Some(limit),
-                direction: Some(dir.unwrap_or_default()),
+                direction: Some(direction.unwrap_or_default()),
                 ..Default::default()
             })
         }
     }
 }
 
-#[derive(Default, Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct PaginationData {
     pub cursor: Option<String>,
     pub offset: Option<u64>,
@@ -138,19 +146,30 @@ pub struct PaginationData {
     pub direction: Option<PaginationDirection>,
 }
 
-#[derive(Debug, Clone, Deserialize, Serialize)]
-pub enum PaginationDirection {
-    Next,
-    Prev
+impl Default for PaginationData {
+    fn default() -> Self {
+        Self {
+            cursor: None,
+            offset: None,
+            limit: Some(250),
+            direction: Some(PaginationDirection::Next),
+        }
+    }
 }
 
-impl Into<CursorDirections> for PaginationDirection {
-    fn into(self) -> CursorDirections {
-        match self {
+impl From<PaginationDirection> for CursorDirections {
+    fn from(value: PaginationDirection) -> Self {
+        match value {
             PaginationDirection::Next => CursorDirections::Next,
             PaginationDirection::Prev => CursorDirections::Previous,
         }
     }
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub enum PaginationDirection {
+    Next,
+    Prev
 }
 
 impl Default for PaginationDirection {

@@ -17,7 +17,7 @@ use crate::fetch::others::PaginationConfig;
 use crate::fetch::validators::ValidatorListDbResp;
 use crate::routes::{PaginationData, TNRAppSuccessResponse};
 
-use super::{params::Params, validators::Validator};
+use super::{chains::Chain, params::Params, validators::Validator};
 
 // Testnetrun explorer database.
 #[derive(Clone)]
@@ -78,6 +78,24 @@ impl DatabaseTR {
     /// ```
     fn transactions_collection(&self) -> Collection<TransactionForDb> {
         self.db().collection("transactions")
+    }
+
+    /// Returns the chains collection.
+    /// # Usage
+    /// ```rs
+    /// let collection = database.chains_collection();
+    /// ```
+    fn chains_collection(&self) -> Collection<Chain> {
+        self.db().collection("chains")
+    }
+
+    /// Returns the params collection.
+    /// # Usage
+    /// ```rs
+    /// let collection = database.params_collection();
+    /// ```
+    fn params_collection(&self) -> Collection<Params> {
+        self.db().collection("params")
     }
 
     /// Returns the historical data collection.

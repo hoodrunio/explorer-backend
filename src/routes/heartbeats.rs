@@ -61,6 +61,7 @@ pub async fn hearbeats(path: Path<String>, chains: Data<State>, query: Query<Pag
     Ok(TNRAppSuccessResponse::new(data, None))
 }
 
+
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct ValidatorHeartbeatsQBody {
     pub from_block: Option<i64>,
