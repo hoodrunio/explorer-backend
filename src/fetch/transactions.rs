@@ -1351,3 +1351,12 @@ where
 
     Ok(String::base64_to_string(&String::from(s)))
 }
+
+#[derive(Serialize, Deserialize)]
+pub struct RevisionHeight {
+    #[serde(rename = "revision_number")]
+    revision_number: String,
+
+    #[serde(rename = "revision_height")]
+    revision_height: String,
+}
