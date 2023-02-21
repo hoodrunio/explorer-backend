@@ -37,6 +37,7 @@ versions = { version = "4.1.0", features = ["serde"] }
 bech32 = "0.9.1"
 dashmap = "5.4.0"
 serde-querystring = "0.1.0"
+blockscout-display-bytes = { version = "1.0", features = ["ethers-core"] }
 
 [build-dependencies]
 serde = { version = "1.0.147", features = ["derive"] }
