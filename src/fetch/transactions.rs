@@ -969,12 +969,7 @@ impl TxsTransactionMessage {
                     TxsTransactionMessageKnowns::IBCUpdateClient { signer, client_id, header } => {
                         InternalTransactionContent::Known(InternalTransactionContentKnowns::IBCUpdateClient { signer, client_id, header })
                     }
-                    TxsTransactionMessageKnowns::IBCReceived {
-                        packet,
-                        proof_commitment: _,
-                        proof_height: _,
-                        signer,
-                    } => {
+                    TxsTransactionMessageKnowns::IBCReceived { packet, signer, .. } => {
                         let amount_data = serde_json::from_str::<TransactionMessagePacketAmount>(&packet.data)
                             .map_err(|e| format!("Cannot parse packet data, {}. Error {}.", packet.data, e))?;
                         let amount = chain
@@ -995,13 +990,7 @@ impl TxsTransactionMessage {
                             amount,
                         })
                     }
-                    TxsTransactionMessageKnowns::IBCAcknowledgement {
-                        packet,
-                        proof_acked: _,
-                        acknowledgement: _,
-                        proof_height: _,
-                        signer,
-                    } => {
+                    TxsTransactionMessageKnowns::IBCAcknowledgement { signer, packet, .. } => {
                         let amount_data = serde_json::from_str::<TransactionMessagePacketAmount>(&packet.data)
                             .map_err(|e| format!("Cannot parse packet data, {}. Error {}.", packet.data, e))?;
                         let amount = chain
