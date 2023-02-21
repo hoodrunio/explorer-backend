@@ -717,7 +717,6 @@ impl DatabaseTR {
             Err(_) => Err("Cannot make request to DB.".into()),
         }
     }
-
     /// Finds a contract data by given operator_address/
     /// # Usage
     /// ```us
