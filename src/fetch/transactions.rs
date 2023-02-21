@@ -659,6 +659,16 @@ pub enum InternalTransactionContentKnowns {
         sender: String,
         receiver: String,
     },
+    IBCTransfer {
+        sender: String,
+        receiver: String,
+        source_channel: String,
+        source_port: String,
+        sequence: String,
+        amount: ChainAmountItem,
+        origin_amount: String,
+        origin_denom: String,
+    },
     RegisterProxy {
         sender: String,
         proxy_addr: String,
@@ -1012,6 +1022,27 @@ impl TxsTransactionMessage {
                             amount,
                         })
                     }
+                    TxsTransactionMessageKnowns::IBCTransfer {
+                        source_port,
+                        source_channel,
+                        token,
+                        sender,
+                        receiver,
+                        ..
+                    } => {
+                        let amount = chain.string_amount_parser(token.amount.clone(), Some(token.denom.clone())).await?;
+                        InternalTransactionContent::Known(InternalTransactionContentKnowns::IBCTransfer {
+                            sender,
+                            receiver,
+                            source_channel,
+                            source_port,
+                            //TODO: get the sequence from the transaction
+                            sequence: String::from("Unknown"),
+                            origin_amount: token.amount,
+                            origin_denom: token.denom,
+                            amount,
+                        })
+                    }
                 },
                 TxsTransactionMessage::Unknown(mut keys_values) => {
                     let r#type = keys_values.remove("@type").map(|t| t.to_string()).unwrap_or("Unknown".to_string());
@@ -1045,6 +1076,7 @@ impl TxsTransactionMessage {
                 TxsTransactionMessageKnowns::IBCUpdateClient { .. } => "IBCUpdateClient",
                 TxsTransactionMessageKnowns::IBCReceived { .. } => "IBCReceived",
                 TxsTransactionMessageKnowns::IBCAcknowledgement { .. } => "IBCAcknowledgement",
+                TxsTransactionMessageKnowns::IBCTransfer { .. } => "IBCTransfer",
             }
             .to_string(),
             TxsTransactionMessage::Unknown(keys_values) => keys_values
@@ -1155,6 +1187,7 @@ pub enum TxsTransactionMessageKnowns {
         client_id: String,
         header: HashMap<String, Value>,
     },
+
     #[serde(rename = "/ibc.core.channel.v1.MsgRecvPacket")]
     IBCReceived {
         packet: TxsTransactionMessagePacket,
@@ -1170,6 +1203,18 @@ pub enum TxsTransactionMessageKnowns {
         acknowledgement: String,
         proof_height: RevisionHeight,
         signer: String,
+    },
+
+    #[serde(rename = "/ibc.applications.transfer.v1.MsgTransfer")]
+    IBCTransfer {
+        source_port: String,
+        source_channel: String,
+        token: DenomAmount,
+        sender: String,
+        receiver: String,
+        timeout_height: RevisionHeight,
+        timeout_timestamp: String,
+        memo: String,
     },
 
     //Axelar Messages
