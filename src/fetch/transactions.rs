@@ -634,10 +634,17 @@ pub enum InternalTransactionContentKnowns {
         header: HashMap<String, Value>,
     },
     IBCReceived {
-        packet: TxsTransactionMessagePacket,
-        proof_commitment: String,
-        proof_height: RevisionHeight,
+        sequence: String,
+        source_port: String,
+        source_channel: String,
+        destination_port: String,
+        destination_channel: String,
         signer: String,
+        amount: ChainAmountItem,
+        origin_amount: String,
+        origin_denom: String,
+        sender: String,
+        receiver: String,
     },
     RegisterProxy {
         sender: String,
@@ -941,15 +948,30 @@ impl TxsTransactionMessage {
                     }
                     TxsTransactionMessageKnowns::IBCReceived {
                         packet,
-                        proof_commitment,
-                        proof_height,
+                        proof_commitment: _,
+                        proof_height: _,
                         signer,
-                    } => InternalTransactionContent::Known(InternalTransactionContentKnowns::IBCReceived {
-                        packet,
-                        proof_commitment,
-                        proof_height,
-                        signer,
-                    }),
+                    } => {
+                        let amount_data = serde_json::from_str::<TransactionMessagePacketAmount>(&packet.data)
+                            .map_err(|e| format!("Cannot parse packet data, {}. Error {}.", packet.data, e))?;
+                        let amount = chain
+                            .string_amount_parser(amount_data.amount.clone(), Some(amount_data.denom.clone()))
+                            .await?;
+
+                        InternalTransactionContent::Known(InternalTransactionContentKnowns::IBCReceived {
+                            sequence: packet.sequence,
+                            source_port: packet.source_port,
+                            source_channel: packet.source_channel,
+                            destination_port: packet.destination_port,
+                            destination_channel: packet.destination_channel,
+                            origin_amount: amount_data.amount,
+                            origin_denom: amount_data.denom,
+                            sender: amount_data.sender,
+                            receiver: amount_data.receiver,
+                            signer,
+                            amount,
+                        })
+                    }
                 },
                 TxsTransactionMessage::Unknown(mut keys_values) => {
                     let r#type = keys_values.remove("@type").map(|t| t.to_string()).unwrap_or("Unknown".to_string());
@@ -1412,4 +1434,12 @@ pub struct RevisionHeight {
 
     #[serde(rename = "revision_height")]
     pub revision_height: String,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct TransactionMessagePacketAmount {
+    pub amount: String,
+    pub denom: String,
+    pub receiver: String,
+    pub sender: String,
 }
