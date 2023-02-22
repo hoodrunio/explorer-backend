@@ -68,7 +68,6 @@ pub fn extract_chain(chain: &str, chains: Data<State>) -> Result<Chain, TNRAppEr
 
 #[derive(Deserialize, Serialize, Debug, Clone, PartialEq)]
 pub struct ChainAmountItem {
-    #[serde(with = "rust_decimal::serde::float")]
     pub amount: TnrDecimal,
     pub ticker: String,
 }
@@ -92,7 +91,10 @@ impl ChainAmountItem {
             .await
         {
             Ok(res) => res,
-            Err(_) => Self { amount, ticker },
+            Err(_) => {
+                tracing::error!("Cannot build ChainAmountItem");
+                Self { amount, ticker }
+            }
         }
     }
 }

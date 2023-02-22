@@ -38,12 +38,8 @@ impl ChainAmountItemBuilder {
         let mut ticker = self.ticker.clone();
 
         if let Some(chain) = &self.chain {
-            match chain
-                .cosmos_assets()
-                .assets
-                .into_iter()
-                .find(|asset| asset.symbol == ticker || asset.denom == ticker)
-            {
+            let assets = chain.cosmos_assets().await?.assets;
+            match assets.into_iter().find(|asset| asset.symbol == ticker || asset.denom == ticker) {
                 Some(asset) => {
                     amount = chain.calc_tnr_decimal_amount(amount, Some(asset.decimals));
                     ticker = asset.symbol;

@@ -1,24 +1,26 @@
 use std::{fs, path::Path};
 
+use reqwest::Method;
 use serde::{Deserialize, Serialize};
 
 use crate::chain::Chain;
 
 impl Chain {
-    pub fn cosmos_assets(&self) -> Assets {
-        let assets: Assets = {
-            let data = fs::read_to_string(Path::new("./src/assets/cosmos/assets.json")).expect("Error reading assets file");
-            serde_json::from_str(&data).unwrap()
-        };
-        assets
+    pub async fn cosmos_assets(&self) -> Result<Assets, String> {
+        let base_assets_url = std::env::var("TNR_EXPLORER_ASSETS_URI").expect("TNR_EXPLORER_ASSETS_URI must be set in .env file");
+        let full_cosmos_assets_url = format!("{}/cosmos/chain_assets.json", base_assets_url);
+
+        let assets = self
+            .external_rest_api_req::<Assets>(&self.client, Method::GET, &full_cosmos_assets_url, &[])
+            .await?;
+
+        Ok(assets)
     }
 
-    pub fn cosmos_chain_assets(&self) -> Vec<ChainAsset> {
-        self.cosmos_assets()
-            .assets
-            .into_iter()
-            .filter(|asset| asset.chain == self.config.name)
-            .collect()
+    pub async fn cosmos_chain_assets(&self) -> Result<Vec<ChainAsset>, String> {
+        let assets = self.cosmos_assets().await?;
+
+        Ok(assets.assets.into_iter().filter(|asset| asset.chain == self.config.name).collect())
     }
 }
 
