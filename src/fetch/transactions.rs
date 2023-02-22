@@ -17,7 +17,10 @@ use crate::{
 };
 use crate::{database::TransactionForDb, routes::ChainAmountItem};
 
-use super::others::{DenomAmount, Pagination, PaginationConfig, PublicKey};
+use super::{
+    blocks::BlockHeader,
+    others::{DenomAmount, Pagination, PaginationConfig, PublicKey},
+};
 
 impl Chain {
     /// Returns transaction by given hash.
@@ -631,7 +634,22 @@ pub enum InternalTransactionContentKnowns {
     IBCUpdateClient {
         signer: String,
         client_id: String,
-        header: HashMap<String, Value>,
+        block: String,
+        app: String,
+        chain_id: String,
+        height: String,
+        time: String,
+        hash: String,
+        total: i64,
+        last_commit_hash: String,
+        data_hash: String,
+        validators_hash: String,
+        next_validators_hash: String,
+        consensus_hash: String,
+        app_hash: String,
+        last_results_hash: String,
+        evidence_hash: String,
+        proposer_address: String,
     },
     IBCReceived {
         sequence: String,
@@ -967,7 +985,26 @@ impl TxsTransactionMessage {
                         InternalTransactionContent::Known(InternalTransactionContentKnowns::AxelarRefundRequest { sender, inner_message })
                     }
                     TxsTransactionMessageKnowns::IBCUpdateClient { signer, client_id, header } => {
-                        InternalTransactionContent::Known(InternalTransactionContentKnowns::IBCUpdateClient { signer, client_id, header })
+                        InternalTransactionContent::Known(InternalTransactionContentKnowns::IBCUpdateClient {
+                            signer,
+                            client_id,
+                            block: header.signed_header.header.version.block,
+                            app: header.signed_header.header.version.app,
+                            chain_id: header.signed_header.header.chain_id,
+                            height: header.signed_header.header.height,
+                            time: header.signed_header.header.time,
+                            hash: header.signed_header.header.last_block_id.part_set_header.hash,
+                            total: header.signed_header.header.last_block_id.part_set_header.total,
+                            last_commit_hash: header.signed_header.header.last_commit_hash,
+                            data_hash: header.signed_header.header.data_hash,
+                            validators_hash: header.signed_header.header.validators_hash,
+                            next_validators_hash: header.signed_header.header.next_validators_hash,
+                            consensus_hash: header.signed_header.header.consensus_hash,
+                            app_hash: header.signed_header.header.app_hash,
+                            last_results_hash: header.signed_header.header.last_results_hash,
+                            evidence_hash: header.signed_header.header.evidence_hash,
+                            proposer_address: header.signed_header.header.proposer_address,
+                        })
                     }
                     TxsTransactionMessageKnowns::IBCReceived { packet, signer, .. } => {
                         let amount_data = serde_json::from_str::<TransactionMessagePacketAmount>(&packet.data)
@@ -1174,7 +1211,7 @@ pub enum TxsTransactionMessageKnowns {
     IBCUpdateClient {
         signer: String,
         client_id: String,
-        header: HashMap<String, Value>,
+        header: IBCMessageHeader,
     },
 
     #[serde(rename = "/ibc.core.channel.v1.MsgRecvPacket")]
@@ -1486,4 +1523,51 @@ pub struct TransactionMessagePacketAmount {
     pub denom: String,
     pub receiver: String,
     pub sender: String,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct IBCMessageHeader {
+    pub signed_header: IBCMessageSignedHeader,
+    pub trusted_height: RevisionHeight,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct IBCMessageSignedHeader {
+    pub header: IBCTxMessageHeader,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct IBCTxMessageHeader {
+    pub version: IBCTxMessageHeaderVersion,
+    pub chain_id: String,
+    pub height: String,
+    pub time: String,
+    pub last_commit_hash: String,
+    pub last_block_id: IBCTxMessageHeaderLastBlockId,
+    pub data_hash: String,
+    pub validators_hash: String,
+    pub next_validators_hash: String,
+    pub consensus_hash: String,
+    pub app_hash: String,
+    pub last_results_hash: String,
+    pub evidence_hash: String,
+    pub proposer_address: String,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct IBCTxMessageHeaderVersion {
+    pub block: String,
+    pub app: String,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct IBCTxMessageHeaderLastBlockId {
+    pub hash: String,
+    pub part_set_header: IBCTxMessageHeaderLastBlockIdPartSetHeader,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct IBCTxMessageHeaderLastBlockIdPartSetHeader {
+    pub hash: String,
+    pub total: i64,
 }
