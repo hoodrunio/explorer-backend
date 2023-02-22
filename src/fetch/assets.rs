@@ -43,7 +43,6 @@ impl Chain {
                 .await?;
             *last_fetched_timestamp = current_timestamp;
             *last_fetched_list = assets.assets;
-            dbg!("Fetched assets from explorer {}", current_timestamp);
         }
 
         Ok(Assets {
