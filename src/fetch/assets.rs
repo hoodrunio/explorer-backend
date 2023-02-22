@@ -1,20 +1,54 @@
-use std::{fs, path::Path};
+use std::sync::Arc;
 
+use chrono::{Duration, Utc};
 use reqwest::Method;
 use serde::{Deserialize, Serialize};
+use tokio::sync::Mutex;
 
 use crate::chain::Chain;
+
+struct AssetsPool {
+    list: Mutex<Vec<ChainAsset>>,
+    last_timestamp: Mutex<usize>,
+}
+thread_local! {
+    static ASSETS_MUTEX: Arc<AssetsPool> = Arc::new(AssetsPool{
+        list: Mutex::new(vec![]),
+        last_timestamp: Mutex::new(0),
+    });
+}
+
+impl AssetsPool {
+    pub fn get_instance() -> Arc<AssetsPool> {
+        ASSETS_MUTEX.with(|assets_pool| assets_pool.clone())
+    }
+}
 
 impl Chain {
     pub async fn cosmos_assets(&self) -> Result<Assets, String> {
         let base_assets_url = std::env::var("TNR_EXPLORER_ASSETS_URI").expect("TNR_EXPLORER_ASSETS_URI must be set in .env file");
         let full_cosmos_assets_url = format!("{}/cosmos/chain_assets.json", base_assets_url);
+        let current_timestamp = Utc::now().timestamp() as usize;
 
-        let assets = self
-            .external_rest_api_req::<Assets>(&self.client, Method::GET, &full_cosmos_assets_url, &[])
-            .await?;
+        let mutex_poll = AssetsPool::get_instance();
+        let mut last_fetched_timestamp = mutex_poll.last_timestamp.lock().await;
+        let mut last_fetched_list = mutex_poll.list.lock().await;
 
-        Ok(assets)
+        let upper_timestamp_constraint = *last_fetched_timestamp + Duration::minutes(5).num_seconds() as usize;
+        let should_fetch = current_timestamp > upper_timestamp_constraint;
+
+        if should_fetch {
+            let assets = self
+                .external_rest_api_req::<Assets>(&self.client, Method::GET, &full_cosmos_assets_url, &[])
+                .await?;
+            *last_fetched_timestamp = current_timestamp;
+            *last_fetched_list = assets.assets;
+            dbg!("Fetched assets from explorer {}", current_timestamp);
+        }
+
+        Ok(Assets {
+            assets: last_fetched_list.clone(),
+        })
     }
 
     pub async fn cosmos_chain_assets(&self) -> Result<Vec<ChainAsset>, String> {
@@ -30,7 +64,7 @@ pub struct Assets {
     pub assets: Vec<ChainAsset>,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ChainAsset {
     #[serde(rename = "chain")]
     pub chain: String,
@@ -84,7 +118,7 @@ pub struct ChainAsset {
     pub contract: Option<String>,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct CounterParty {
     #[serde(rename = "channel")]
     pub channel: String,
@@ -96,7 +130,7 @@ pub struct CounterParty {
     pub denom: String,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum Type {
     #[serde(rename = "bep2")]
     Bep2,
@@ -123,7 +157,7 @@ pub enum Type {
     Staking,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum Port {
     #[serde(rename = "transfer")]
     Transfer,
