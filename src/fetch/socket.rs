@@ -107,12 +107,17 @@ impl Chain {
                     Ok(msg) => match msg.result {
                         SocketResult::NonEmpty(SocketResultNonEmpty::Tx { events }) => {
                             tracing::info!("wss: new tx on {}", clone.config.name);
+                            let tx_fee_denom = events.tx_fee[0].clone();
 
                             let tx_item = TransactionItem {
                                 amount: clone
                                     .string_amount_parser(
                                         events
                                             .transfer_amount
+                                            .iter()
+                                            .filter(|str| str.to_string() != tx_fee_denom)
+                                            .map(String::from)
+                                            .collect::<Vec<String>>()
                                             .get(0)
                                             .map(|amount| amount.replace(clone.config.main_denom.as_str(), ""))
                                             .unwrap_or(String::from("0.00"))
@@ -121,7 +126,7 @@ impl Chain {
                                     )
                                     .await?,
                                 fee: clone
-                                    .string_amount_parser(events.tx_fee[0].replace(clone.config.main_denom.as_str(), "").clone(), None)
+                                    .string_amount_parser(tx_fee_denom.replace(clone.config.main_denom.as_str(), "").clone(), None)
                                     .await?,
                                 hash: events.tx_hash[0].clone(),
                                 height: events.tx_height[0]
