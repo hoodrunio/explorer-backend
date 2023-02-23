@@ -5,9 +5,9 @@ use mongodb::bson::doc;
 use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::Value;
 
-use crate::{chain::Chain, routes::OutRestResponse};
 use crate::database::{BlockForDb, ValidatorForDb};
-use crate::utils::{Base64Convert, convert_tx_to_hex};
+use crate::utils::{convert_tx_to_hex, Base64Convert};
+use crate::{chain::Chain, routes::OutRestResponse};
 
 impl Chain {
     /// Returns the block at given height. Returns the latest block, if no height is given.
@@ -163,7 +163,11 @@ impl Chain {
     }
 
     /// Returns the validator last count signed blocks.
-    pub async fn get_validator_last_signed_blocks(&self, operator_address: String, last_block_count: Option<u16>) -> Result<Vec<ValidatorSignatureListElement>, String> {
+    pub async fn get_validator_last_signed_blocks(
+        &self,
+        operator_address: String,
+        last_block_count: Option<u16>,
+    ) -> Result<Vec<ValidatorSignatureListElement>, String> {
         let default_last_block_count = 100;
         let last_block_count = last_block_count.unwrap_or(default_last_block_count);
 
@@ -177,7 +181,11 @@ impl Chain {
             val_sign_list_el.block_height(block.height);
             val_sign_list_el.block_time(block.timestamp);
             val_sign_list_el.operator_address(validator.operator_address.clone());
-            match block.signatures.into_iter().find(|signature| { validator.hex_address == signature.validator_address }) {
+            match block
+                .signatures
+                .into_iter()
+                .find(|signature| validator.hex_address == signature.validator_address)
+            {
                 None => {}
                 Some(signature) => {
                     let sign_time = DateTime::parse_from_rfc3339(&signature.timestamp)
@@ -189,7 +197,7 @@ impl Chain {
             };
 
             validator_signed_or_not_items.push(val_sign_list_el);
-        };
+        }
 
         Ok(validator_signed_or_not_items)
     }
@@ -342,8 +350,8 @@ pub struct BlockResp {
 pub struct InternalBlockResult {
     pub height: String,
     pub txs_results: Vec<InternalBlockResultTxsResult>,
-    pub begin_block_events: Vec<ResultBlockEvent>,
-    pub end_block_events: Vec<ResultBlockEvent>,
+    pub begin_block_events: Vec<CosmosEvent>,
+    pub end_block_events: Vec<CosmosEvent>,
 }
 
 impl InternalBlockResult {
@@ -351,7 +359,7 @@ impl InternalBlockResult {
         let txs_results = block_result.txs_results.clone().unwrap_or(vec![]);
         Self {
             height: block_result.height.clone(),
-            txs_results: txs_results.into_iter().map(|res| { InternalBlockResultTxsResult::new(res) }).collect(),
+            txs_results: txs_results.into_iter().map(|res| InternalBlockResultTxsResult::new(res)).collect(),
             begin_block_events: block_result.begin_block_events.clone().unwrap_or(vec![]),
             end_block_events: block_result.end_block_events.clone().unwrap_or(vec![]),
         }
@@ -366,7 +374,7 @@ pub struct InternalBlockResultTxsResult {
     pub info: String,
     pub gas_wanted: String,
     pub gas_used: String,
-    pub events: Vec<ResultBlockEvent>,
+    pub events: Vec<CosmosEvent>,
     pub codespace: String,
 }
 
@@ -386,25 +394,24 @@ impl InternalBlockResultTxsResult {
 
     pub fn get_sender_address(&self) -> Option<String> {
         for res_block_event in self.events.clone() {
-            match res_block_event.attributes.into_iter().find(|attr_item| { attr_item.key == "sender" }) {
+            match res_block_event.attributes.into_iter().find(|attr_item| attr_item.key == "sender") {
                 None => {}
                 Some(item) => {
                     return Some(item.value.clone());
                 }
             }
-        };
+        }
 
         None
     }
 }
 
-
 #[derive(Deserialize, Serialize, Debug)]
 pub struct BlockResult {
     pub height: String,
     pub txs_results: Option<Vec<BlockResultTxResult>>,
-    pub begin_block_events: Option<Vec<ResultBlockEvent>>,
-    pub end_block_events: Option<Vec<ResultBlockEvent>>,
+    pub begin_block_events: Option<Vec<CosmosEvent>>,
+    pub end_block_events: Option<Vec<CosmosEvent>>,
 }
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
@@ -423,25 +430,33 @@ pub struct Block {
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct ResultEndBlock {
-    pub events: Vec<ResultBlockEvent>,
+    pub events: Vec<CosmosEvent>,
     pub consensus_param_updates: HashMap<String, Value>,
     // pub validator_updates: Vec<String>,
 }
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct ResultBeginBlock {
-    pub events: Vec<ResultBlockEvent>,
+    pub events: Vec<CosmosEvent>,
 }
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
-pub struct ResultBlockEvent {
-    pub attributes: Vec<ResultBlockEventAttribute>,
+pub struct CosmosEvent {
+    pub attributes: Vec<CosmosEventAttribute>,
     pub r#type: String,
 }
 
-impl ResultBlockEvent {
+impl CosmosEvent {
     pub fn is_heartbeat_event(&self) -> bool {
         self.r#type == "heartbeat"
+    }
+
+    pub fn get_event_with_type(&self, event_type: &str) -> Option<CosmosEvent> {
+        if self.r#type == event_type {
+            return Some(self.clone());
+        }
+
+        None
     }
 }
 
@@ -452,15 +467,14 @@ impl ResultEndBlock {
             if res {
                 return res;
             }
-        };
+        }
 
         false
     }
 }
 
-
 #[derive(Deserialize, Serialize, Debug, Clone)]
-pub struct ResultBlockEventAttribute {
+pub struct CosmosEventAttribute {
     #[serde(deserialize_with = "from_base64")]
     pub key: String,
     #[serde(deserialize_with = "from_base64")]
@@ -469,12 +483,13 @@ pub struct ResultBlockEventAttribute {
 }
 
 pub fn from_base64<'de, D>(deserializer: D) -> Result<String, D::Error>
-    where
-        D: Deserializer<'de>,
+where
+    D: Deserializer<'de>,
 {
-    let s: &str = Deserialize::deserialize(deserializer)?;
+    let s = Option::deserialize(deserializer)?;
+    let string_value = s.unwrap_or("");
 
-    Ok(String::base64_to_string(&String::from(s)))
+    Ok(String::base64_to_string(&String::from(string_value)))
 }
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
@@ -593,7 +608,7 @@ pub struct BlockResultTxResult {
     pub info: String,
     pub gas_wanted: String,
     pub gas_used: String,
-    pub events: Vec<ResultBlockEvent>,
+    pub events: Vec<CosmosEvent>,
     pub codespace: String,
 }
 

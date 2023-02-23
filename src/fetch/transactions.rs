@@ -18,7 +18,7 @@ use crate::{
 use crate::{database::TransactionForDb, routes::ChainAmountItem};
 
 use super::{
-    blocks::BlockHeader,
+    blocks::CosmosEvent,
     others::{DenomAmount, Pagination, PaginationConfig, PublicKey},
 };
 
@@ -417,7 +417,8 @@ impl InternalTransaction {
         };
 
         for message in tx.body.messages {
-            jobs.push(async move { message.to_internal(chain).await })
+            let events = tx_response.events.clone();
+            jobs.push(async move { message.to_internal(chain, &events.clone()).await })
         }
 
         let resps = join_all(jobs).await;
@@ -606,8 +607,14 @@ pub enum InternalTransactionContentKnowns {
     },
     #[serde(rename = "Withdraw Delegator Reward")]
     WithdrawDelegatorReward {
+        amount: ChainAmountItem,
         delegator_address: String,
         validator_name: String,
+        validator_address: String,
+    },
+    #[serde(rename = "Withdraw Delegator Reward")]
+    WithdrawValidatorCommission {
+        amount: ChainAmountItem,
         validator_address: String,
     },
     Redelegate {
@@ -834,7 +841,11 @@ pub enum TxsTransactionMessage {
 
 impl TxsTransactionMessage {
     /// Creates a new Message.
-    pub fn to_internal<'a>(self, chain: &'a Chain) -> BoxFuture<'a, Result<InternalTransactionContent, String>> {
+    pub fn to_internal<'a>(
+        self,
+        chain: &'a Chain,
+        events: &'a Option<Vec<CosmosEvent>>,
+    ) -> BoxFuture<'a, Result<InternalTransactionContent, String>> {
         async move {
             Ok::<_, String>(match self {
                 TxsTransactionMessage::Known(message) => match message {
@@ -928,11 +939,39 @@ impl TxsTransactionMessage {
                     TxsTransactionMessageKnowns::WithdrawDelegatorReward {
                         delegator_address,
                         validator_address,
-                    } => InternalTransactionContent::Known(InternalTransactionContentKnowns::WithdrawDelegatorReward {
-                        delegator_address,
-                        validator_name: chain.database.find_validator_by_operator_addr(&validator_address.clone()).await?.name,
-                        validator_address,
-                    }),
+                    } => {
+                        let events = events.clone().unwrap_or(vec![]);
+                        let amount = match events.iter().find(|event| event.r#type == "withdraw_rewards") {
+                            Some(event) => match event.attributes.iter().find(|attr| attr.key == "amount") {
+                                Some(attr) => attr.value.replace(chain.config.main_denom.as_str(), ""),
+                                None => "0".to_string(),
+                            },
+                            None => "0".to_string(),
+                        };
+
+                        let amount = chain.string_amount_parser(amount, None).await?;
+
+                        InternalTransactionContent::Known(InternalTransactionContentKnowns::WithdrawDelegatorReward {
+                            amount,
+                            delegator_address,
+                            validator_name: chain.database.find_validator_by_operator_addr(&validator_address.clone()).await?.name,
+                            validator_address,
+                        })
+                    }
+                    TxsTransactionMessageKnowns::WithdrawValidatorCommission { validator_address } => {
+                        let events = events.clone().unwrap_or(vec![]);
+                        let amount = match events.iter().find(|event| event.r#type == "withdraw_commission") {
+                            Some(event) => match event.attributes.iter().find(|attr| attr.key == "amount") {
+                                Some(attr) => attr.value.replace(chain.config.main_denom.as_str(), ""),
+                                None => "0".to_string(),
+                            },
+                            None => "0".to_string(),
+                        };
+
+                        let amount = chain.string_amount_parser(amount, None).await?;
+
+                        InternalTransactionContent::Known(InternalTransactionContentKnowns::WithdrawValidatorCommission { amount, validator_address })
+                    }
                     TxsTransactionMessageKnowns::EthereumTx { hash } => {
                         InternalTransactionContent::Known(InternalTransactionContentKnowns::EthereumTx { hash })
                     }
@@ -965,7 +1004,7 @@ impl TxsTransactionMessage {
                         InternalTransactionContent::Known(InternalTransactionContentKnowns::Exec {
                             grantee,
                             msgs: {
-                                let resps = join_all(msgs.into_iter().map(|msg| msg.to_internal(chain))).await;
+                                let resps = join_all(msgs.into_iter().map(|msg| msg.to_internal(chain, &None))).await;
                                 let mut internal_msgs = vec![];
                                 for resp in resps {
                                     internal_msgs.push(resp?)
@@ -1093,6 +1132,7 @@ impl TxsTransactionMessage {
                 TxsTransactionMessageKnowns::Undelegate { .. } => "Undelegate",
                 TxsTransactionMessageKnowns::Vote { .. } => "Vote",
                 TxsTransactionMessageKnowns::WithdrawDelegatorReward { .. } => "Withdraw Delegator Rewards",
+                TxsTransactionMessageKnowns::WithdrawValidatorCommission { .. } => "Withdraw Validator Commission",
                 TxsTransactionMessageKnowns::EthereumTx { .. } => "Ethereum Tx",
                 TxsTransactionMessageKnowns::Grant { .. } => "Grant",
                 TxsTransactionMessageKnowns::Exec { .. } => "Exec",
@@ -1146,6 +1186,11 @@ pub enum TxsTransactionMessageKnowns {
     WithdrawDelegatorReward {
         /// Delegator address. Eg: `"evmos1wl8penajxqyqarw94q00cd46nvwuduq40er8sj"`
         delegator_address: String,
+        /// Validator address. Eg: `"evmosvaloper1d74wdckw5vyn6gwqt4r0ruemp9n8vmwtudw848"`
+        validator_address: String,
+    },
+    #[serde(rename = "/cosmos.distribution.v1beta1.MsgWithdrawValidatorCommission")]
+    WithdrawValidatorCommission {
         /// Validator address. Eg: `"evmosvaloper1d74wdckw5vyn6gwqt4r0ruemp9n8vmwtudw848"`
         validator_address: String,
     },
@@ -1365,6 +1410,8 @@ pub struct TxResponse {
     pub tx: TxsResponseTx,
     // Timestamp. Eg: `"2022-07-19T05:26:26Z"`
     pub timestamp: String,
+    // Transaction events.
+    pub events: Option<Vec<CosmosEvent>>,
 }
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
