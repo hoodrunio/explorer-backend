@@ -1,14 +1,11 @@
 use actix_web::{
     get,
-    Responder,
     web::{Data, Path, Query},
+    Responder,
 };
 
-use crate::{
-    fetch::others::PaginationConfig,
-    state::State,
-};
 use crate::routes::{extract_chain, TNRAppError, TNRAppSuccessResponse};
+use crate::{fetch::others::PaginationConfig, state::State};
 
 use super::QueryParams;
 
@@ -37,5 +34,14 @@ pub async fn inflation(path: Path<String>, chains: Data<State>) -> Result<impl R
     let chain = path.into_inner();
     let chain = extract_chain(&chain, chains)?;
     let data = chain.get_inflation_rate().await?;
+    Ok(TNRAppSuccessResponse::new(data))
+}
+
+#[get("{chain}/balances/{account_address}")]
+pub async fn account_balances(path: Path<(String, String)>, chains: Data<State>, query: Query<QueryParams>) -> Result<impl Responder, TNRAppError> {
+    let (chain, account_address) = path.into_inner();
+    let config = PaginationConfig::new().limit(1000).page(query.page.unwrap_or(1));
+    let chain = extract_chain(&chain, chains)?;
+    let data = chain.get_account_balances(&account_address, config).await?;
     Ok(TNRAppSuccessResponse::new(data))
 }
