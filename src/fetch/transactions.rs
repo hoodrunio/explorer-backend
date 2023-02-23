@@ -417,8 +417,8 @@ impl InternalTransaction {
         };
 
         for message in tx.body.messages {
-            let events = tx_response.events.clone();
-            jobs.push(async move { message.to_internal(chain, &events.clone()).await })
+            let logs = tx_response.logs.clone();
+            jobs.push(async move { message.to_internal(chain, &Some(logs.clone())).await })
         }
 
         let resps = join_all(jobs).await;
@@ -844,7 +844,7 @@ impl TxsTransactionMessage {
     pub fn to_internal<'a>(
         self,
         chain: &'a Chain,
-        events: &'a Option<Vec<CosmosEvent>>,
+        logs: &'a Option<Vec<TxResponseLog>>,
     ) -> BoxFuture<'a, Result<InternalTransactionContent, String>> {
         async move {
             Ok::<_, String>(match self {
@@ -940,16 +940,26 @@ impl TxsTransactionMessage {
                         delegator_address,
                         validator_address,
                     } => {
-                        let events = events.clone().unwrap_or(vec![]);
-                        let amount = match events.iter().find(|event| event.r#type == "withdraw_rewards") {
-                            Some(event) => match event.attributes.iter().find(|attr| attr.key == "amount") {
-                                Some(attr) => attr.value.replace(chain.config.main_denom.as_str(), ""),
-                                None => "0".to_string(),
-                            },
-                            None => "0".to_string(),
-                        };
+                        let logs = logs.clone().unwrap_or(vec![]);
+                        let mut amount_string_denom = String::default();
+                        for log in logs {
+                            if let Some(event) = log.events.iter().find(|event| event.r#type == "withdraw_rewards") {
+                                let is_validator_attr = event
+                                    .attributes
+                                    .iter()
+                                    .find(|attr| attr.key == "validator" && attr.value == validator_address);
+                                if is_validator_attr.is_some() {
+                                    amount_string_denom = event
+                                        .attributes
+                                        .iter()
+                                        .find(|attr| attr.key == "amount")
+                                        .map(|attr| attr.value.replace(chain.config.main_denom.as_str(), ""))
+                                        .unwrap_or(String::default());
+                                }
+                            };
+                        }
 
-                        let amount = chain.string_amount_parser(amount, None).await?;
+                        let amount = chain.string_amount_parser(amount_string_denom, None).await?;
 
                         InternalTransactionContent::Known(InternalTransactionContentKnowns::WithdrawDelegatorReward {
                             amount,
@@ -959,16 +969,20 @@ impl TxsTransactionMessage {
                         })
                     }
                     TxsTransactionMessageKnowns::WithdrawValidatorCommission { validator_address } => {
-                        let events = events.clone().unwrap_or(vec![]);
-                        let amount = match events.iter().find(|event| event.r#type == "withdraw_commission") {
-                            Some(event) => match event.attributes.iter().find(|attr| attr.key == "amount") {
-                                Some(attr) => attr.value.replace(chain.config.main_denom.as_str(), ""),
-                                None => "0".to_string(),
-                            },
-                            None => "0".to_string(),
-                        };
+                        let logs = logs.clone().unwrap_or(vec![]);
+                        let mut amount_string_denom = String::default();
+                        for log in logs {
+                            if let Some(event) = log.events.iter().find(|event| event.r#type == "withdraw_commission") {
+                                amount_string_denom = event
+                                    .attributes
+                                    .iter()
+                                    .find(|attr| attr.key == "amount")
+                                    .map(|attr| attr.value.replace(chain.config.main_denom.as_str(), ""))
+                                    .unwrap_or(String::default());
+                            };
+                        }
 
-                        let amount = chain.string_amount_parser(amount, None).await?;
+                        let amount = chain.string_amount_parser(amount_string_denom, None).await?;
 
                         InternalTransactionContent::Known(InternalTransactionContentKnowns::WithdrawValidatorCommission { amount, validator_address })
                     }
