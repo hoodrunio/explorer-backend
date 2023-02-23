@@ -1,19 +1,19 @@
-use std::fmt;
-use std::string::ParseError;
-use actix_web::http::StatusCode;
-use actix_web::{HttpRequest, HttpResponse, Responder, ResponseError};
 use actix_web::body::BoxBody;
 use actix_web::http::header::ContentType;
-use serde::{Serialize};
+use actix_web::http::StatusCode;
+use actix_web::{HttpRequest, HttpResponse, Responder, ResponseError};
+use serde::Serialize;
+use std::fmt;
+use std::string::ParseError;
 
 #[derive(Debug)]
 pub enum TNRAppErrorType {
-    DbError,
+    // DbError,
     MessageError,
-    ForbiddenError,
-    ParseError,
+    // ForbiddenError,
+    // ParseError,
     NotFoundError,
-    ValidationError,
+    // ValidationError,
 }
 
 #[derive(Debug)]
@@ -29,7 +29,7 @@ pub struct TNRAppErrorResponse {
 
 impl TNRAppError {
     fn message(&self) -> String {
-        match &*self {
+        match self {
             TNRAppError {
                 message: Some(message),
                 error_type: _,
@@ -64,7 +64,7 @@ impl From<ParseError> for TNRAppErrorType {
 impl From<String> for TNRAppError {
     fn from(error: String) -> TNRAppError {
         TNRAppError {
-            message: Some(error.to_string()),
+            message: Some(error),
             error_type: TNRAppErrorType::MessageError,
         }
     }
@@ -73,21 +73,18 @@ impl From<String> for TNRAppError {
 impl ResponseError for TNRAppError {
     fn status_code(&self) -> StatusCode {
         match self.error_type {
-            TNRAppErrorType::DbError => { StatusCode::INTERNAL_SERVER_ERROR }
-            TNRAppErrorType::NotFoundError => { StatusCode::NOT_FOUND }
-            TNRAppErrorType::ForbiddenError => { StatusCode::FORBIDDEN }
-            TNRAppErrorType::ParseError => { StatusCode::INTERNAL_SERVER_ERROR }
-            TNRAppErrorType::MessageError => { StatusCode::INTERNAL_SERVER_ERROR }
-            TNRAppErrorType::ValidationError => { StatusCode::INTERNAL_SERVER_ERROR }
+            // TNRAppErrorType::DbError => StatusCode::INTERNAL_SERVER_ERROR,
+            TNRAppErrorType::NotFoundError => StatusCode::NOT_FOUND,
+            // TNRAppErrorType::ForbiddenError => StatusCode::FORBIDDEN,
+            // TNRAppErrorType::ParseError => StatusCode::INTERNAL_SERVER_ERROR,
+            TNRAppErrorType::MessageError => StatusCode::INTERNAL_SERVER_ERROR,
+            // TNRAppErrorType::ValidationError => StatusCode::INTERNAL_SERVER_ERROR,
         }
     }
     fn error_response(&self) -> HttpResponse {
-        HttpResponse::build(self.status_code()).json(TNRAppErrorResponse {
-            error: self.message()
-        })
+        HttpResponse::build(self.status_code()).json(TNRAppErrorResponse { error: self.message() })
     }
 }
-
 
 #[derive(Serialize)]
 pub struct TNRAppSuccessResponse<T> {
@@ -95,10 +92,8 @@ pub struct TNRAppSuccessResponse<T> {
 }
 
 impl<T> TNRAppSuccessResponse<T> {
-    pub fn new(data: T) -> Self <> {
-        Self {
-            data
-        }
+    pub fn new(data: T) -> Self {
+        Self { data }
     }
 }
 

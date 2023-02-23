@@ -1,12 +1,8 @@
-use actix_web::{
-    get,
-    Responder,
-    web::Data,
-};
+use actix_web::{get, web::Data, Responder};
 use serde::{Deserialize, Serialize};
 
-use crate::state::State;
 use crate::routes::{TNRAppError, TNRAppSuccessResponse};
+use crate::state::State;
 
 // ======== Chains Methods ========
 
@@ -24,11 +20,11 @@ pub async fn chains(state: Data<State>) -> Result<impl Responder, TNRAppError> {
         .clone()
         .into_iter()
         .map(|(name, chain)| Chain {
-            name: name,
+            name,
             logo: chain.config.logo,
             main_denom: chain.config.main_denom,
-        }
-        ).collect::<Vec<Chain>>();
+        })
+        .collect::<Vec<Chain>>();
 
     Ok(TNRAppSuccessResponse::new(chains))
 }

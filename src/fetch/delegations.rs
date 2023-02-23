@@ -2,11 +2,13 @@ use chrono::DateTime;
 use serde::{Deserialize, Serialize};
 use tokio::join;
 
-use super::others::{DenomAmount, Pagination, PaginationConfig};
 use crate::{
     chain::Chain,
     routes::{calc_pages, OutRestResponse},
 };
+use crate::routes::ChainAmountItem;
+
+use super::others::{DenomAmount, Pagination, PaginationConfig};
 
 impl Chain {
     /// Returns the delegations of given address.
@@ -30,15 +32,10 @@ impl Chain {
                 .find_validator_by_operator_addr(&delegation_response.delegation.validator_address)
                 .await
             {
+                let amount = self.string_amount_parser(delegation_response.balance.amount.clone(), None).await?;
                 delegations.push({
                     InternalDelegation {
-                        amount: self.calc_amount_u128_to_f64(
-                            delegation_response
-                                .balance
-                                .amount
-                                .parse::<u128>()
-                                .map_err(|_| format!("Cannot parse delegation amount, '{}'", delegation_response.balance.amount))?,
-                        ),
+                        amount,
                         validator_logo_url: validator_metadata.logo_url,
                         validator_name: validator_metadata.name,
                         validator_address: validator_metadata.operator_address,
@@ -80,17 +77,11 @@ impl Chain {
             ) {
                 redelegations.push({
                     let redelegation_resp_entry = redelegation_response
-                        .redelegation
                         .entries
                         .get(0)
                         .ok_or_else(|| "There is no redelegation entry.".to_string())?;
 
-                    let amount = self.calc_amount_u128_to_f64(
-                        redelegation_resp_entry
-                            .balance
-                            .parse::<u128>()
-                            .map_err(|_| format!("Cannot parse redelegation amount, '{}'", redelegation_resp_entry.balance))?,
-                    );
+                    let amount = self.string_amount_parser(redelegation_resp_entry.balance.clone(), None).await?;
 
                     let completion_time = DateTime::parse_from_rfc3339(&redelegation_resp_entry.redelegation_entry.completion_time)
                         .map_err(|_| {
@@ -147,13 +138,9 @@ impl Chain {
                         .get(0)
                         .ok_or_else(|| "There is no unbonding delegation entry.".to_string())?;
 
+                    let amount = self.string_amount_parser(unbonding_entry.balance.clone(), None).await?;
                     InternalUnbonding {
-                        balance: self.calc_amount_u128_to_f64(
-                            unbonding_entry
-                                .balance
-                                .parse::<u128>()
-                                .map_err(|_| format!("Cannot parse unbonding delegation balance, '{}'", unbonding_entry.balance))?,
-                        ),
+                        balance: amount,
                         completion_time: DateTime::parse_from_rfc3339(&unbonding_entry.completion_time)
                             .map_err(|_| {
                                 format!(
@@ -175,6 +162,7 @@ impl Chain {
         Ok(OutRestResponse::new(unbondings, pages))
     }
 }
+
 #[derive(Deserialize, Serialize, Debug)]
 pub struct DelegationsRedelegationsUnbondings {}
 
@@ -199,7 +187,7 @@ pub struct InternalDelegation {
     pub validator_logo_url: String,
     pub validator_name: String,
     pub validator_address: String,
-    pub amount: f64,
+    pub amount: ChainAmountItem,
 }
 
 #[derive(Deserialize, Serialize, Debug)]
@@ -210,7 +198,7 @@ pub struct InternalRedelegation {
     pub validator_to_logo_url: String,
     pub validator_to_name: String,
     pub validator_to_address: String,
-    pub amount: f64,
+    pub amount: ChainAmountItem,
     pub completion_time: i64,
 }
 
@@ -219,7 +207,7 @@ pub struct InternalUnbonding {
     pub validator_logo_url: String,
     pub validator_name: String,
     pub validator_address: String,
-    pub balance: f64,
+    pub balance: ChainAmountItem,
     pub completion_time: i64,
 }
 
@@ -276,7 +264,7 @@ pub struct RedelegationResponse {
     /// Delegation.
     pub redelegation: Redelegation,
     /// Amount and denom.
-    pub entries: Vec<RedelegationEntry>,
+    pub entries: Vec<RedelegationResponseEntry>,
 }
 
 #[derive(Deserialize, Serialize, Debug)]
@@ -288,7 +276,7 @@ pub struct Redelegation {
     /// Validator destination address. Eg: `""`
     pub validator_dst_address: String,
     /// Array of redelegation entries.
-    pub entries: Vec<RedelegationResponseEntry>,
+    pub entries: Option<Vec<RedelegationResponseEntry>>,
 }
 
 #[derive(Deserialize, Serialize, Debug)]
@@ -302,7 +290,7 @@ pub struct RedelegationResponseEntry {
 #[derive(Deserialize, Serialize, Debug)]
 pub struct RedelegationEntry {
     /// Redelagation creation height. Eg: `"524000"`
-    pub creation_height: String,
+    pub creation_height: u64,
     /// Redelagation competion time. Eg: `"2022-11-06T00:14:50.583Z"`
     pub completion_time: String,
     /// Redelagation inital balance. Eg: `""`
@@ -328,9 +316,7 @@ impl TryFrom<RedelegationEntry> for InternalRedelegationEntry {
     fn try_from(value: RedelegationEntry) -> Result<Self, Self::Error> {
         Ok(Self {
             creation_height: value
-                .creation_height
-                .parse()
-                .map_err(|_| format!("Cannot parse redelegation creation height, '{}'.", value.creation_height))?,
+                .creation_height,
             completion_time: DateTime::parse_from_rfc3339(&value.completion_time)
                 .map_err(|_| format!("Cannot parse redelegation completion datetime, '{}'.", value.completion_time))?
                 .timestamp_millis(),

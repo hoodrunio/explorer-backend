@@ -2,10 +2,10 @@ use std::collections::HashMap;
 
 use mongodb::bson::doc;
 
-use crate::{chain::Chain, fetch::others::PaginationConfig};
 use crate::database::{ValidatorForDb, VotingPowerForDb};
 use crate::fetch::validators::ValidatorStatus;
 use crate::utils::{convert_consensus_pubkey_to_consensus_address, convert_consensus_pubkey_to_hex_address, get_validator_logo};
+use crate::{chain::Chain, fetch::others::PaginationConfig};
 
 impl Chain {
     pub async fn cron_job_validator(&self) -> Result<(), String> {
@@ -23,35 +23,41 @@ impl Chain {
                         voting_power: delegator_shares,
                         voting_power_percentage: (delegator_shares / (staking_pool.bonded as f64)) * 100.0,
                         ..Default::default()
-                    }.init();
+                    }
+                    .init();
 
-                    self.database.upsert_voting_power_data(&validator.operator_address, voting_power_db).await?;
+                    self.database
+                        .upsert_voting_power_data(&validator.operator_address, voting_power_db)
+                        .await?;
                 }
-                Err(err) => { tracing::error!("{}",err) }
+                Err(err) => {
+                    tracing::error!("{}", err)
+                }
             }
 
             let is_active = &validator.status == "BOND_STATUS_BONDED";
-            let consensus_address = convert_consensus_pubkey_to_consensus_address(&validator.consensus_pubkey.key, &format!("{}valcons", self.config.base_prefix));
+            let consensus_address =
+                convert_consensus_pubkey_to_consensus_address(&validator.consensus_pubkey.key, &format!("{}valcons", self.config.base_prefix));
             let logo_url = get_validator_logo(self.client.clone(), &validator.description.identity).await;
-            let uptime = match self.get_validator_uptime(&consensus_address, Some(ValidatorStatus::Active)).await {
-                Ok(res) => res,
-                Err(_) => 0.0
-            };
+            let uptime = self
+                .get_validator_uptime(&consensus_address, Some(ValidatorStatus::Active))
+                .await
+                .unwrap_or(0.0);
 
             let voter_address = match self.get_validator_voter_address(&validator.operator_address).await {
                 Ok(res) => res,
-                Err(_) => None
+                Err(_) => None,
             };
 
             let supported_evm_chains = match self.get_supported_chains(&validator.operator_address).await {
-                Ok(res) => { Some(res) }
-                Err(_) => { None }
+                Ok(res) => Some(res),
+                Err(_) => None,
             };
 
             let db_val = ValidatorForDb {
-                bonded_height: None,     // Find way to fetch and store.
-                change_24h: None,        // Find way to fetch and store
-                consensus_address, // use it after it get's complete: `convert_consensus_pubkey_to_consensus_address()`
+                bonded_height: None, // Find way to fetch and store.
+                change_24h: None,    // Find way to fetch and store
+                consensus_address,   // use it after it get's complete: `convert_consensus_pubkey_to_consensus_address()`
                 hex_address: convert_consensus_pubkey_to_hex_address(&validator.consensus_pubkey.key)
                     .ok_or_else(|| format!("Cannot parse self delegate address, {}.", validator.operator_address))?,
                 logo_url,
@@ -101,17 +107,18 @@ impl Chain {
                 if is_suppoerted {
                     val_supported_chains.push(chain.clone());
                 }
-            };
+            }
 
-
-            match self.database.update_validator_supported_chains(&operator_address, val_supported_chains).await {
+            match self
+                .database
+                .update_validator_supported_chains(&operator_address, val_supported_chains)
+                .await
+            {
                 Ok(_) => {}
                 Err(e) => {
-                    tracing::error!("{}",e);
+                    tracing::error!("{}", e);
                 }
             };
-
-            val_supported_chains = vec![];
         }
 
         Ok(())

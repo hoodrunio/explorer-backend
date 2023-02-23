@@ -143,9 +143,9 @@ impl Chain {
                         Ok(res) => res.value,
                         Err(error) => return Err(error),
                     };
-                    let community_tax = chain_params.distribution.community_tax as f64;
+                    let community_tax = chain_params.distribution.community_tax;
 
-                    return Ok((inflation * (1.0 - community_tax)) / bonded_token_ratio);
+                    Ok((inflation * (1.0 - community_tax)) / bonded_token_ratio)
                 }
                 _ => {
                     let community_tax = match self.get_params_all().await {
@@ -179,11 +179,6 @@ impl Chain {
                 } // chain_name => Err(format!("APR for {chain_name} is not implemented.")),
             }
         }
-    }
-
-    pub async fn get_block_time(&self) -> Result<f64, String> {
-        let block_time = 100.4;
-        Ok(block_time)
     }
 }
 

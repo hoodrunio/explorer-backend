@@ -2,22 +2,25 @@ use std::collections::HashMap;
 
 use chrono::DateTime;
 use futures::{
-    future::{BoxFuture, join_all},
+    future::{join_all, BoxFuture},
     FutureExt,
 };
 use mongodb::bson::doc;
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::Value;
 
+use crate::fetch::socket::EvmPollVote;
 use crate::{
     chain::Chain,
     routes::{calc_pages, OutRestResponse},
-    utils::get_msg_name,
+    utils::{get_msg_name, Base64Convert},
 };
-use crate::database::TransactionForDb;
-use crate::fetch::socket::EvmPollVote;
+use crate::{database::TransactionForDb, routes::ChainAmountItem};
 
-use super::others::{DenomAmount, InternalDenomAmount, Pagination, PaginationConfig, PublicKey};
+use super::{
+    blocks::BlockHeader,
+    others::{DenomAmount, Pagination, PaginationConfig, PublicKey},
+};
 
 impl Chain {
     /// Returns transaction by given hash.
@@ -51,7 +54,6 @@ impl Chain {
                     let path = format!("/cosmos/tx/v1beta1/txs/{hash}");
 
                     let resp = self.rest_api_request::<TxResp>(&path, &[]).await?;
-
                     let tx = InternalTransaction::new(resp.tx, resp.tx_response, self).await?;
 
                     Ok(OutRestResponse::new(tx, 0))
@@ -94,7 +96,7 @@ impl Chain {
                     .ok_or_else(|| "The count of transactions and transaction responses aren't the same.".to_string())?,
             );
 
-            txs.push(TransactionItem::new(tx, tx_response, self)?)
+            txs.push(TransactionItem::new(tx, tx_response, self).await?)
         }
 
         let pages = calc_pages(resp.pagination.unwrap_or(Pagination::default()), config)?;
@@ -102,7 +104,12 @@ impl Chain {
         Ok(OutRestResponse::new(txs, pages))
     }
 
-    pub async fn get_internal_txs_by_sender_height(&self, sender_address: &str, block_height: Option<u64>, config: PaginationConfig) -> Result<OutRestResponse<Vec<InternalTransaction>>, String> {
+    pub async fn get_internal_txs_by_sender_height(
+        &self,
+        sender_address: &str,
+        block_height: Option<u64>,
+        config: PaginationConfig,
+    ) -> Result<OutRestResponse<Vec<InternalTransaction>>, String> {
         let mut query = vec![];
 
         if let Some(block_height) = block_height {
@@ -139,7 +146,6 @@ impl Chain {
         Ok(OutRestResponse::new(txs, pages))
     }
 
-
     /// Returns transactions with given recipient.
     pub async fn get_txs_by_recipient(
         &self,
@@ -168,7 +174,7 @@ impl Chain {
                     .ok_or_else(|| "The count of transactions and transaction responses aren't the same.".to_string())?,
             );
 
-            txs.push(TransactionItem::new(tx, tx_response, self)?)
+            txs.push(TransactionItem::new(tx, tx_response, self).await?)
         }
 
         let pages = calc_pages(resp.pagination.unwrap_or(Pagination::default()), config)?;
@@ -246,7 +252,7 @@ impl Chain {
                     .ok_or_else(|| "The count of transactions and transaction responses aren't the same.".to_string())?,
             );
 
-            txs.push(TransactionItem::new(tx, tx_response, self)?)
+            txs.push(TransactionItem::new(tx, tx_response, self).await?)
         }
 
         let pages = calc_pages(resp.pagination.unwrap_or(Pagination::default()), config)?;
@@ -261,7 +267,6 @@ impl Chain {
         Ok(txs)
     }
 
-
     /// Returns the EVM TX response by given hash. Only works for Evmos chain.
     ///
     /// The hash must start with `"0x..."`.
@@ -269,18 +274,24 @@ impl Chain {
         self.jsonrpc_request::<EvmTxResp>(format!(
             r#"{{"method":"eth_getTransactionByHash","params":["{hash}"],"id":1,"jsonrpc":"2.0"}}"#
         ))
-            .await?
-            .try_into()
+        .await?
+        .try_into()
     }
-    pub async fn get_axelar_sender_heartbeat_info(&self, val_voter_address: &String, block_height: u64) -> Result<InternalAxelarHeartbeatInfo, String> {
-        match self.get_internal_txs_by_sender_height(&val_voter_address, Some(block_height), PaginationConfig::new().limit(1).page(1)).await {
+    pub async fn get_axelar_sender_heartbeat_info(
+        &self,
+        val_voter_address: &String,
+        block_height: u64,
+    ) -> Result<InternalAxelarHeartbeatInfo, String> {
+        match self
+            .get_internal_txs_by_sender_height(val_voter_address, Some(block_height), PaginationConfig::new().limit(1).page(1))
+            .await
+        {
             Ok(txs_res) => {
                 for contents in txs_res.value {
-                    match contents.extract_axelar_heartbeat_info() {
-                        Some(res) => { return Ok(res); }
-                        None => {}
+                    if let Some(res) = contents.extract_axelar_heartbeat_info() {
+                        return Ok(res);
                     };
-                };
+                }
                 let message = String::from("This is not an heartbeat tx");
                 Err(message)
             }
@@ -336,18 +347,18 @@ pub struct EvmTxResp {
 pub struct InternalTransaction {
     pub hash: String,
     pub r#type: String,
-    pub amount: f64,
+    pub amount: ChainAmountItem,
     pub height: u64,
     pub time: i64,
-    pub fee: f64,
+    pub fee: ChainAmountItem,
     pub gas_wanted: u64,
     pub gas_used: u64,
-    pub raw: String,
     pub result: String,
     pub memo: String,
     pub signatures: Vec<String>,
-    pub logs: Vec<TxResponseLog>,
     pub content: Vec<InternalTransactionContent>,
+    pub logs: Vec<TxResponseLog>,
+    pub raw: String,
 }
 
 impl InternalTransaction {
@@ -361,7 +372,7 @@ impl InternalTransaction {
             .map(|msg| msg.get_type())
             .ok_or_else(|| format!("There is no TX type, '{}'.", tx_response.txhash))?;
 
-        let amount = tx
+        let denom_amount = tx
             .body
             .messages
             .get(0)
@@ -371,28 +382,39 @@ impl InternalTransaction {
                         delegator_address: _,
                         validator_address: _,
                         amount,
-                    } => chain._get_amount(&amount.amount),
+                    } => Some(amount),
                     TxsTransactionMessageKnowns::Redelegate {
                         delegator_address: _,
                         validator_src_address: _,
                         validator_dst_address: _,
                         amount,
-                    } => chain._get_amount(&amount.amount),
+                    } => Some(amount),
                     TxsTransactionMessageKnowns::Send {
                         from_address: _,
                         to_address: _,
                         amount,
-                    } => amount.get(0).map(|amount| chain._get_amount(&amount.amount)).unwrap_or(0.00),
+                    } => amount.get(0),
                     TxsTransactionMessageKnowns::Undelegate {
                         delegator_address: _,
                         validator_address: _,
                         amount,
-                    } => chain._get_amount(&amount.amount),
-                    _ => 0.00,
+                    } => Some(amount),
+                    _ => None,
                 },
-                _ => 0.00,
+                _ => None,
             })
             .ok_or_else(|| format!("There is no TX type, '{}'.", tx_response.txhash))?;
+
+        let amount = match denom_amount {
+            Some(amount_denom) => match chain
+                .string_amount_parser(amount_denom.amount.clone(), Some(amount_denom.denom.clone()))
+                .await
+            {
+                Ok(res) => res,
+                Err(err) => return Err(format!("Cannot parse transaction amount, '{}'.", err)),
+            },
+            None => ChainAmountItem::default(),
+        };
 
         for message in tx.body.messages {
             jobs.push(async move { message.to_internal(chain).await })
@@ -415,15 +437,17 @@ impl InternalTransaction {
             time: DateTime::parse_from_rfc3339(&tx_response.timestamp)
                 .map_err(|_| format!("Cannot parse transaction timestamp, '{}'.", tx_response.timestamp))?
                 .timestamp_millis(),
-            fee: tx
-                .auth_info
-                .fee
-                .amount
-                .get(0)
-                .map(|ad| ad.amount.to_string())
-                .and_then(|amount| amount.parse::<u128>().ok())
-                .map(|amount| chain.calc_amount_u128_to_f64(amount))
-                .unwrap_or(0.0),
+            fee: chain
+                .string_amount_parser(
+                    tx.auth_info
+                        .fee
+                        .amount
+                        .get(0)
+                        .map(|ad| ad.amount.to_string())
+                        .unwrap_or(String::from("0.0")),
+                    None,
+                )
+                .await?,
             gas_wanted: tx_response
                 .gas_wanted
                 .parse::<u64>()
@@ -437,7 +461,9 @@ impl InternalTransaction {
             } else {
                 "Failed".to_string()
             },
-            signatures: match tx_response.tx { TxsResponseTx::Tx { signatures, .. } => { signatures } },
+            signatures: match tx_response.tx {
+                TxsResponseTx::Tx { signatures, .. } => signatures,
+            },
             memo: tx.body.memo,
             raw: tx_response.raw_log,
             content,
@@ -449,15 +475,17 @@ impl InternalTransaction {
     pub fn extract_axelar_heartbeat_info(&self) -> Option<InternalAxelarHeartbeatInfo> {
         let mut res = None;
         for content_item in &self.content {
-            if let InternalTransactionContent::Known(InternalTransactionContentKnowns::AxelarRefundRequest { sender: _, inner_message }) = content_item {
+            if let InternalTransactionContent::Known(InternalTransactionContentKnowns::AxelarRefundRequest { sender: _, inner_message }) =
+                content_item
+            {
                 if let InnerMessage::Known(InnerMessageKnown::HeartBeatRequest { sender, key_ids }) = inner_message {
                     res = Some(InternalAxelarHeartbeatInfo {
                         sender: sender.clone(),
                         key_ids: key_ids.clone(),
                         signatures: self.signatures.clone(),
                         tx_hash: self.hash.clone(),
-                        height: self.height.clone(),
-                        timestamp: self.time.clone(),
+                        height: self.height,
+                        timestamp: self.time,
                     });
                     break;
                 }
@@ -468,17 +496,21 @@ impl InternalTransaction {
     }
     pub fn is_evm_poll_failed(&self) -> bool {
         let logs = &self.logs.clone();
-        match logs.into_iter().find(|log| { log.log == "failed" && log.log != "already confirmed" }) {
+        match logs.into_iter().find(|log| log.log == "failed" && log.log != "already confirmed") {
             None => {}
-            Some(_) => { return true; }
+            Some(_) => {
+                return true;
+            }
         };
 
         for log in logs {
-            match log.events.clone().into_iter().find(|event| { event.r#type == "EVMEventFailed" }) {
+            match log.events.clone().into_iter().find(|event| event.r#type == "EVMEventFailed") {
                 None => {}
-                Some(_) => { return true; }
+                Some(_) => {
+                    return true;
+                }
             }
-        };
+        }
 
         false
     }
@@ -501,7 +533,7 @@ impl InternalTransaction {
                     return true;
                 };
             }
-        };
+        }
 
         false
     }
@@ -522,8 +554,8 @@ pub struct TransactionItem {
     pub height: u64,
     pub r#type: String,
     pub hash: String,
-    pub amount: f64,
-    pub fee: f64,
+    pub amount: ChainAmountItem,
+    pub fee: ChainAmountItem,
     pub result: String,
     pub time: i64,
 }
@@ -558,19 +590,19 @@ pub enum InternalTransactionContentKnowns {
     Send {
         from_address: String,
         to_address: String,
-        amounts: Vec<InternalDenomAmount>,
+        amounts: Vec<ChainAmountItem>,
     },
     Delegate {
         delegator_address: String,
         validator_name: String,
         validator_address: String,
-        amount: f64,
+        amount: ChainAmountItem,
     },
     Undelegate {
         delegator_address: String,
         validator_name: String,
         validator_address: String,
-        amount: f64,
+        amount: ChainAmountItem,
     },
     #[serde(rename = "Withdraw Delegator Reward")]
     WithdrawDelegatorReward {
@@ -584,7 +616,7 @@ pub enum InternalTransactionContentKnowns {
         validator_from_address: String,
         validator_to_name: String,
         validator_to_address: String,
-        amount: f64,
+        amount: ChainAmountItem,
     },
     Revoke {
         granter_address: String,
@@ -598,6 +630,62 @@ pub enum InternalTransactionContentKnowns {
     #[serde(rename = "Ethereum Tx")]
     EthereumTx {
         hash: String,
+    },
+    IBCUpdateClient {
+        signer: String,
+        client_id: String,
+        block: String,
+        app: String,
+        chain_id: String,
+        height: String,
+        time: String,
+        hash: String,
+        total: i64,
+        last_commit_hash: String,
+        data_hash: String,
+        validators_hash: String,
+        next_validators_hash: String,
+        consensus_hash: String,
+        app_hash: String,
+        last_results_hash: String,
+        evidence_hash: String,
+        proposer_address: String,
+    },
+    IBCReceived {
+        sequence: String,
+        source_port: String,
+        source_channel: String,
+        destination_port: String,
+        destination_channel: String,
+        signer: String,
+        amount: ChainAmountItem,
+        origin_amount: String,
+        origin_denom: String,
+        sender: String,
+        receiver: String,
+    },
+    IBCAcknowledgement {
+        sequence: String,
+        source_port: String,
+        source_channel: String,
+        destination_port: String,
+        destination_channel: String,
+        signer: String,
+        amount: ChainAmountItem,
+        origin_amount: String,
+        origin_denom: String,
+        sender: String,
+        receiver: String,
+    },
+    IBCTransfer {
+        sender: String,
+        receiver: String,
+        source_channel: String,
+        source_port: String,
+        sequence: String,
+        amount: ChainAmountItem,
+        origin_amount: String,
+        origin_denom: String,
     },
     RegisterProxy {
         sender: String,
@@ -624,7 +712,60 @@ impl From<InternalTransaction> for TransactionItem {
 }
 
 impl TransactionItem {
-    fn new(tx: &Tx, tx_response: &TxResponse, chain: &Chain) -> Result<Self, String> {
+    async fn new(tx: &Tx, tx_response: &TxResponse, chain: &Chain) -> Result<Self, String> {
+        let fee_amount = tx
+            .auth_info
+            .fee
+            .amount
+            .get(0)
+            .map(|ad| ad.amount.to_string())
+            .unwrap_or(String::from("0.0"));
+
+        let fee = chain.string_amount_parser(fee_amount, None).await?;
+        let denom_amount = tx
+            .body
+            .messages
+            .get(0)
+            .map(|msg| match msg {
+                TxsTransactionMessage::Known(msg) => match msg {
+                    TxsTransactionMessageKnowns::Delegate {
+                        delegator_address: _,
+                        validator_address: _,
+                        amount,
+                    } => Some(amount),
+                    TxsTransactionMessageKnowns::Redelegate {
+                        delegator_address: _,
+                        validator_src_address: _,
+                        validator_dst_address: _,
+                        amount,
+                    } => Some(amount),
+                    TxsTransactionMessageKnowns::Send {
+                        from_address: _,
+                        to_address: _,
+                        amount,
+                    } => amount.get(0),
+                    TxsTransactionMessageKnowns::Undelegate {
+                        delegator_address: _,
+                        validator_address: _,
+                        amount,
+                    } => Some(amount),
+                    _ => None,
+                },
+                _ => None,
+            })
+            .ok_or_else(|| format!("There is no TX type, '{}'.", tx_response.txhash))?;
+
+        let amount = match denom_amount {
+            Some(amount_denom) => match chain
+                .string_amount_parser(amount_denom.amount.clone(), Some(amount_denom.denom.clone()))
+                .await
+            {
+                Ok(res) => res,
+                Err(err) => return Err(format!("Cannot parse transaction amount, '{}'.", err)),
+            },
+            None => ChainAmountItem::default(),
+        };
+
         Ok(Self {
             height: tx_response
                 .height
@@ -637,47 +778,8 @@ impl TransactionItem {
                 .map(|msg| msg.get_type())
                 .ok_or_else(|| format!("There is no TX type, '{}'.", tx_response.txhash))?,
             hash: tx_response.txhash.to_string(),
-            amount: tx
-                .body
-                .messages
-                .get(0)
-                .map(|msg| match msg {
-                    TxsTransactionMessage::Known(msg) => match msg {
-                        TxsTransactionMessageKnowns::Delegate {
-                            delegator_address: _,
-                            validator_address: _,
-                            amount,
-                        } => chain._get_amount(&amount.amount),
-                        TxsTransactionMessageKnowns::Redelegate {
-                            delegator_address: _,
-                            validator_src_address: _,
-                            validator_dst_address: _,
-                            amount,
-                        } => chain._get_amount(&amount.amount),
-                        TxsTransactionMessageKnowns::Send {
-                            from_address: _,
-                            to_address: _,
-                            amount,
-                        } => amount.get(0).map(|amount| chain._get_amount(&amount.amount)).unwrap_or(0.00),
-                        TxsTransactionMessageKnowns::Undelegate {
-                            delegator_address: _,
-                            validator_address: _,
-                            amount,
-                        } => chain._get_amount(&amount.amount),
-                        _ => 0.00,
-                    },
-                    _ => 0.00,
-                })
-                .ok_or_else(|| format!("There is no TX type, '{}'.", tx_response.txhash))?,
-            fee: tx
-                .auth_info
-                .fee
-                .amount
-                .get(0)
-                .map(|ad| ad.amount.to_string())
-                .and_then(|amount| amount.parse::<u128>().ok())
-                .map(|amount| chain.calc_amount_u128_to_f64(amount))
-                .unwrap_or(0.0),
+            amount,
+            fee,
             result: if tx_response.raw_log.starts_with('[') || tx_response.raw_log.starts_with('{') {
                 "Success".to_string()
             } else {
@@ -744,12 +846,7 @@ impl TxsTransactionMessage {
                         delegator_address,
                         validator_name: chain.database.find_validator_by_operator_addr(&validator_address.clone()).await?.name,
                         validator_address,
-                        amount: chain.calc_amount_u128_to_f64(
-                            amount
-                                .amount
-                                .parse::<u128>()
-                                .map_err(|_| format!("Cannot parse delegation amount, '{}'.", amount.amount))?,
-                        ),
+                        amount: chain.string_amount_parser(amount.amount.clone(), Some(amount.denom.clone())).await?,
                     }),
 
                     TxsTransactionMessageKnowns::Redelegate {
@@ -763,12 +860,7 @@ impl TxsTransactionMessage {
                         validator_from_address: validator_src_address,
                         validator_to_name: chain.database.find_validator_by_operator_addr(&validator_dst_address.clone()).await?.name,
                         validator_to_address: validator_dst_address,
-                        amount: chain.calc_amount_u128_to_f64(
-                            amount
-                                .amount
-                                .parse::<u128>()
-                                .map_err(|_| format!("Cannot parse delegation amount, '{}'.", amount.amount))?,
-                        ),
+                        amount: chain.string_amount_parser(amount.amount.clone(), Some(amount.denom.clone())).await?,
                     }),
 
                     TxsTransactionMessageKnowns::Revoke {
@@ -787,7 +879,12 @@ impl TxsTransactionMessage {
                         let mut amounts = vec![];
 
                         for denom_amount in amount {
-                            amounts.push(denom_amount.try_into()?)
+                            amounts.push(
+                                chain
+                                    .string_amount_parser(denom_amount.amount.clone(), Some(denom_amount.denom.clone()))
+                                    .await?,
+                            )
+                            //TODO check if it is native token if it is we can convert with decimal pow if not get related token decimal count.
                             // We don't work with decimals here, cuz there might be a token which is not the same with the native coin of the chain.
                             // If this situation is highly unlikely to be happen, you can just convert `amounts` to `f64` and just store the amount (in native coin, others wo't be supported).
                         }
@@ -807,12 +904,7 @@ impl TxsTransactionMessage {
                         delegator_address,
                         validator_name: chain.database.find_validator_by_operator_addr(&validator_address.clone()).await?.name,
                         validator_address,
-                        amount: chain.calc_amount_u128_to_f64(
-                            amount
-                                .amount
-                                .parse::<u128>()
-                                .map_err(|_| format!("Cannot parse undelegation amount, '{}'.", amount.amount))?,
-                        ),
+                        amount: chain.string_amount_parser(amount.amount.clone(), Some(amount.denom.clone())).await?,
                     }),
 
                     TxsTransactionMessageKnowns::Vote { proposal_id, voter, option } => {
@@ -829,7 +921,7 @@ impl TxsTransactionMessage {
                                 "VOTE_OPTION_NO_WITH_VETO" => "Veto",
                                 _ => "Unknown",
                             }
-                                .to_string(),
+                            .to_string(),
                         })
                     }
 
@@ -890,9 +982,91 @@ impl TxsTransactionMessage {
                         InternalTransactionContent::Known(InternalTransactionContentKnowns::RegisterProxy { sender, proxy_addr })
                     }
                     TxsTransactionMessageKnowns::AxelarRefundRequest { sender, inner_message } => {
-                        InternalTransactionContent::Known(InternalTransactionContentKnowns::AxelarRefundRequest {
+                        InternalTransactionContent::Known(InternalTransactionContentKnowns::AxelarRefundRequest { sender, inner_message })
+                    }
+                    TxsTransactionMessageKnowns::IBCUpdateClient { signer, client_id, header } => {
+                        InternalTransactionContent::Known(InternalTransactionContentKnowns::IBCUpdateClient {
+                            signer,
+                            client_id,
+                            block: header.signed_header.header.version.block,
+                            app: header.signed_header.header.version.app,
+                            chain_id: header.signed_header.header.chain_id,
+                            height: header.signed_header.header.height,
+                            time: header.signed_header.header.time,
+                            hash: header.signed_header.header.last_block_id.part_set_header.hash,
+                            total: header.signed_header.header.last_block_id.part_set_header.total,
+                            last_commit_hash: header.signed_header.header.last_commit_hash,
+                            data_hash: header.signed_header.header.data_hash,
+                            validators_hash: header.signed_header.header.validators_hash,
+                            next_validators_hash: header.signed_header.header.next_validators_hash,
+                            consensus_hash: header.signed_header.header.consensus_hash,
+                            app_hash: header.signed_header.header.app_hash,
+                            last_results_hash: header.signed_header.header.last_results_hash,
+                            evidence_hash: header.signed_header.header.evidence_hash,
+                            proposer_address: header.signed_header.header.proposer_address,
+                        })
+                    }
+                    TxsTransactionMessageKnowns::IBCReceived { packet, signer, .. } => {
+                        let amount_data = serde_json::from_str::<TransactionMessagePacketAmount>(&packet.data)
+                            .map_err(|e| format!("Cannot parse packet data, {}. Error {}.", packet.data, e))?;
+                        let amount = chain
+                            .string_amount_parser(amount_data.amount.clone(), Some(amount_data.denom.clone()))
+                            .await?;
+
+                        InternalTransactionContent::Known(InternalTransactionContentKnowns::IBCReceived {
+                            sequence: packet.sequence,
+                            source_port: packet.source_port,
+                            source_channel: packet.source_channel,
+                            destination_port: packet.destination_port,
+                            destination_channel: packet.destination_channel,
+                            origin_amount: amount_data.amount,
+                            origin_denom: amount_data.denom,
+                            sender: amount_data.sender,
+                            receiver: amount_data.receiver,
+                            signer,
+                            amount,
+                        })
+                    }
+                    TxsTransactionMessageKnowns::IBCAcknowledgement { signer, packet, .. } => {
+                        let amount_data = serde_json::from_str::<TransactionMessagePacketAmount>(&packet.data)
+                            .map_err(|e| format!("Cannot parse packet data, {}. Error {}.", packet.data, e))?;
+                        let amount = chain
+                            .string_amount_parser(amount_data.amount.clone(), Some(amount_data.denom.clone()))
+                            .await?;
+
+                        InternalTransactionContent::Known(InternalTransactionContentKnowns::IBCAcknowledgement {
+                            sequence: packet.sequence,
+                            source_port: packet.source_port,
+                            source_channel: packet.source_channel,
+                            destination_port: packet.destination_port,
+                            destination_channel: packet.destination_channel,
+                            origin_amount: amount_data.amount,
+                            origin_denom: amount_data.denom,
+                            sender: amount_data.sender,
+                            receiver: amount_data.receiver,
+                            signer,
+                            amount,
+                        })
+                    }
+                    TxsTransactionMessageKnowns::IBCTransfer {
+                        source_port,
+                        source_channel,
+                        token,
+                        sender,
+                        receiver,
+                        ..
+                    } => {
+                        let amount = chain.string_amount_parser(token.amount.clone(), Some(token.denom.clone())).await?;
+                        InternalTransactionContent::Known(InternalTransactionContentKnowns::IBCTransfer {
                             sender,
-                            inner_message,
+                            receiver,
+                            source_channel,
+                            source_port,
+                            //TODO: get the sequence from the transaction
+                            sequence: String::from("Unknown"),
+                            origin_amount: token.amount,
+                            origin_denom: token.denom,
+                            amount,
                         })
                     }
                 },
@@ -905,63 +1079,36 @@ impl TxsTransactionMessage {
                 }
             })
         }
-            .boxed()
+        .boxed()
     }
 
     /// Return the type of message.
     pub fn get_type(&self) -> String {
         match self {
             TxsTransactionMessage::Known(msg) => match msg {
-                TxsTransactionMessageKnowns::Delegate {
-                    delegator_address: _,
-                    validator_address: _,
-                    amount: _,
-                } => "Delegate",
-                TxsTransactionMessageKnowns::Redelegate {
-                    delegator_address: _,
-                    validator_src_address: _,
-                    validator_dst_address: _,
-                    amount: _,
-                } => "Redelegate",
-                TxsTransactionMessageKnowns::Revoke {
-                    granter_address: _,
-                    grantee_address: _,
-                } => "Revoke",
-                TxsTransactionMessageKnowns::Send {
-                    from_address: _,
-                    to_address: _,
-                    amount: _,
-                } => "Send",
-                TxsTransactionMessageKnowns::Undelegate {
-                    delegator_address: _,
-                    validator_address: _,
-                    amount: _,
-                } => "Undelegate",
-                TxsTransactionMessageKnowns::Vote {
-                    proposal_id: _,
-                    voter: _,
-                    option: _,
-                } => "Vote",
-                TxsTransactionMessageKnowns::WithdrawDelegatorReward {
-                    delegator_address: _,
-                    validator_address: _,
-                } => "Withdraw Delegator Rewards",
-                TxsTransactionMessageKnowns::EthereumTx { hash: _ } => "Ethereum Tx",
-                TxsTransactionMessageKnowns::Grant {
-                    granter: _,
-                    grantee: _,
-                    grant: _,
-                } => "Grant",
-                TxsTransactionMessageKnowns::Exec { grantee: _, msgs: _ } => "Exec",
-                TxsTransactionMessageKnowns::RegisterProxy { sender: _, proxy_addr: _ } => "RegisterProxy",
-                TxsTransactionMessageKnowns::AxelarRegisterProxy { sender: _, proxy_addr: _ } => "RegisterProxy",
-                TxsTransactionMessageKnowns::AxelarRefundRequest { sender: _, inner_message: _ } => "AxelarRefundRequest"
+                TxsTransactionMessageKnowns::Delegate { .. } => "Delegate",
+                TxsTransactionMessageKnowns::Redelegate { .. } => "Redelegate",
+                TxsTransactionMessageKnowns::Revoke { .. } => "Revoke",
+                TxsTransactionMessageKnowns::Send { .. } => "Send",
+                TxsTransactionMessageKnowns::Undelegate { .. } => "Undelegate",
+                TxsTransactionMessageKnowns::Vote { .. } => "Vote",
+                TxsTransactionMessageKnowns::WithdrawDelegatorReward { .. } => "Withdraw Delegator Rewards",
+                TxsTransactionMessageKnowns::EthereumTx { .. } => "Ethereum Tx",
+                TxsTransactionMessageKnowns::Grant { .. } => "Grant",
+                TxsTransactionMessageKnowns::Exec { .. } => "Exec",
+                TxsTransactionMessageKnowns::RegisterProxy { .. } => "RegisterProxy",
+                TxsTransactionMessageKnowns::AxelarRegisterProxy { .. } => "RegisterProxy",
+                TxsTransactionMessageKnowns::AxelarRefundRequest { .. } => "AxelarRefundRequest",
+                TxsTransactionMessageKnowns::IBCUpdateClient { .. } => "IBCUpdateClient",
+                TxsTransactionMessageKnowns::IBCReceived { .. } => "IBCReceived",
+                TxsTransactionMessageKnowns::IBCAcknowledgement { .. } => "IBCAcknowledgement",
+                TxsTransactionMessageKnowns::IBCTransfer { .. } => "IBCTransfer",
             }
-                .to_string(),
+            .to_string(),
             TxsTransactionMessage::Unknown(keys_values) => keys_values
                 .get("@type")
                 .cloned()
-                .map(|r#type| get_msg_name(r#type.to_string().as_ref()))
+                .map(|r#type| get_msg_name(r#type.as_str().unwrap_or_else(|| "Unknown")))
                 .unwrap_or("Unknown".to_string()),
         }
     }
@@ -1057,22 +1204,51 @@ pub enum TxsTransactionMessageKnowns {
         // data: UNKNOWN,
     },
     #[serde(rename = "/snapshot.v1beta1.RegisterProxyRequest")]
-    RegisterProxy {
-        sender: String,
-        proxy_addr: String,
-    },
-    #[serde(rename = "/axelar.snapshot.v1beta1.RegisterProxyRequest")]
-    AxelarRegisterProxy {
-        sender: String,
-        proxy_addr: String,
-    },
-    #[serde(rename = "/axelar.reward.v1beta1.RefundMsgRequest")]
-    AxelarRefundRequest {
-        sender: String,
-        inner_message: InnerMessage,
-    },
-}
+    RegisterProxy { sender: String, proxy_addr: String },
 
+    //IBC Messages
+    #[serde(rename = "/ibc.core.client.v1.MsgUpdateClient")]
+    IBCUpdateClient {
+        signer: String,
+        client_id: String,
+        header: IBCMessageHeader,
+    },
+
+    #[serde(rename = "/ibc.core.channel.v1.MsgRecvPacket")]
+    IBCReceived {
+        packet: TxsTransactionMessagePacket,
+        proof_commitment: String,
+        proof_height: RevisionHeight,
+        signer: String,
+    },
+
+    #[serde(rename = "/ibc.core.channel.v1.MsgAcknowledgement")]
+    IBCAcknowledgement {
+        packet: TxsTransactionMessagePacket,
+        proof_acked: String,
+        acknowledgement: String,
+        proof_height: RevisionHeight,
+        signer: String,
+    },
+
+    #[serde(rename = "/ibc.applications.transfer.v1.MsgTransfer")]
+    IBCTransfer {
+        source_port: String,
+        source_channel: String,
+        token: DenomAmount,
+        sender: String,
+        receiver: String,
+        timeout_height: RevisionHeight,
+        timeout_timestamp: String,
+        memo: String,
+    },
+
+    //Axelar Messages
+    #[serde(rename = "/axelar.snapshot.v1beta1.RegisterProxyRequest")]
+    AxelarRegisterProxy { sender: String, proxy_addr: String },
+    #[serde(rename = "/axelar.reward.v1beta1.RefundMsgRequest")]
+    AxelarRefundRequest { sender: String, inner_message: InnerMessage },
+}
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
 #[serde(untagged)]
@@ -1085,16 +1261,9 @@ pub enum InnerMessage {
 #[serde(tag = "@type")]
 pub enum InnerMessageKnown {
     #[serde(rename = "/axelar.vote.v1beta1.VoteRequest")]
-    VoteRequest {
-        sender: String,
-        poll_id: String,
-        vote: AxelarVote,
-    },
+    VoteRequest { sender: String, poll_id: String, vote: AxelarVote },
     #[serde(rename = "/axelar.tss.v1beta1.HeartBeatRequest")]
-    HeartBeatRequest {
-        sender: String,
-        key_ids: Vec<String>,
-    },
+    HeartBeatRequest { sender: String, key_ids: Vec<String> },
 }
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
@@ -1108,22 +1277,18 @@ pub enum AxelarVote {
 #[serde(tag = "@type")]
 pub enum AxelarKnownVote {
     #[serde(rename = "/axelar.evm.v1beta1.VoteEvents")]
-    VoteEvent {
-        chain: String,
-        events: Vec<HashMap<String, Value>>,
-    }
+    VoteEvent { chain: String, events: Vec<HashMap<String, Value>> },
 }
 
 impl AxelarKnownVote {
     pub fn evm_vote(&self) -> EvmPollVote {
         match self {
             AxelarKnownVote::VoteEvent { chain: _, events } => {
-                let vote = if !events.is_empty() {
+                if !events.is_empty() {
                     EvmPollVote::Yes
                 } else {
                     EvmPollVote::No
-                };
-                vote
+                }
             }
         }
     }
@@ -1135,7 +1300,7 @@ pub struct IbcAcknowledgementPacket {
     pub source_channel: String,
 }
 
-#[derive(Deserialize, Serialize, Debug)]
+#[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct TimeoutHeight {
     /// Timeout revision number. Eg: `"1"`
     pub revision_number: String,
@@ -1305,4 +1470,104 @@ pub struct UnparsedTxEventAttribute {
 pub struct TxResp {
     pub tx: Tx,
     pub tx_response: TxResponse,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct TxsTransactionMessagePacket {
+    #[serde(rename = "data", deserialize_with = "from_base64")]
+    pub data: String,
+
+    #[serde(rename = "source_port")]
+    pub source_port: String,
+
+    #[serde(rename = "destination_channel")]
+    pub destination_channel: String,
+
+    #[serde(rename = "destination_port")]
+    pub destination_port: String,
+
+    #[serde(rename = "timeout_timestamp")]
+    pub timeout_timestamp: String,
+
+    #[serde(rename = "timeout_height")]
+    pub timeout_height: TimeoutHeight,
+
+    #[serde(rename = "source_channel")]
+    pub source_channel: String,
+
+    #[serde(rename = "sequence")]
+    pub sequence: String,
+}
+
+pub fn from_base64<'de, D>(deserializer: D) -> Result<String, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let s: &str = Deserialize::deserialize(deserializer)?;
+
+    Ok(String::base64_to_string(&String::from(s)))
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct RevisionHeight {
+    #[serde(rename = "revision_number")]
+    pub revision_number: String,
+
+    #[serde(rename = "revision_height")]
+    pub revision_height: String,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct TransactionMessagePacketAmount {
+    pub amount: String,
+    pub denom: String,
+    pub receiver: String,
+    pub sender: String,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct IBCMessageHeader {
+    pub signed_header: IBCMessageSignedHeader,
+    pub trusted_height: RevisionHeight,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct IBCMessageSignedHeader {
+    pub header: IBCTxMessageHeader,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct IBCTxMessageHeader {
+    pub version: IBCTxMessageHeaderVersion,
+    pub chain_id: String,
+    pub height: String,
+    pub time: String,
+    pub last_commit_hash: String,
+    pub last_block_id: IBCTxMessageHeaderLastBlockId,
+    pub data_hash: String,
+    pub validators_hash: String,
+    pub next_validators_hash: String,
+    pub consensus_hash: String,
+    pub app_hash: String,
+    pub last_results_hash: String,
+    pub evidence_hash: String,
+    pub proposer_address: String,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct IBCTxMessageHeaderVersion {
+    pub block: String,
+    pub app: String,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct IBCTxMessageHeaderLastBlockId {
+    pub hash: String,
+    pub part_set_header: IBCTxMessageHeaderLastBlockIdPartSetHeader,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct IBCTxMessageHeaderLastBlockIdPartSetHeader {
+    pub hash: String,
+    pub total: i64,
 }

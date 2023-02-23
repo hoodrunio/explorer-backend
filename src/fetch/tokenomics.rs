@@ -48,7 +48,9 @@ impl Chain {
     }
 
     pub async fn get_evm_supported_chains(&self) -> Result<Vec<String>, String> {
-        let resp = self.rest_api_request::<AxelarSupportedEvmChainsResponse>("/axelar/evm/v1beta1/chains", &[]).await?;
+        let resp = self
+            .rest_api_request::<AxelarSupportedEvmChainsResponse>("/axelar/evm/v1beta1/chains", &[])
+            .await?;
 
         Ok(resp.chains)
     }
@@ -76,7 +78,7 @@ impl Chain {
                 .await
                 .map(|res| res.inflation.parse::<f64>().unwrap_or(default_return_value))
         }
-            .unwrap_or(default_return_value);
+        .unwrap_or(default_return_value);
 
         //Axelar calculation different than others. That is why we are overriding inflation variable here.
         if self.config.name == "axelar" {
@@ -89,7 +91,8 @@ impl Chain {
                 .map(|res| res.param.get_parsed_value().unwrap_or(default_return_value))
                 .unwrap_or(default_return_value);
 
-            let external_chain_inflation = self.get_evm_supported_chains()
+            let external_chain_inflation = self
+                .get_evm_supported_chains()
                 .await
                 .map(|res| res.len() as f64 * external_chain_voting_inflation_rate)
                 .unwrap_or(default_return_value);
@@ -151,12 +154,6 @@ impl AxelarExternalChainVotingInflationRateParam {
 #[derive(Deserialize, Serialize, Debug, PartialEq)]
 pub struct AxelarSupportedEvmChainsResponse {
     chains: Vec<String>,
-}
-
-impl AxelarSupportedEvmChainsResponse {
-    pub fn get_supported_evm_chains_length(&self) -> f64 {
-        self.chains.len() as f64
-    }
 }
 
 #[derive(Deserialize, Serialize, Debug, PartialEq)]
