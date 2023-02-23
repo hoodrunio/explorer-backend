@@ -525,7 +525,7 @@ impl Chain {
 
         for tx in resp.txs.iter() {
             for message in &tx.body.messages {
-                let res = message.clone().to_internal(self).await?;
+                let res = message.clone().to_internal(self, &None).await?;
                 match res {
                     InternalTransactionContent::Known(InternalTransactionContentKnowns::RegisterProxy { sender: _, proxy_addr }) => {
                         result = Some(proxy_addr);

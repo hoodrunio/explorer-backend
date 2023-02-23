@@ -13,7 +13,7 @@ use tokio_tungstenite::{connect_async, tungstenite::Message};
 use crate::chain::Chain;
 use crate::database::{BlockForDb, EvmPollForDb, EvmPollParticipantForDb, HeartbeatForDb, HeartbeatRawForDb};
 use crate::events::WsEvent;
-use crate::fetch::blocks::{Block, ResultBeginBlock, ResultBlockEvent, ResultEndBlock};
+use crate::fetch::blocks::{Block, CosmosEvent, ResultBeginBlock, ResultEndBlock};
 use crate::fetch::evm::PollStatus;
 use crate::fetch::heartbeats::HeartbeatStatus;
 use crate::fetch::transactions::{
@@ -681,7 +681,7 @@ pub struct NewBlockValue {
 }
 
 impl NewBlockValue {
-    fn extract_evm_poll_info(&self, event: &ResultBlockEvent, status: PollStatus) -> AxelarCompletedPoll {
+    fn extract_evm_poll_info(&self, event: &CosmosEvent, status: PollStatus) -> AxelarCompletedPoll {
         let mut poll_id: String = String::from("");
         let mut chain: String = String::from("");
         let mut tx_id: String = String::from("");
