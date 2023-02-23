@@ -612,7 +612,7 @@ pub enum InternalTransactionContentKnowns {
         validator_name: String,
         validator_address: String,
     },
-    #[serde(rename = "Withdraw Delegator Reward")]
+    #[serde(rename = "Withdraw Validator Commission")]
     WithdrawValidatorCommission {
         amount: ChainAmountItem,
         validator_address: String,
