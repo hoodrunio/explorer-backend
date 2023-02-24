@@ -89,6 +89,17 @@ impl Chain {
         Ok(OutRestResponse::new(balances, pages))
     }
 
+    pub async fn get_account_balance_by_denom(&self, account_address: &String, denom: &String) -> Result<OutRestResponse<InternalBalance>, String> {
+        // let query = vec![("denom", format!("{}", denom))];
+
+        let path = format!("/cosmos/bank/v1beta1/balances/{account_address}/by_denom?denom={denom}");
+
+        let resp = self.rest_api_request::<AccountDenomBalance>(&path, &[]).await?;
+
+        let amount = self.string_amount_parser(resp.balance.amount, Some(resp.balance.denom)).await?;
+
+        Ok(OutRestResponse::new(InternalBalance { amount }, 0))
+    }
     /// Returns the minting inflation rate of native coin of the chain.
     pub async fn get_inflation_rate(&self) -> Result<OutRestResponse<f64>, String> {
         let default_return_value = 0.0;
@@ -194,13 +205,18 @@ pub struct AccountBalances {
     pub pagination: Pagination,
 }
 
-#[derive(Deserialize, Serialize, Debug, PartialEq)]
-pub struct Balance {
-    denom: String,
-    amount: String,
+#[derive(Deserialize, Serialize, Debug)]
+pub struct AccountDenomBalance {
+    pub balance: Balance,
 }
 
-#[derive(Deserialize, Serialize, Debug, PartialEq)]
+#[derive(Deserialize, Serialize, Debug)]
+pub struct Balance {
+    pub denom: String,
+    pub amount: String,
+}
+
+#[derive(Deserialize, Serialize, Debug)]
 pub struct InternalBalance {
-    amount: ChainAmountItem,
+    pub amount: ChainAmountItem,
 }
