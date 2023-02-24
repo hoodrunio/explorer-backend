@@ -1,4 +1,3 @@
-mod account;
 mod api_response;
 mod blocks;
 mod calculations;
@@ -18,6 +17,7 @@ mod transactions;
 mod validators;
 
 pub use account::*;
+pub use api_response::*;
 pub use api_response::*;
 pub use blocks::*;
 pub use calculations::*;
