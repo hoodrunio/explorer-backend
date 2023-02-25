@@ -80,3 +80,12 @@ pub async fn last_txs(path: Path<String>, chains: Data<State>, query: Query<Last
     let data = chain.get_last_txs_from_db(count).await?;
     Ok(TNRAppSuccessResponse::new(data))
 }
+
+#[get("{chain}/txs_receipt/{hash}")]
+pub async fn txs_receipt(path: Path<(String, String)>, chains: Data<State>) -> Result<impl Responder, TNRAppError> {
+    let (chain, hash) = path.into_inner();
+
+    let chain = extract_chain(&chain, chains)?;
+    let data = chain.get_txs_receipt(&hash).await?;
+    Ok(TNRAppSuccessResponse::new(data))
+}

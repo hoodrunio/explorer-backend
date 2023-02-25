@@ -290,6 +290,21 @@ impl Chain {
             }
         }
     }
+
+    /// Returns transaction Receipt by given hash
+    pub async fn get_txs_receipt(&self, hash: &str) -> Result<OutRestResponse<Receipt>, String> {
+        let resp = self.get_evm_tx_receipt_by_hash(hash).await?;
+        Ok(OutRestResponse::new(resp, 0))
+    }
+
+    /// Returns the EVM TX receipt  by given hash. Only works for Evmos chain.
+    ///
+    /// The hash must start with `"0x..."`.
+    async fn get_evm_tx_receipt_by_hash(&self, hash: &str) -> Result<Receipt, String> {
+        Ok(self.jsonrpc_request::<Receipt>(format!(
+            r#"{{"method":"eth_getTransactionReceipt","params":["{hash}"],"id":1,"jsonrpc":"2.0"}}"#
+        )).await?)
+    }
 }
 
 #[derive(Deserialize, Serialize, Debug)]
@@ -1305,4 +1320,23 @@ pub struct UnparsedTxEventAttribute {
 pub struct TxResp {
     pub tx: Tx,
     pub tx_response: TxResponse,
+}
+
+#[derive(Deserialize, Serialize, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct Receipt {
+    pub block_hash: String,
+    pub block_number: String, 
+    pub logs: Vec<TxReceiptLog>,
+    pub to: String,
+    pub transaction_hash: String,
+}
+
+#[derive(Deserialize, Serialize, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct TxReceiptLog {
+    pub address: String,
+    pub topics: Vec<String>,
+    pub data: String,
+    pub log_index: String
 }
