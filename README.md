@@ -5,11 +5,15 @@
   </a>
 </p>
 
+This repo only serves as API for the UI and is not integrated with it.
+
+The UI repo can be found [here.](https://github.com/testnetrunn/explorer-ui-v2)
+
 
 **Explorer backend is an app:**
 - Deals with blockchain nodes.
 - Supports our database implementation.
-- Provides a nice REST & websocket API.
+- Provides REST & websocket API.
 
 
 # To-do
