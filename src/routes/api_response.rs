@@ -1,10 +1,10 @@
+use std::string::ParseError;
 use actix_web::body::BoxBody;
 use actix_web::http::header::ContentType;
 use mongodb_cursor_pagination::{CursorDirections, PageInfo};
 use actix_web::http::StatusCode;
 use actix_web::{HttpRequest, HttpResponse, Responder, ResponseError};
 use std::fmt;
-use std::string::ParseError;
 use serde::{Deserialize, Serialize};
 use crate::database::ListDbResult;
 
@@ -98,7 +98,7 @@ pub struct TNRAppSuccessResponse<T> {
 impl<T> From<ListDbResult<T>> for TNRAppSuccessResponse<Vec<T>> {
     fn from(value: ListDbResult<T>) -> Self {
         Self {
-            data: value.list,
+            data: value.data,
             pagination: Some(value.pagination),
         }
     }
@@ -138,23 +138,12 @@ impl<T> TNRAppSuccessResponse<T> {
     }
 }
 
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Default, Debug, Clone, Deserialize, Serialize)]
 pub struct PaginationData {
     pub cursor: Option<String>,
     pub offset: Option<u64>,
     pub limit: Option<u64>,
     pub direction: Option<PaginationDirection>,
-}
-
-impl Default for PaginationData {
-    fn default() -> Self {
-        Self {
-            cursor: None,
-            offset: None,
-            limit: Some(250),
-            direction: Some(PaginationDirection::Next),
-        }
-    }
 }
 
 impl From<PaginationDirection> for CursorDirections {

@@ -4,14 +4,15 @@ use mongodb::bson::doc;
 use serde::{Deserialize, Serialize};
 use tokio::join;
 
-use crate::database::{PaginationDb, ValidatorForDb};
-use crate::fetch::transactions::{InternalTransactionContent, InternalTransactionContentKnowns};
-use crate::routes::{ChainAmountItem, TNRAppError};
-use crate::utils::convert_consensus_pubkey_to_consensus_address;
+use crate::routes::{ChainAmountItem};
 use crate::{
     chain::Chain,
     routes::{calc_pages, OutRestResponse},
 };
+use crate::database::ValidatorForDb;
+use crate::fetch::transactions::{InternalTransactionContent, InternalTransactionContentKnowns};
+use crate::routes::{PaginationData, TNRAppError};
+use crate::utils::convert_consensus_pubkey_to_consensus_address;
 
 use super::{
     others::{DenomAmount, Pagination, PaginationConfig},
@@ -641,13 +642,13 @@ pub struct ValidatorListDbResp {
     /// Array of validators.
     pub validators: Vec<ValidatorForDb>,
     /// Pagination.
-    pub pagination: PaginationDb,
+    pub pagination: PaginationData,
 }
 
 #[derive(Deserialize, Serialize, Debug)]
 pub struct ValidatorListResp {
     pub validators: Vec<ValidatorListElement>,
-    pub pagination: PaginationDb,
+    pub pagination: PaginationData,
 }
 
 #[derive(Deserialize, Serialize, Debug)]

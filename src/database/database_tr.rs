@@ -326,13 +326,7 @@ impl DatabaseTR {
             res.push(from_document(result.map_err(|e| format!("{}", e))?).map_err(|e| format!("{}", e))?);
         }
 
-        Ok(ValidatorListDbResp {
-            validators: res,
-            pagination: PaginationDb {
-                page: page as u16,
-                total: count as u16,
-            },
-        })
+        Ok(ValidatorListDbResp { validators: res, pagination: PaginationData { offset: Some(skip_count as u64), ..Default::default() } })
     }
 
     /// Finds a sorted validator list by given document.
@@ -422,9 +416,8 @@ impl DatabaseTR {
             .build();
 
         let results: FindResult<EvmPollForDb> = PaginatedCursor::new(Some(options), config.cursor, config.direction.map(|d| d.into()))
-            .find(&self.db().collection("evm_polls"), None)
+            .find(&self.db().collection("evm_polls"), pipe.as_ref())
             .await.map_err(|e| format!("{}", e.to_string()))?;
-
 
         Ok(ListDbResult::from(results))
     }
@@ -568,6 +561,33 @@ impl DatabaseTR {
 
 
         Ok(ListDbResult::from(results))
+    }
+
+    /// Adds a new chain to the chains collection of the database.
+    /// # Usage
+    /// ```rs
+    /// database.add_chain(chain).await;
+    /// ```
+    async fn add_chain(&self, chain: Chain) -> Result<(), String> {
+        match self.chains_collection().insert_one(chain, None).await {
+            Ok(_) => Ok(()),
+            Err(_) => Err("Cannot save the chain.".into()),
+        }
+    }
+
+    /// Finds a validator by given document.
+    /// # Usage
+    /// ```rs
+    /// let validator = database.find_validator(doc!("operator_address": address)).await;
+    /// ```
+    async fn find_chain(&self, name: &str) -> Result<Chain, String> {
+        match self.chains_collection().find_one(doc! {"name":name }, None).await {
+            Ok(potential_chain) => match potential_chain {
+                Some(chain) => Ok(chain),
+                None => Err("No chain is found.".into()),
+            },
+            Err(e) => Err(format!("Cannot make request to DB: {e}")),
+        }
     }
 
     /// Finds a validator by given document.

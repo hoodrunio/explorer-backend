@@ -1,12 +1,13 @@
 use std::fmt;
+use cosmrs::abci::Data;
 
 use mongodb::bson::doc;
 use serde::{Deserialize, Serialize};
 
 use crate::chain::Chain;
-use crate::database::{EvmPollForDb, EvmPollParticipantForDb, PaginationDb};
+use crate::database::{EvmPollForDb, EvmPollParticipantForDb};
 use crate::fetch::socket::EvmPollVote;
-use crate::routes::TNRAppError;
+use crate::routes::{PaginationData, TNRAppError};
 
 impl Chain {
     pub async fn get_supported_chains(&self, operator_address: &String) -> Result<EvmSupportedChains, TNRAppError> {
@@ -26,13 +27,13 @@ impl Chain {
 #[derive(Deserialize, Serialize, Debug)]
 pub struct EvmPollListDbResp {
     pub polls: Vec<EvmPollForDb>,
-    pub pagination: PaginationDb,
+    pub pagination: PaginationData,
 }
 
 #[derive(Deserialize, Serialize, Debug)]
 pub struct EvmPollListResp {
     pub polls: Vec<EvmPollRespElement>,
-    pub pagination: PaginationDb,
+    pub pagination: PaginationData,
 }
 
 #[derive(Deserialize, Serialize, Debug)]
@@ -109,7 +110,7 @@ impl fmt::Display for PollStatus {
 #[derive(Deserialize, Serialize, Debug)]
 pub struct EvmVotesListResp {
     pub list: Vec<EvmVoteRespElement>,
-    pub pagination: PaginationDb,
+    pub pagination: PaginationData,
 }
 
 impl EvmVotesListResp {

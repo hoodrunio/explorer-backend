@@ -22,11 +22,11 @@ pub async fn evm_polls(path: Path<String>, chains: Data<State>, query: Query<Pag
     let chain = extract_chain(&chain, chains)?;
 
     if &chain.config.name != "axelar" {
-        return Err(TNRAppError::from(format!("Evm polls not supported for {}", &chain.config.name)));
+        return Err(TNRAppError::from(String::from(format!("Evm polls not supported for {}", &chain.config.name))));
     };
 
     let evm_polls_from_db = chain.database.find_paginated_evm_polls(None, Some(query.0)).await?;
-    Ok(TNRAppSuccessResponse::new(evm_polls_from_db.list, Some(evm_polls_from_db.pagination)))
+    Ok(TNRAppSuccessResponse::from(evm_polls_from_db))
 }
 
 #[get("{chain}/evm/poll/{poll_id}")]
@@ -44,22 +44,18 @@ pub async fn evm_poll(path: Path<(String, String)>, chains: Data<State>) -> Resu
 }
 
 #[get("{chain}/evm/votes/{operator_address}")]
-pub async fn evm_validator_votes(
-    path: Path<(String, String)>,
-    chains: Data<State>,
-    query: Query<QueryParams>,
-) -> Result<TNRAppSuccessResponse<Vec<EvmPollForDb>>, TNRAppError> {
+pub async fn evm_validator_votes(path: Path<(String, String)>, chains: Data<State>, query: Query<PaginationData>) -> Result<TNRAppSuccessResponse<Vec<EvmPollForDb>>, TNRAppError> {
     let (chain, operator_address) = path.into_inner();
 
     let chain = extract_chain(&chain, chains)?;
 
     if &chain.config.name != "axelar" {
-        return Err(TNRAppError::from(format!("Evm votes not supported for {}", &chain.config.name)));
+        return Err(TNRAppError::from(String::from(format!("Evm votes not supported for {}", &chain.config.name))));
     };
 
 
     let val_evm_polls_from_db = chain.database.find_paginated_evm_polls(Some(doc! {"$match":{"participants":{"$elemMatch":{"operator_address":operator_address.clone()}}}}), None).await?;
-    Ok(TNRAppSuccessResponse::new(val_evm_polls_from_db.list, Some(val_evm_polls_from_db.pagination)))
+    Ok(TNRAppSuccessResponse::from(val_evm_polls_from_db))
 }
 
 #[get("{chain}/evm/validator/supported_chains/{operator_address}")]
