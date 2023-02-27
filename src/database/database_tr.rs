@@ -9,7 +9,6 @@ use mongodb_cursor_pagination::{FindResult, PaginatedCursor};
 
 use crate::{database::{EvmPollForDb, EvmPollParticipantForDb, HeartbeatForDb, ListDbResult, TransactionForDb}, routes::PaginationDirection};
 use crate::database::blocks::Block;
-use crate::database::PaginationDb;
 use crate::database::params::{HistoricalValidatorData, VotingPower};
 use crate::fetch::evm::{EvmPollListDbResp, EvmSupportedChains, PollStatus};
 use crate::fetch::others::PaginationConfig;
@@ -342,7 +341,7 @@ impl DatabaseTR {
             res.push(from_document(result.map_err(|e| format!("{}", e.to_string()))?).map_err(|e| format!("{}", e.to_string()))?);
         };
 
-        Ok(ValidatorListDbResp { validators: res, pagination: PaginationDb { page: page as u16, total: count as u16 } })
+        Ok(ValidatorListDbResp { validators: res, pagination: PaginationData { offset: Some(skip_count as u64), ..Default::default() } })
     }
 
     /// Finds a sorted validator list by given document.
@@ -431,6 +430,7 @@ impl DatabaseTR {
         let results: FindResult<EvmPollForDb> = PaginatedCursor::new(Some(options), config.cursor, config.direction.map(|d| d.into()))
             .find(&self.db().collection("evm_polls"), None)
             .await.map_err(|e| format!("{}", e.to_string()))?;
+
 
         Ok(ListDbResult::from(results))
     }
@@ -567,6 +567,7 @@ impl DatabaseTR {
         let results: FindResult<HeartbeatForDb> = PaginatedCursor::new(Some(options), config.cursor, config.direction.map(|d| d.into()))
             .find(&self.db().collection("heartbeats"), None)
             .await.map_err(|e| format!("{}", e.to_string()))?;
+
 
         Ok(ListDbResult::from(results))
     }

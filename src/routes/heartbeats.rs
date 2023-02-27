@@ -8,7 +8,7 @@ use mongodb::bson::doc;
 use serde::{Deserialize, Serialize};
 
 use crate::state::State;
-use crate::database::{HeartbeatForDb, ListDbResult, PaginationDb};
+use crate::database::{HeartbeatForDb, ListDbResult};
 use crate::fetch::heartbeats::{HeartbeatsListElement, HeartbeatsListRawElement, HeartbeatsQuery};
 use crate::fetch::others::PaginationConfig;
 use crate::routes::{extract_chain, PaginationData, QueryParams, TNRAppError, TNRAppSuccessResponse};
@@ -16,7 +16,7 @@ use crate::routes::{extract_chain, PaginationData, QueryParams, TNRAppError, TNR
 // ====== Heart Beats Methods ======
 
 #[get("{chain}/validator/heartbeats/{operator_address}")]
-pub async fn validator_hearbeats(path: Path<(String, String)>, chains: Data<State>, body: Option<Json<ValidatorHeartbeatsQBody>>, query: Query<PaginationData>) -> Result<impl Responder, TNRAppError> {
+pub async fn validator_hearbeats(path: Path<(String, String)>, chains: Data<State>, body: Option<Json<ValidatorHeartbeatsQBody>>, query: Query<PaginationData>) -> Result<TNRAppSuccessResponse<Vec<HeartbeatForDb>>, TNRAppError> {
     let (chain, operator_address) = path.into_inner();
 
     let chain = extract_chain(&chain, chains)?;
@@ -37,11 +37,12 @@ pub async fn validator_hearbeats(path: Path<(String, String)>, chains: Data<Stat
         to.clone())?;
 
     let data = chain.get_val_heartbeats(operator_address, heartbeats_query, query.into_inner()).await?;
-    Ok(TNRAppSuccessResponse::new(data, None))
+    Ok(TNRAppSuccessResponse::new(data.data, None))
 }
 
+
 #[get("{chain}/heartbeats")]
-pub async fn hearbeats(path: Path<String>, chains: Data<State>, query: Query<PaginationData>) -> Result<impl Responder, TNRAppError> {
+pub async fn hearbeats(path: Path<String>, chains: Data<State>, query: Query<PaginationData>) -> Result<TNRAppSuccessResponse<Vec<HeartbeatForDb>>, TNRAppError> {
     let chain = path.into_inner();
 
     let chain = extract_chain(&chain, chains)?;
@@ -52,8 +53,7 @@ pub async fn hearbeats(path: Path<String>, chains: Data<State>, query: Query<Pag
 
 
     let list_from_db = chain.database.find_paginated_heartbeats(Some(doc! {"$match":{"sender": {"$exists":true }}}), Some(query.into_inner())).await?;
-    let data = HeartbeatsListResp::from_db_list(list_from_db)?;
-    Ok(TNRAppSuccessResponse::new(data, None))
+    Ok(TNRAppSuccessResponse::from(list_from_db))
 }
 
 
@@ -72,7 +72,7 @@ pub struct HeartbeatsListResp {
 
 impl HeartbeatsListResp {
     pub fn from_db_list(list_db_result: ListDbResult<HeartbeatForDb>) -> Result<Self, TNRAppError> {
-        let heartbeats = list_db_result.list.into_iter().map(|heartbeat| {
+        let heartbeats = list_db_result.data.into_iter().map(|heartbeat| {
             let heartbeat_raw = match heartbeat.heartbeat_raw {
                 None => { None }
                 Some(res) => {
@@ -99,7 +99,7 @@ impl HeartbeatsListResp {
 
         Ok(Self {
             list: heartbeats,
-            pagination: list_db_result.pagination,
+            pagination: list_db_result.pagination
         })
     }
 }

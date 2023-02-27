@@ -1,11 +1,11 @@
-use mongodb_cursor_pagination::FindResult;
+use mongodb_cursor_pagination::{FindResult, PageInfo};
 use serde::{Deserialize, Serialize};
-use crate::routes::{PaginationData, PaginationDirection};
+use crate::routes::{PaginationData, PaginationDirection, TNRAppSuccessResponse};
 
 #[derive(Deserialize, Serialize, Debug)]
 pub struct ListDbResult<T> {
     /// Array of validators.
-    pub list: Vec<T>,
+    pub data: Vec<T>,
     /// Pagination.
     pub pagination: PaginationData,
 }
@@ -20,14 +20,37 @@ impl<T> From<FindResult<T>> for ListDbResult<T> {
         };
 
         Self {
-            list: value.items,
+            data: value.items,
             pagination,
         }
     }
 }
 
-#[derive(Deserialize, Serialize, Debug)]
-pub struct PaginationDb {
-    pub page: u16,
-    pub total: u16,
+impl From<PageInfo> for PaginationData {
+    fn from(value: PageInfo) -> Self {
+        Self {
+            cursor: value.next_cursor,
+            direction: Some(PaginationDirection::Next),
+            ..Default::default()
+        }
+    }
+}
+
+impl<T> From<ListDbResult<T>> for TNRAppSuccessResponse<Vec<T>> {
+
+    fn from(value: ListDbResult<T>) -> Self {
+        TNRAppSuccessResponse {
+            data: value.data,
+            pagination: Some(value.pagination),
+        }
+    }
+}
+
+impl<T> ListDbResult<T> {
+    pub fn new(data: Vec<T>, page_info: PageInfo, total: u64) -> Self {
+        Self {
+            data,
+            pagination: page_info.into()
+        }
+    }
 }

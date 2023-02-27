@@ -1,10 +1,10 @@
+use std::fmt;
 use std::string::ParseError;
-use actix_web::body::BoxBody;
-use actix_web::http::header::ContentType;
-use mongodb_cursor_pagination::{CursorDirections, PageInfo};
 use actix_web::http::StatusCode;
 use actix_web::{HttpRequest, HttpResponse, Responder, ResponseError};
-use std::fmt;
+use actix_web::body::BoxBody;
+use actix_web::http::header::ContentType;
+use mongodb_cursor_pagination::CursorDirections;
 use serde::{Deserialize, Serialize};
 use crate::database::ListDbResult;
 
@@ -95,15 +95,6 @@ pub struct TNRAppSuccessResponse<T> {
     pub pagination: Option<PaginationData>
 }
 
-impl<T> From<ListDbResult<T>> for TNRAppSuccessResponse<Vec<T>> {
-    fn from(value: ListDbResult<T>) -> Self {
-        Self {
-            data: value.list,
-            pagination: Some(value.pagination),
-        }
-    }
-}
-
 impl<T> TNRAppSuccessResponse<T> {
     pub fn new(data: T, pagination: Option<PaginationData>) -> Self<> {
         Self {
@@ -112,15 +103,15 @@ impl<T> TNRAppSuccessResponse<T> {
         }
     }
 
-    pub fn cursor(data: T, cursor: Option<String>, limit: u64, dir: Option<PaginationDirection>) -> Self<> {
-        let dir = dir.unwrap_or_default();
+    pub fn cursor(data: T, cursor: Option<String>, limit: u64, direction: Option<PaginationDirection>) -> Self<> {
+        let direction = direction.unwrap_or_default();
 
         Self {
             data,
             pagination: Some(PaginationData {
                 cursor,
                 limit,
-                direction: Some(dir),
+                direction: Some(direction),
                 ..Default::default()
             })
         }
@@ -156,7 +147,7 @@ impl From<PaginationDirection> for CursorDirections {
             PaginationDirection::Prev => CursorDirections::Previous,
         }
     }
-}
+} 
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub enum PaginationDirection {
