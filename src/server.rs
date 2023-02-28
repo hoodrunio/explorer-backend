@@ -113,6 +113,7 @@ pub async fn start_web_server() -> std::io::Result<()> {
             .service(routes::txs_of_sender)
             .service(routes::txs_on_latest_block)
             .service(routes::txs_receipt)
+            .service(routes::tx_abi_from_database)
             .service(routes::unbonding_delegations)
             .service(routes::validator)
             .service(routes::validator_commission)

@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use reqwest::Method;
 
 use chrono::DateTime;
 use futures::{
@@ -15,6 +16,7 @@ use crate::{
     utils::get_msg_name,
 };
 use crate::database::TransactionForDb;
+use crate::database::DatabaseTR;
 use crate::fetch::socket::EvmPollVote;
 
 use super::others::{DenomAmount, InternalDenomAmount, Pagination, PaginationConfig, PublicKey};
@@ -305,6 +307,30 @@ impl Chain {
             r#"{{"method":"eth_getTransactionReceipt","params":["{hash}"],"id":1,"jsonrpc":"2.0"}}"#
         )).await?)
     }
+
+    /// Returns abi of tx from database by given contract address
+    pub async fn get_tx_abi_from_database(&self, contract_address: &str) -> Result<OutRestResponse<Value>, String> {
+        match self.database.find_contract_data_by_contract_address(contract_address).await {
+            Ok(res) => match serde_json::from_str::<serde_json::Value>(res.result.abi.as_str()) {
+                Ok(abi) =>  Ok(OutRestResponse::new(abi, 0)),
+                Err(e) => Err(format!("Convert Error into json: {e}"))
+            },
+            Err(e) => Err(format!("Fetch Error: {e}"))
+        }
+    }
+}
+
+#[derive(Deserialize, Serialize, Debug, PartialEq)]
+pub struct ContractMeta {
+
+    pub meta: ContractData,
+} 
+
+#[derive(Deserialize, Serialize, Debug, PartialEq)]
+pub struct ContractData {
+    // pub name: String,
+    // pub abi: Vec<ContractAbi>
+    pub compiler_version: String
 }
 
 #[derive(Deserialize, Serialize, Debug)]
@@ -1339,4 +1365,58 @@ pub struct TxReceiptLog {
     pub topics: Vec<String>,
     pub data: String,
     pub log_index: String
+}
+
+// #[derive(Deserialize, Serialize, Debug, PartialEq)]
+// pub struct ContractMeta {
+//    pub meta: ContractData
+//     // pub meta: Vec<ContractAbi>
+// }
+
+// #[derive(Deserialize, Serialize, Debug, PartialEq)]
+// pub struct ContractData {
+//     pub name: String,
+// }
+
+#[derive(Deserialize, Serialize, Debug, PartialEq)]
+pub struct ContractAbi {
+    pub anonymous: bool,
+    pub inputs: Vec<FnInputType>,
+    pub outputs: Vec<FnOutputType>,
+    pub name: String,
+    pub r#type: String,
+    pub stateMutability: Option<String>
+}
+
+#[derive(Deserialize, Serialize, Debug, PartialEq)]
+pub struct FnInputType {
+    pub indexed: Option<bool>,
+    pub internalType: String,
+    pub name: String,
+    pub r#type: String
+}
+
+#[derive(Deserialize, Serialize, Debug, PartialEq)]
+pub struct FnOutputType {
+    pub internalType: String,
+    pub name: String,
+    pub r#type: String
+}
+
+#[derive(Deserialize, Serialize, Debug)]
+pub struct ContractMetadata {
+    pub compiler: CompilerMetadata,
+    pub language: String,
+    pub r#type: String
+}
+
+#[derive(Deserialize, Serialize, Debug)]
+pub struct CompilerMetadata {
+    pub version: Vec<String>
+}
+
+#[derive(Deserialize, Serialize, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct ContractAbiDB {
+    pub abi: String
 }

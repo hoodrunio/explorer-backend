@@ -89,3 +89,12 @@ pub async fn txs_receipt(path: Path<(String, String)>, chains: Data<State>) -> R
     let data = chain.get_txs_receipt(&hash).await?;
     Ok(TNRAppSuccessResponse::new(data))
 }
+
+#[get("{chain}/tx-abi-from-database/{contract_address}")]
+pub async fn tx_abi_from_database(path: Path<(String, String)>, chains: Data<State>) -> Result<impl Responder, TNRAppError> {
+    let (chain, contract_address) = path.into_inner();
+
+    let chain = extract_chain(&chain, chains)?;
+    let data = chain.get_tx_abi_from_database(&contract_address).await?;
+    Ok(TNRAppSuccessResponse::new(data))
+}
