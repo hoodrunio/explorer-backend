@@ -108,7 +108,7 @@ pub struct VerificationResult {
     pub optimization: Option<bool>,
     pub optimization_runs: Option<usize>,
     pub contract_libraries: BTreeMap<String, String>,
-    pub abi: Option<String>,
+    pub abi: String,
     pub sources: BTreeMap<String, String>,
     pub compiler_settings: String,
 
