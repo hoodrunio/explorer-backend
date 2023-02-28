@@ -320,19 +320,6 @@ impl Chain {
     }
 }
 
-#[derive(Deserialize, Serialize, Debug, PartialEq)]
-pub struct ContractMeta {
-
-    pub meta: ContractData,
-} 
-
-#[derive(Deserialize, Serialize, Debug, PartialEq)]
-pub struct ContractData {
-    // pub name: String,
-    // pub abi: Vec<ContractAbi>
-    pub compiler_version: String
-}
-
 #[derive(Deserialize, Serialize, Debug)]
 pub struct InternalEvmTxResp {
     /// Block number.
@@ -1415,8 +1402,3 @@ pub struct CompilerMetadata {
     pub version: Vec<String>
 }
 
-#[derive(Deserialize, Serialize, Debug)]
-#[serde(rename_all = "camelCase")]
-pub struct ContractAbiDB {
-    pub abi: String
-}
