@@ -1,10 +1,10 @@
+use std::fmt;
 use std::string::ParseError;
-use actix_web::body::BoxBody;
-use actix_web::http::header::ContentType;
-use mongodb_cursor_pagination::{CursorDirections, PageInfo};
 use actix_web::http::StatusCode;
 use actix_web::{HttpRequest, HttpResponse, Responder, ResponseError};
-use std::fmt;
+use actix_web::body::BoxBody;
+use actix_web::http::header::ContentType;
+use mongodb_cursor_pagination::CursorDirections;
 use serde::{Deserialize, Serialize};
 use crate::database::ListDbResult;
 
@@ -95,15 +95,6 @@ pub struct TNRAppSuccessResponse<T> {
     pub pagination: Option<PaginationData>
 }
 
-impl<T> From<ListDbResult<T>> for TNRAppSuccessResponse<Vec<T>> {
-    fn from(value: ListDbResult<T>) -> Self {
-        Self {
-            data: value.data,
-            pagination: Some(value.pagination),
-        }
-    }
-}
-
 impl<T> TNRAppSuccessResponse<T> {
     pub fn new(data: T, pagination: Option<PaginationData>) -> Self<> {
         Self {
@@ -126,6 +117,7 @@ impl<T> TNRAppSuccessResponse<T> {
     }
 
     pub fn offset(data: T, offset: u64, limit: u64, direction: Option<PaginationDirection>) -> Self<> {
+
         Self {
             data,
             pagination: Some(PaginationData {
@@ -138,7 +130,7 @@ impl<T> TNRAppSuccessResponse<T> {
     }
 }
 
-#[derive(Default, Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct PaginationData {
     pub cursor: Option<String>,
     pub offset: Option<u64>,
@@ -164,6 +156,16 @@ pub enum PaginationDirection {
 impl Default for PaginationDirection {
     fn default() -> Self {
         Self::Next
+    }
+}
+
+impl Default for PaginationData {
+    fn default() -> Self {
+        Self {
+            limit: Some(50),
+            direction: Some(PaginationDirection::Next),
+            ..Default::default()
+        }
     }
 }
 

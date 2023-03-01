@@ -52,8 +52,8 @@ pub async fn hearbeats(path: Path<String>, chains: Data<State>, query: Query<Pag
     };
 
 
-    let list_from_db = chain.database.find_paginated_heartbeats(Some(doc! {"$match":{"sender": {"$exists":true }}}), Some(query.into_inner())).await?;
-    Ok(TNRAppSuccessResponse::from(list_from_db))
+    let data = chain.database.find_paginated_heartbeats(Some(doc! {"$match":{"sender": {"$exists":true }}}), Some(query.into_inner())).await?;
+    Ok(TNRAppSuccessResponse::new(data.data, Some(data.pagination)))
 }
 
 

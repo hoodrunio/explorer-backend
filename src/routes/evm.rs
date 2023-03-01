@@ -26,7 +26,7 @@ pub async fn evm_polls(path: Path<String>, chains: Data<State>, query: Query<Pag
     };
 
     let evm_polls_from_db = chain.database.find_paginated_evm_polls(None, Some(query.0)).await?;
-    Ok(TNRAppSuccessResponse::from(evm_polls_from_db))
+    Ok(TNRAppSuccessResponse::new(evm_polls_from_db.data, Some(evm_polls_from_db.pagination)))
 }
 
 #[get("{chain}/evm/poll/{poll_id}")]
@@ -54,8 +54,8 @@ pub async fn evm_validator_votes(path: Path<(String, String)>, chains: Data<Stat
     };
 
 
-    let val_evm_polls_from_db = chain.database.find_paginated_evm_polls(Some(doc! {"$match":{"participants":{"$elemMatch":{"operator_address":operator_address.clone()}}}}), None).await?;
-    Ok(TNRAppSuccessResponse::from(val_evm_polls_from_db))
+    let data = chain.database.find_paginated_evm_polls(Some(doc! {"$match":{"participants":{"$elemMatch":{"operator_address":operator_address.clone()}}}}), None).await?;
+    Ok(TNRAppSuccessResponse::new(data.data, Some(data.pagination)))
 }
 
 #[get("{chain}/evm/validator/supported_chains/{operator_address}")]
