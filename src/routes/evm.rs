@@ -55,10 +55,7 @@ pub async fn evm_validator_votes(
     let chain = extract_chain(&chain, chains)?;
 
     if &chain.config.name != "axelar" {
-        return Err(TNRAppError::from(String::from(format!(
-            "Evm votes not supported for {}",
-            &chain.config.name
-        ))));
+        return Err(TNRAppError::from(format!("Evm votes not supported for {}", &chain.config.name)));
     };
 
     let config = PaginationConfig::new().limit(query.limit.unwrap_or(20)).page(query.page.unwrap_or(1));

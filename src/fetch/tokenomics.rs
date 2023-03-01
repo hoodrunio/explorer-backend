@@ -42,11 +42,6 @@ impl Chain {
         Ok(OutRestResponse::new(supply, 0))
     }
 
-    /// Returns the supply of the native coin.
-    pub async fn get_supply_of_native_coin(&self) -> Result<OutRestResponse<InternalDenomAmount>, String> {
-        self.get_supply_by_denom(&self.config.main_denom).await
-    }
-
     pub async fn get_evm_supported_chains(&self) -> Result<Vec<String>, String> {
         let resp = self
             .rest_api_request::<AxelarSupportedEvmChainsResponse>("/axelar/evm/v1beta1/chains", &[])
@@ -171,9 +166,9 @@ pub struct AxelarExternalChainVotingInflationRateParam {
 
 impl AxelarExternalChainVotingInflationRateParam {
     pub fn get_parsed_value(&self) -> Result<f64, String> {
-        match self.value.replace("\"", "").parse::<f64>() {
+        match self.value.replace('\"', "").parse::<f64>() {
             Ok(parsed_value) => Ok(parsed_value),
-            Err(_) => Err(format!("Parsed value error on AxelarExternalChainVotingInflationRateParam")),
+            Err(_) => Err("Parsed value error on AxelarExternalChainVotingInflationRateParam".to_string()),
         }
     }
 }

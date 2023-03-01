@@ -1,5 +1,3 @@
-use std::collections::HashMap;
-
 use base64::decode as decode_from_base64;
 use base64::decode as from_base_64;
 use bech32::ToBase32;

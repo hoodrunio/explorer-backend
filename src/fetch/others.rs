@@ -1,9 +1,5 @@
-use chrono::DateTime;
-use serde::{Deserialize, Serialize};
-
-use crate::fetch::blocks::BlockResp;
-use crate::fetch::params::ParamsResp;
 use crate::{chain::Chain, routes::OutRestResponse};
+use serde::{Deserialize, Serialize};
 
 impl Chain {
     /// Returns staking pool information.
@@ -51,22 +47,6 @@ impl Chain {
         Ok(OutRestResponse::new(community_pool_amount, 0))
     }
 
-    // Returns the mint parameters of the chain.
-    pub async fn get_mint_params(&self) -> Result<OutRestResponse<MintParams>, String> {
-        match self.config.name.as_str() {
-            "example_chain_name" => {
-                //TODO If Needed Fill this block scopr with related chain
-                Err("Chain Mint Params Not Implemented Yet".to_string())
-            }
-            _ => {
-                let mint_params = match self.rest_api_request::<ParamsResp<MintParams>>("/cosmos/mint/v1beta1/params", &[]).await {
-                    Ok(value) => value,
-                    Err(error) => return Err(error),
-                };
-                Ok(OutRestResponse::new(mint_params.params, 0))
-            }
-        }
-    }
     pub async fn get_annual_provisions(&self) -> Result<OutRestResponse<f64>, String> {
         match self.config.name.as_str() {
             "example_chain_name" => {
@@ -87,40 +67,6 @@ impl Chain {
                 Ok(OutRestResponse::new(annual_provisions, 0))
             }
         }
-    }
-    pub async fn get_correction_annual_coefficient(&self) -> Result<Option<f64>, String> {
-        const SECS_IN_YEAR: f64 = 31561920.0;
-        let block_per_year = match self.get_mint_params().await {
-            Ok(res) => match res.value.blocks_per_year.parse::<f64>() {
-                Ok(value) => value,
-                Err(_) => return Err("Parse Error".to_string()),
-            },
-            Err(error) => return Err(error),
-        };
-        let latest_block = match self.get_latest_block().await {
-            Ok(value) => value,
-            Err(err) => return Err(err),
-        };
-        let block_window_size = 1000.0;
-        let latest_block_date_time = latest_block.header.time;
-        let lower_block_height = match latest_block.header.height.parse::<f64>() {
-            Ok(value) => value - block_window_size,
-            Err(_) => return Err("Parse Error".to_string()),
-        };
-        let query = vec![("height", lower_block_height.to_string())];
-        let lower_block_date_time = match self.rpc_request::<BlockResp>("/block", &query).await {
-            Ok(res) => res.block.header.time,
-            Err(error) => return Err(error),
-        };
-        let latest_block_time_sec = DateTime::parse_from_rfc3339(&latest_block_date_time).unwrap().timestamp() as f64;
-        let lower_block_time_sec = DateTime::parse_from_rfc3339(&lower_block_date_time).unwrap().timestamp() as f64;
-        let avg_block_time_24h = (latest_block_time_sec - lower_block_time_sec) / block_window_size;
-        // Calculate how many blocks will be created in a year with the speed same as last 24h.
-        let current_real_block_per_year = SECS_IN_YEAR / avg_block_time_24h;
-        // Calculate correction.
-        let correction_annual_coefficient = current_real_block_per_year / block_per_year;
-
-        Ok(Some(correction_annual_coefficient))
     }
 }
 
@@ -161,22 +107,6 @@ pub struct InternalDenomAmount {
     pub denom: String,
     /// The amount of the token. Eg: `450000`
     pub amount: f64,
-}
-
-impl InternalDenomAmount {
-    pub async fn from_chain_denom_amount(chain: &Chain, denom_amount: &DenomAmount) -> Result<InternalDenomAmount, String> {
-        let amount = chain.calc_amount_f64_to_f64(
-            denom_amount
-                .amount
-                .parse::<f64>()
-                .map_err(|_| format!("Cannot parse amount, '{}'.", &denom_amount.amount))?,
-        );
-
-        Ok(InternalDenomAmount {
-            denom: denom_amount.denom.clone(),
-            amount,
-        })
-    }
 }
 
 #[derive(Deserialize, Serialize, Debug)]

@@ -19,15 +19,6 @@ use super::{
 };
 
 impl Chain {
-    /// Returns validator by given validator address.
-    pub async fn get_validator(&self, validator_addr: &str) -> Result<OutRestResponse<ValidatorListValidator>, String> {
-        let path = format!("/cosmos/staking/v1beta1/validators/{validator_addr}");
-
-        match self.rest_api_request::<ValidatorResp>(&path, &[]).await {
-            Ok(res) => Ok(OutRestResponse::new(res.validator, 0)),
-            Err(error) => Err(error),
-        }
-    }
     /// Returns the signing info by given cons address.
     pub async fn get_validator_signing_info(&self, cons_addr: &str) -> Result<OutRestResponse<InternalSlashingSigningInfoItem>, String> {
         let path = format!("/cosmos/slashing/v1beta1/signing_infos/{cons_addr}");
@@ -255,32 +246,6 @@ impl Chain {
         let path = format!("/cosmos/distribution/v1beta1/validators/{validator_addr}/outstanding_rewards");
 
         self.rest_api_request(&path, &[]).await
-    }
-
-    /// Returns the list of validators with bonded status.
-    pub async fn get_validators_bonded(&self, pagination_config: PaginationConfig) -> Result<ValidatorListApiResp, String> {
-        let mut query = vec![];
-
-        query.push(("status", "BOND_STATUS_BONDED".to_string()));
-        query.push(("pagination.reverse", format!("{}", pagination_config.is_reverse())));
-        query.push(("pagination.limit", format!("{}", pagination_config.get_limit())));
-        query.push(("pagination.count_total", "true".to_string()));
-        query.push(("pagination.offset", format!("{}", pagination_config.get_offset())));
-
-        self.rest_api_request("/cosmos/staking/v1beta1/validators", &query).await
-    }
-
-    /// Returns the list of validators with unbonded status.
-    pub async fn get_validators_unbonded(&self, pagination_config: PaginationConfig) -> Result<ValidatorListApiResp, String> {
-        let mut query = vec![];
-
-        query.push(("status", "BOND_STATUS_UNBONDED".to_string()));
-        query.push(("pagination.reverse", format!("{}", pagination_config.is_reverse())));
-        query.push(("pagination.limit", format!("{}", pagination_config.get_limit())));
-        query.push(("pagination.count_total", "true".to_string()));
-        query.push(("pagination.offset", format!("{}", pagination_config.get_offset())));
-
-        self.rest_api_request("/cosmos/staking/v1beta1/validators", &query).await
     }
 
     /// Returns the list of validators with unbonding status.
@@ -526,12 +491,9 @@ impl Chain {
         for tx in resp.txs.iter() {
             for message in &tx.body.messages {
                 let res = message.clone().to_internal(self, &None).await?;
-                match res {
-                    InternalTransactionContent::Known(InternalTransactionContentKnowns::RegisterProxy { sender: _, proxy_addr }) => {
-                        result = Some(proxy_addr);
-                    }
-                    _ => {}
-                }
+                if let InternalTransactionContent::Known(InternalTransactionContentKnowns::RegisterProxy { sender: _, proxy_addr }) = res {
+                    result = Some(proxy_addr);
+                };
             }
         }
 

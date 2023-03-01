@@ -359,9 +359,9 @@ impl InternalBlockResult {
         let txs_results = block_result.txs_results.clone().unwrap_or(vec![]);
         Self {
             height: block_result.height.clone(),
-            txs_results: txs_results.into_iter().map(|res| InternalBlockResultTxsResult::new(res)).collect(),
+            txs_results: txs_results.into_iter().map(InternalBlockResultTxsResult::new).collect(),
             begin_block_events: block_result.begin_block_events.clone().unwrap_or(vec![]),
-            end_block_events: block_result.end_block_events.clone().unwrap_or(vec![]),
+            end_block_events: block_result.end_block_events.unwrap_or(vec![]),
         }
     }
 }
@@ -381,14 +381,14 @@ pub struct InternalBlockResultTxsResult {
 impl InternalBlockResultTxsResult {
     fn new(block_result_txs_result: BlockResultTxResult) -> Self {
         Self {
-            code: block_result_txs_result.code.clone(),
+            code: block_result_txs_result.code,
             data: block_result_txs_result.data.clone(),
             log: block_result_txs_result.log.clone(),
             info: block_result_txs_result.info.clone(),
             gas_wanted: block_result_txs_result.gas_wanted.clone(),
             gas_used: block_result_txs_result.gas_used.clone(),
             events: block_result_txs_result.events.clone(),
-            codespace: block_result_txs_result.codespace.clone(),
+            codespace: block_result_txs_result.codespace,
         }
     }
 
@@ -397,7 +397,7 @@ impl InternalBlockResultTxsResult {
             match res_block_event.attributes.into_iter().find(|attr_item| attr_item.key == "sender") {
                 None => {}
                 Some(item) => {
-                    return Some(item.value.clone());
+                    return Some(item.value);
                 }
             }
         }
@@ -451,13 +451,13 @@ impl CosmosEvent {
         self.r#type == "heartbeat"
     }
 
-    pub fn get_event_with_type(&self, event_type: &str) -> Option<CosmosEvent> {
-        if self.r#type == event_type {
-            return Some(self.clone());
-        }
+    // pub fn get_event_with_type(&self, event_type: &str) -> Option<CosmosEvent> {
+    //     if self.r#type == event_type {
+    //         return Some(self.clone());
+    //     }
 
-        None
-    }
+    //     None
+    // }
 }
 
 impl ResultEndBlock {

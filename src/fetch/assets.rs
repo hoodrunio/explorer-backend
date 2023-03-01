@@ -50,11 +50,11 @@ impl Chain {
         })
     }
 
-    pub async fn cosmos_chain_assets(&self) -> Result<Vec<ChainAsset>, String> {
-        let assets = self.cosmos_assets().await?;
+    // pub async fn cosmos_chain_assets(&self) -> Result<Vec<ChainAsset>, String> {
+    //     let assets = self.cosmos_assets().await?;
 
-        Ok(assets.assets.into_iter().filter(|asset| asset.chain == self.config.name).collect())
-    }
+    //     Ok(assets.assets.into_iter().filter(|asset| asset.chain == self.config.name).collect())
+    // }
 }
 
 #[derive(Serialize, Deserialize, Debug)]

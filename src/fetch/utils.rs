@@ -19,9 +19,9 @@ impl Chain {
         amount as u64 / (self.config.decimals_pow * 10000)
     }
 
-    pub fn calc_amount_f64_to_f64(&self, amount: f64) -> f64 {
-        amount / (self.config.decimals_pow as f64 * 10000.0)
-    }
+    // pub fn calc_amount_f64_to_f64(&self, amount: f64) -> f64 {
+    //     amount / (self.config.decimals_pow as f64 * 10000.0)
+    // }
 
     pub fn calc_tnr_decimal_amount(&self, amount: TnrDecimal, decimal: Option<i64>) -> TnrDecimal {
         let main_decimal = match decimal {
@@ -77,7 +77,7 @@ impl Chain {
         let formatted = validator_delegator_shares
             .split_once('.')
             .map(|(pri, _)| pri)
-            .unwrap_or(&validator_delegator_shares)
+            .unwrap_or(validator_delegator_shares)
             .parse::<u128>()
             .map_err(|_| format!("Cannot parse delegator shares, {}.", validator_delegator_shares))?;
 

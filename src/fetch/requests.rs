@@ -3,33 +3,7 @@ use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
 use crate::chain::Chain;
 
-pub enum RequestType {
-    Rpc,
-    Rest,
-    JsonRpc,
-}
-
 impl Chain {
-    // pub(super) async fn request<T: DeserializeOwned>(&self, r_type: RequestType, path: &str, query: &[(&'static str, String)]) -> Result<T, String> {
-    //     let res = match r_type {
-    //         RequestType::Rpc => {
-    //             let url = format!("{}{}", self.config.rpc_url, path);
-    //             self.client.get(&url).query(query).send().await
-    //         },
-    //         RequestType::Rest => {
-    //             let url = format!("{}{}", self.config.rest_url, path);
-    //             self.client.get(&url).query(query).send().await
-    //         },
-    //         RequestType::JsonRpc => {
-    //             let url = format!("{}{}", self.config.json_rpc_url, path);
-    //             self.client.get(&url).body(body).send().await
-    //         },
-    //     };
-    //
-    //     match res {
-    //         Ok
-    //     }
-    // }
     /// Makes a request to the RPC node.
     pub(super) async fn rpc_request<T: DeserializeOwned>(&self, path: &str, query: &[(&'static str, String)]) -> Result<T, String> {
         // Create the URL request to.
@@ -103,7 +77,13 @@ impl Chain {
     }
 
     // Makes a request to the External Resource
-    pub(super) async fn external_rest_api_req<T: DeserializeOwned>(&self, client: &Client, method: Method, full_path: &str, query: &[(&'static str, String)]) -> Result<T, String> {
+    pub(super) async fn external_rest_api_req<T: DeserializeOwned>(
+        &self,
+        client: &Client,
+        method: Method,
+        full_path: &str,
+        query: &[(&'static str, String)],
+    ) -> Result<T, String> {
         let request = client.request(method, full_path);
 
         match request.query(query).send().await {
