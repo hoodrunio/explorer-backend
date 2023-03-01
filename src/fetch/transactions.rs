@@ -1299,7 +1299,7 @@ pub enum TxsTransactionMessageKnowns {
         receiver: String,
         timeout_height: RevisionHeight,
         timeout_timestamp: String,
-        memo: String,
+        memo: Option<String>,
     },
 
     //Axelar Messages
