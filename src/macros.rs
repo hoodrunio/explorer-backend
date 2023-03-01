@@ -18,7 +18,7 @@ macro_rules! init_chain {
         client: $client:expr,
         database: $database:expr,
     ) => {
-        Chain::new(crate::chain::ChainConfig {
+        Chain::new($crate::chain::ChainConfig {
             name: $name,
             epoch: $epoch,
             gecko: $gecko,

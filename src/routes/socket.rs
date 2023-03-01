@@ -7,12 +7,12 @@ use std::{
 
 use actix::prelude::*;
 use actix_web::{
-    Error,
-    HttpRequest, HttpResponse, ResponseError, web::{self, Data, Path},
+    web::{self, Data, Path},
+    Error, HttpRequest, HttpResponse, ResponseError,
 };
 use actix_web_actors::ws;
-use futures_core::Future;
 use futures_core::ready;
+use futures_core::Future;
 use pin_project_lite::pin_project;
 use serde::Serialize;
 
@@ -21,24 +21,6 @@ use crate::{
     fetch::{blocks::BlockItem, transactions::TransactionItem},
     state::State,
 };
-
-//
-//
-//
-//  Send "subscribe_tx_"
-//
-//
-//
-//
-//
-//
-//
-//
-//
-//
-//
-//
-//
 
 #[derive(Serialize)]
 #[serde(tag = "event", rename_all = "snake_case")]

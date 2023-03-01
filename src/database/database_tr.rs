@@ -1,18 +1,18 @@
 use futures::StreamExt;
+use mongodb::bson::{from_document, to_bson, to_document};
 use mongodb::{
     bson::{doc, Document},
     Client, Collection, Database,
 };
-use mongodb::bson::{from_document, to_bson, to_document};
 
-use crate::database::{EvmPollForDb, EvmPollParticipantForDb, HeartbeatForDb, ListDbResult, PaginationDb, TransactionForDb};
 use crate::database::blocks::Block;
 use crate::database::params::{HistoricalValidatorData, VotingPower};
+use crate::database::{EvmPollForDb, EvmPollParticipantForDb, HeartbeatForDb, ListDbResult, PaginationDb, TransactionForDb};
 use crate::fetch::evm::{EvmPollListDbResp, EvmSupportedChains, PollStatus};
 use crate::fetch::others::PaginationConfig;
 use crate::fetch::validators::ValidatorListDbResp;
 
-use super::{chains::Chain, params::Params, validators::Validator};
+use super::{params::Params, validators::Validator};
 
 // Testnetrun explorer database.
 #[derive(Clone)]
@@ -75,24 +75,6 @@ impl DatabaseTR {
         self.db().collection("transactions")
     }
 
-    /// Returns the chains collection.
-    /// # Usage
-    /// ```rs
-    /// let collection = database.chains_collection();
-    /// ```
-    fn chains_collection(&self) -> Collection<Chain> {
-        self.db().collection("chains")
-    }
-
-    /// Returns the params collection.
-    /// # Usage
-    /// ```rs
-    /// let collection = database.params_collection();
-    /// ```
-    fn params_collection(&self) -> Collection<Params> {
-        self.db().collection("params")
-    }
-
     /// Returns the historical data collection.
     /// # Usage
     /// ```rs
@@ -129,18 +111,6 @@ impl DatabaseTR {
         self.db().collection("heartbeats")
     }
 
-    /// Adds a new validator to the validators collection of the database.
-    /// # Usage
-    /// ```rs
-    /// database.add_validator(validator).await;
-    /// ```
-    pub async fn add_validator(&self, validator: Validator) -> Result<(), String> {
-        match self.validators_collection().insert_one(validator, None).await {
-            Ok(_) => Ok(()),
-            Err(_) => Err("Cannot save the validator.".into()),
-        }
-    }
-
     pub async fn upsert_validator(&self, validator: Validator) -> Result<(), String> {
         let doc = to_document(&validator).unwrap();
         let command = doc! {"update":"validators","updates":[{"q":{"operator_address":&validator.operator_address},"u":doc,"upsert":true}]};
@@ -148,31 +118,6 @@ impl DatabaseTR {
             Ok(_) => Ok(()),
             Err(_) => Err("Cannot save the validator.".into()),
         }
-    }
-
-    /// Adds new validators to the validators collection of the database.
-    /// # Usage
-    /// ```rs
-    /// database.add_validators(validators).await;
-    /// ```
-    pub async fn add_validators(&self, validators: Vec<Validator>) -> Result<(), String> {
-        match self.validators_collection().insert_many(validators, None).await {
-            Ok(_) => Ok(()),
-            Err(_) => Err("Cannot save validators.".into()),
-        }
-    }
-
-    /// Adds new validators to the validators but if we have the same validator with same opertator address this will only update with new one.
-    /// # Usage
-    /// ```rs
-    /// database.upsert_validators(validators).await;
-    /// ```
-    pub async fn upsert_validators(&self, validators: Vec<Validator>) -> Result<(), String> {
-        for validator in validators {
-            self.upsert_validator(validator).await?;
-        }
-
-        Ok(())
     }
 
     /// Adds a new transaction to the transactions collection of the database.
@@ -206,12 +151,16 @@ impl DatabaseTR {
 
         pipeline_docs.push(limit_pipe);
 
-        let mut results = self.transactions_collection().aggregate(pipeline_docs, None).await.map_err(|e| format!("{}", e.to_string()))?;
+        let mut results = self
+            .transactions_collection()
+            .aggregate(pipeline_docs, None)
+            .await
+            .map_err(|e| format!("{}", e))?;
 
         let mut res: Vec<TransactionForDb> = vec![];
         while let Some(result) = results.next().await {
-            res.push(from_document(result.map_err(|e| format!("{}", e.to_string()))?).map_err(|e| format!("{}", e.to_string()))?);
-        };
+            res.push(from_document(result.map_err(|e| format!("{}", e))?).map_err(|e| format!("{}", e))?);
+        }
 
         Ok(res)
     }
@@ -248,12 +197,16 @@ impl DatabaseTR {
         };
 
         pipeline_docs.push(limit_pipe);
-        let mut results = self.blocks_collection().aggregate(pipeline_docs, None).await.map_err(|e| format!("{}", e.to_string()))?;
+        let mut results = self
+            .blocks_collection()
+            .aggregate(pipeline_docs, None)
+            .await
+            .map_err(|e| format!("{}", e))?;
 
         let mut res: Vec<Block> = vec![];
         while let Some(result) = results.next().await {
-            res.push(from_document(result.map_err(|e| format!("{}", e.to_string()))?).map_err(|e| format!("{}", e.to_string()))?);
-        };
+            res.push(from_document(result.map_err(|e| format!("{}", e))?).map_err(|e| format!("{}", e))?);
+        }
 
         Ok(res)
     }
@@ -286,7 +239,7 @@ impl DatabaseTR {
         let filter = pipe.clone();
         match filter {
             None => {}
-            Some(val) => pipeline.push(val)
+            Some(val) => pipeline.push(val),
         };
 
         let sort = doc! {
@@ -308,37 +261,46 @@ impl DatabaseTR {
         pipeline.push(limit_pipe);
 
         let cumulative_bonded_tokens_pipe = doc! {
-                "$setWindowFields": {
-                    "sortBy": {
-                        "delegator_shares": -1
-                    },
-                    "output": {
-                        "cumulative_bonded_tokens": {
-                            "$sum": "$delegator_shares",
-                            "window":  {
-                            "documents": [
-                                "unbounded",
-                                "current"
-                                ]
-                            }
+            "$setWindowFields": {
+                "sortBy": {
+                    "delegator_shares": -1
+                },
+                "output": {
+                    "cumulative_bonded_tokens": {
+                        "$sum": "$delegator_shares",
+                        "window":  {
+                        "documents": [
+                            "unbounded",
+                            "current"
+                            ]
                         }
                     }
                 }
-            };
+            }
+        };
 
         pipeline.push(cumulative_bonded_tokens_pipe);
 
-
-        let mut results = self.validators_collection().aggregate(pipeline, None).await.map_err(|e| format!("{}", e.to_string()))?;
-        let count_cursor = self.validators_collection().aggregate(pipe, None).await.map_err(|e| format!("{}", e.to_string()))?;
+        let mut results = self
+            .validators_collection()
+            .aggregate(pipeline, None)
+            .await
+            .map_err(|e| format!("{}", e))?;
+        let count_cursor = self.validators_collection().aggregate(pipe, None).await.map_err(|e| format!("{}", e))?;
         let count = count_cursor.count().await;
 
         let mut res: Vec<Validator> = vec![];
         while let Some(result) = results.next().await {
-            res.push(from_document(result.map_err(|e| format!("{}", e.to_string()))?).map_err(|e| format!("{}", e.to_string()))?);
-        };
+            res.push(from_document(result.map_err(|e| format!("{}", e))?).map_err(|e| format!("{}", e))?);
+        }
 
-        Ok(ValidatorListDbResp { validators: res, pagination: PaginationDb { page: page as u16, total: count as u16 } })
+        Ok(ValidatorListDbResp {
+            validators: res,
+            pagination: PaginationDb {
+                page: page as u16,
+                total: count as u16,
+            },
+        })
     }
 
     /// Finds a sorted validator list by given document.
@@ -353,16 +315,19 @@ impl DatabaseTR {
         let filter = pipe.clone();
         match filter {
             None => {}
-            Some(val) => pipeline.push(val)
+            Some(val) => pipeline.push(val),
         };
 
-
-        let mut results = self.validators_collection().aggregate(pipeline, None).await.map_err(|e| format!("{}", e.to_string()))?;
+        let mut results = self
+            .validators_collection()
+            .aggregate(pipeline, None)
+            .await
+            .map_err(|e| format!("{}", e))?;
 
         let mut res: Vec<Validator> = vec![];
         while let Some(result) = results.next().await {
-            res.push(from_document(result.map_err(|e| format!("{}", e.to_string()))?).map_err(|e| format!("{}", e.to_string()))?);
-        };
+            res.push(from_document(result.map_err(|e| format!("{}", e))?).map_err(|e| format!("{}", e))?);
+        }
 
         Ok(res)
     }
@@ -422,7 +387,7 @@ impl DatabaseTR {
         let filter = pipe.clone();
         match filter {
             None => {}
-            Some(val) => pipeline.push(val)
+            Some(val) => pipeline.push(val),
         };
 
         let sort = doc! {
@@ -443,16 +408,22 @@ impl DatabaseTR {
         pipeline.push(skip_pipe);
         pipeline.push(limit_pipe);
 
-        let mut results = self.evm_poll_collection().aggregate(pipeline, None).await.map_err(|e| format!("{}", e.to_string()))?;
-        let count_cursor = self.evm_poll_collection().aggregate(pipe, None).await.map_err(|e| format!("{}", e.to_string()))?;
+        let mut results = self.evm_poll_collection().aggregate(pipeline, None).await.map_err(|e| format!("{}", e))?;
+        let count_cursor = self.evm_poll_collection().aggregate(pipe, None).await.map_err(|e| format!("{}", e))?;
         let count = count_cursor.count().await;
 
         let mut res: Vec<EvmPollForDb> = vec![];
         while let Some(result) = results.next().await {
-            res.push(from_document(result.map_err(|e| format!("{}", e.to_string()))?).map_err(|e| format!("{}", e.to_string()))?);
-        };
+            res.push(from_document(result.map_err(|e| format!("{}", e))?).map_err(|e| format!("{}", e))?);
+        }
 
-        Ok(EvmPollListDbResp { polls: res, pagination: PaginationDb { page: page as u16, total: count as u16 } })
+        Ok(EvmPollListDbResp {
+            polls: res,
+            pagination: PaginationDb {
+                page: page as u16,
+                total: count as u16,
+            },
+        })
     }
 
     /// Finds evm_polls with pagination option
@@ -463,13 +434,17 @@ impl DatabaseTR {
     pub async fn find_validator_supported_chains(&self, operator_address: &String) -> Result<EvmSupportedChains, String> {
         let pipeline: Vec<Document> = vec![doc! {"$match":{"operator_address": operator_address}}];
 
-        let mut results = self.validators_collection().aggregate(pipeline, None).await.map_err(|e| format!("{}", e.to_string()))?;
+        let mut results = self
+            .validators_collection()
+            .aggregate(pipeline, None)
+            .await
+            .map_err(|e| format!("{}", e))?;
 
         let mut res: Vec<String> = vec![];
         while let Some(result) = results.next().await {
-            let val = from_document::<Validator>(result.map_err(|e| format!("{}", e.to_string()))?).map_err(|e| format!("{}", e.to_string()))?;
+            let val = from_document::<Validator>(result.map_err(|e| format!("{}", e))?).map_err(|e| format!("{}", e))?;
             res = val.supported_evm_chains.unwrap_or(vec![]);
-        };
+        }
 
         Ok(res)
     }
@@ -525,7 +500,7 @@ impl DatabaseTR {
         let bson_doc = to_bson(poll_participant).unwrap();
         let update_query = doc! {"$set": {"participants.$": bson_doc}};
         match self.update_evm_poll(query, update_query).await {
-            Ok(_) => { Ok(()) }
+            Ok(_) => Ok(()),
             Err(e) => Err(e),
         }
     }
@@ -540,7 +515,7 @@ impl DatabaseTR {
         let bson_doc = to_bson(poll_status).unwrap();
         let update_query = doc! {"$set": {"status": bson_doc}};
         match self.update_evm_poll(query, update_query).await {
-            Ok(_) => { Ok(()) }
+            Ok(_) => Ok(()),
             Err(e) => Err(e),
         }
     }
@@ -576,7 +551,11 @@ impl DatabaseTR {
     /// ```rs
     /// let hearbeats = database.find_heartbeats(doc!{"$match":{"voter_address":"axelar1k3h51l35g5hb3lh4kjg34"}}).await;
     /// ```
-    pub async fn find_paginated_heartbeats(&self, q_pipeline: Vec<Document>, config: PaginationConfig) -> Result<ListDbResult<HeartbeatForDb>, String> {
+    pub async fn find_paginated_heartbeats(
+        &self,
+        q_pipeline: Vec<Document>,
+        config: PaginationConfig,
+    ) -> Result<ListDbResult<HeartbeatForDb>, String> {
         let mut pipeline = q_pipeline.clone();
         let page = config.get_page() as f32;
         let limit = config.get_limit() as f32;
@@ -595,43 +574,30 @@ impl DatabaseTR {
         pipeline.push(skip_pipe);
         pipeline.push(limit_pipe);
 
-        let mut results = self.heartbeat_collection().aggregate(pipeline, None).await.map_err(|e| format!("{}", e.to_string()))?;
-        let count_cursor = self.heartbeat_collection().aggregate(q_pipeline, None).await.map_err(|e| format!("{}", e.to_string()))?;
+        let mut results = self
+            .heartbeat_collection()
+            .aggregate(pipeline, None)
+            .await
+            .map_err(|e| format!("{}", e))?;
+        let count_cursor = self
+            .heartbeat_collection()
+            .aggregate(q_pipeline, None)
+            .await
+            .map_err(|e| format!("{}", e))?;
         let count = count_cursor.count().await;
 
         let mut res: Vec<HeartbeatForDb> = vec![];
         while let Some(result) = results.next().await {
-            res.push(from_document(result.map_err(|e| format!("{}", e.to_string()))?).map_err(|e| format!("{}", e.to_string()))?);
-        };
-
-        Ok(ListDbResult { list: res, pagination: PaginationDb { page: page as u16, total: count as u16 } })
-    }
-
-    /// Adds a new chain to the chains collection of the database.
-    /// # Usage
-    /// ```rs
-    /// database.add_chain(chain).await;
-    /// ```
-    async fn add_chain(&self, chain: Chain) -> Result<(), String> {
-        match self.chains_collection().insert_one(chain, None).await {
-            Ok(_) => Ok(()),
-            Err(_) => Err("Cannot save the chain.".into()),
+            res.push(from_document(result.map_err(|e| format!("{}", e))?).map_err(|e| format!("{}", e))?);
         }
-    }
 
-    /// Finds a validator by given document.
-    /// # Usage
-    /// ```rs
-    /// let validator = database.find_validator(doc!("operator_address": address)).await;
-    /// ```
-    async fn find_chain(&self, name: &str) -> Result<Chain, String> {
-        match self.chains_collection().find_one(doc! {"name":name }, None).await {
-            Ok(potential_chain) => match potential_chain {
-                Some(chain) => Ok(chain),
-                None => Err("No chain is found.".into()),
+        Ok(ListDbResult {
+            list: res,
+            pagination: PaginationDb {
+                page: page as u16,
+                total: count as u16,
             },
-            Err(e) => Err(format!("Cannot make request to DB: {e}")),
-        }
+        })
     }
 
     /// Finds a validator by given document.
@@ -667,7 +633,6 @@ impl DatabaseTR {
             Err(e) => Err(format!("Cannot save the params: {e}")),
         }
     }
-
 
     /// Finds a historical data by given document.
     /// # Usage

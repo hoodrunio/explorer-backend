@@ -89,14 +89,6 @@ impl Chain {
             config: chain_config,
         })
     }
-
-    pub fn new(chain_config: ChainConfig, client: reqwest::Client, database: DatabaseTR) -> Chain {
-        Chain {
-            config: chain_config,
-            client,
-            database,
-        }
-    }
 }
 
 /// The configuration of a chain.
