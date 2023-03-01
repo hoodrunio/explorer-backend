@@ -10,6 +10,7 @@ use mongodb_cursor_pagination::{FindResult, PaginatedCursor};
 use crate::{database::{EvmPollForDb, EvmPollParticipantForDb, HeartbeatForDb, ListDbResult, TransactionForDb}, routes::PaginationDirection};
 use crate::database::blocks::Block;
 use crate::database::params::{HistoricalValidatorData, VotingPower};
+use crate::database::ValidatorForDb;
 use crate::fetch::evm::{EvmPollListDbResp, EvmSupportedChains, PollStatus};
 use crate::fetch::others::PaginationConfig;
 use crate::fetch::validators::ValidatorListDbResp;
@@ -65,7 +66,7 @@ impl DatabaseTR {
     /// ```rs
     /// let collection = database.validators_collection();
     /// ```
-    fn validators_collection(&self) -> Collection<Validator> {
+    fn  validators_collection(&self) -> Collection<Validator> {
         self.db().collection("validators")
     }
 
@@ -147,11 +148,45 @@ impl DatabaseTR {
     pub async fn upsert_validator(&self, validator: Validator) -> Result<(), String> {
         let doc = to_document(&validator).unwrap();
         let command = doc! {"update":"validators","updates":[{"q":{"operator_address":&validator.operator_address},"u":doc,"upsert":true}]};
-        match self.db().run_command(command, None).await {
-            Ok(_) => Ok(()),
-            Err(_) => Err("Cannot save the validator.".into()),
+        if let Err(e) = self.db().run_command(command, None).await {
+            return Err("Cannot save the validator.".into());
         }
-    }
+
+        let default_filter = doc! { "$match":{"operator_address":{"$exists":true}}};
+        //default filter necessary when using aggregate
+        let mut pipeline: Vec<Document> = vec![default_filter];
+
+        let cumulative_bonded_tokens_pipe = doc! {
+            "$setWindowFields": {
+                "sortBy": {
+                    "delegator_shares": -1
+                },
+                "output": {
+                    "cumulative_bonded_tokens": {
+                        "$sum": "$delegator_shares",
+                        "window":  {
+                        "documents": [
+                            "unbounded",
+                            "current"
+                            ]
+                        }
+                    }
+                }
+            }
+        };
+
+    let save = doc! {
+        "$merge": { "into": "computed_validators", "whenMatched": "replace"}
+    };
+
+    pipeline.push(cumulative_bonded_tokens_pipe);
+    pipeline.push(save);
+
+    let _ = self.validators_collection().aggregate(pipeline, None).await.map_err(|e| format!("{}", e.to_string()))?;
+
+    Ok(())
+
+}
 
     /// Adds new validators to the validators collection of the database.
     /// # Usage
@@ -281,67 +316,17 @@ impl DatabaseTR {
     /// ```rs
     /// let validator = database.find_paginated_validators(doc!{"$match":{"operator_address":{"$exists":true}}}).await;
     /// ```
-    pub async fn find_paginated_validators(&self, pipe: Option<Document>, config: PaginationConfig) -> Result<ValidatorListDbResp, String> {
-        let default_filter = doc! {"$match":{"operator_address":{"$exists":true}}};
-        //default filter necessary when using aggregate
-        let mut pipeline: Vec<Document> = vec![default_filter];
-
-        let filter = pipe.clone();
-        match filter {
-            None => {}
-            Some(val) => pipeline.push(val)
-        };
-
-        let sort = doc! {
-            "$sort": {
-                "delegator_shares": -1
-            }
-        };
-
-        let page = config.get_page() as f32;
-        let limit = config.get_limit() as f32;
-        let skip_count = config.get_offset() as f32;
-        let limit_pipe = doc! { "$limit": limit };
-        let skip_pipe = doc! {
-            "$skip": skip_count
-        };
-
-        pipeline.push(sort);
-        pipeline.push(skip_pipe);
-        pipeline.push(limit_pipe);
-
-        let cumulative_bonded_tokens_pipe = doc! {
-                "$setWindowFields": {
-                    "sortBy": {
-                        "delegator_shares": -1
-                    },
-                    "output": {
-                        "cumulative_bonded_tokens": {
-                            "$sum": "$delegator_shares",
-                            "window":  {
-                            "documents": [
-                                "unbounded",
-                                "current"
-                                ]
-                            }
-                        }
-                    }
-                }
-            };
-
-        pipeline.push(cumulative_bonded_tokens_pipe);
+    pub async fn find_paginated_validators(&self, query: Option<Document>, config: PaginationData) -> Result<ListDbResult<ValidatorForDb>, String> {
+        let find_options = FindOptions::builder()
+            .sort(doc! { "delegator_shares": - 1})
+            .limit(config.limit.map(|l| l as i64).unwrap_or_else(|| 20))
+            .build();
 
 
-        let mut results = self.validators_collection().aggregate(pipeline, None).await.map_err(|e| format!("{}", e.to_string()))?;
-        let count_cursor = self.validators_collection().aggregate(pipe, None).await.map_err(|e| format!("{}", e.to_string()))?;
-        let count = count_cursor.count().await;
+        let collection = self.db().collection("computed_validators");
+        let results = PaginatedCursor::new(Some(find_options), config.cursor, None).find(&collection, query.as_ref()).await.map_err(|e| format!("{}", e.to_string()))?;
 
-        let mut res: Vec<Validator> = vec![];
-        while let Some(result) = results.next().await {
-            res.push(from_document(result.map_err(|e| format!("{}", e.to_string()))?).map_err(|e| format!("{}", e.to_string()))?);
-        };
-
-        Ok(ValidatorListDbResp { validators: res, pagination: PaginationData { offset: Some(skip_count as u64), ..Default::default() } })
+        Ok(ListDbResult::from(results))
     }
 
     /// Finds a sorted validator list by given document.
@@ -423,7 +408,7 @@ impl DatabaseTR {
 
         let config = config.unwrap_or_default();
         let options = FindOptions::builder()
-            .limit(config.limit as i64)
+            .limit(config.limit.map(|l| l as i64).unwrap_or_else(|| 20))
             .sort(doc! { "poll_id": -1})
             .build();
 
@@ -560,7 +545,7 @@ impl DatabaseTR {
         let config = config.unwrap_or_default();
         
         let options = FindOptions::builder()
-            .limit(config.limit as i64)
+            .limit(config.limit.map(|l| l as i64).unwrap_or_else(|| 20))
             .sort(doc! { "period_height": -1})
             .build();
 

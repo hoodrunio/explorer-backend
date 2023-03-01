@@ -11,7 +11,7 @@ use crate::{
     state::State,
 };
 use crate::fetch::validators::{ValidatorListResp, ValidatorRedelegationQuery};
-use crate::routes::{extract_chain, TNRAppError, TNRAppSuccessResponse};
+use crate::routes::{extract_chain, PaginationData, TNRAppError, TNRAppSuccessResponse};
 
 use super::QueryParams;
 
@@ -79,25 +79,22 @@ pub async fn validator_rewards(path: Path<(String, String)>, chains: Data<State>
 }
 
 #[get("{chain}/validators-bonded")]
-pub async fn validators_bonded(path: Path<String>, chains: Data<State>, query: Query<QueryParams>) -> Result<impl Responder, TNRAppError> {
+pub async fn validators_bonded(path: Path<String>, chains: Data<State>, query: Query<PaginationData>) -> Result<impl Responder, TNRAppError> {
     let chain = path.into_inner();
 
-    let config = PaginationConfig::new().limit(query.limit.unwrap_or(20)).page(query.page.unwrap_or(1));
 
     let chain = extract_chain(&chain, chains)?;
-    let validator_db_resp = chain.database.find_paginated_validators(Some(doc! {"$match":{"is_active":true}}), config).await?;
+    let validator_db_resp = chain.database.find_paginated_validators(Some(doc! { "is_active": true }), query.into_inner()).await?;
     let data = ValidatorListResp::from_db_list(validator_db_resp, &chain).await?;
     Ok(TNRAppSuccessResponse::new(data, None))
 }
 
 #[get("{chain}/validators-unbonded")]
-pub async fn validators_unbonded(path: Path<String>, chains: Data<State>, query: Query<QueryParams>) -> Result<impl Responder, TNRAppError> {
+pub async fn validators_unbonded(path: Path<String>, chains: Data<State>, query: Query<PaginationData>) -> Result<impl Responder, TNRAppError> {
     let chain = path.into_inner();
 
-    let config = PaginationConfig::new().limit(query.limit.unwrap_or(20)).page(query.page.unwrap_or(1));
-
     let chain = extract_chain(&chain, chains)?;
-    let validator_db_resp = chain.database.find_paginated_validators(Some(doc! {"$match":{"is_active":false}}), config).await?;
+    let validator_db_resp = chain.database.find_paginated_validators(Some(doc! {"is_active":false}), query.into_inner()).await?;
     let data = ValidatorListResp::from_db_list(validator_db_resp, &chain).await?;
     Ok(TNRAppSuccessResponse::new(data, None))
 }

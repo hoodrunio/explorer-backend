@@ -110,7 +110,7 @@ impl<T> TNRAppSuccessResponse<T> {
             data,
             pagination: Some(PaginationData {
                 cursor,
-                limit,
+                limit: Some(limit),
                 direction: Some(direction),
                 ..Default::default()
             })
@@ -124,7 +124,7 @@ impl<T> TNRAppSuccessResponse<T> {
             data,
             pagination: Some(PaginationData {
                 offset: Some(offset),
-                limit,
+                limit: Some(limit),
                 direction: Some(dir),
                 ..Default::default()
             })
@@ -136,7 +136,7 @@ impl<T> TNRAppSuccessResponse<T> {
 pub struct PaginationData {
     pub cursor: Option<String>,
     pub offset: Option<u64>,
-    pub limit: u64,
+    pub limit: Option<u64>,
     pub direction: Option<PaginationDirection>
 }
 
@@ -164,9 +164,10 @@ impl Default for PaginationDirection {
 impl Default for PaginationData {
     fn default() -> Self {
         Self {
-            limit: 50,
+            limit: Some(50),
             direction: Some(PaginationDirection::Next),
-            ..Default::default()
+            offset: None,
+            cursor: None,
         }
     }
 }

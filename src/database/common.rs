@@ -14,7 +14,7 @@ impl<T> From<FindResult<T>> for ListDbResult<T> {
     fn from(value: FindResult<T>) -> Self {
         let pagination = PaginationData {
             cursor: value.page_info.next_cursor,
-            limit: value.items.len() as u64,
+            limit: None,
             direction: Some(PaginationDirection::Next),
             ..Default::default()
         };
