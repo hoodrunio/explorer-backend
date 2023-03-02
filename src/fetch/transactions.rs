@@ -36,16 +36,13 @@ impl Chain {
                         .value
                         .into_iter()
                         .find(|a| {
-                            a.content
-                                .iter()
-                                .find(|a| {
-                                    if let InternalTransactionContent::Known(InternalTransactionContentKnowns::EthereumTx { hash: tx_hash }) = a {
-                                        tx_hash == hash
-                                    } else {
-                                        false
-                                    }
-                                })
-                                .is_some()
+                            a.content.iter().any(|a| {
+                                if let InternalTransactionContent::Known(InternalTransactionContentKnowns::EthereumTx { hash: tx_hash }) = a {
+                                    tx_hash == hash
+                                } else {
+                                    false
+                                }
+                            })
                         })
                         .ok_or_else(|| format!("This transaction does not exist, {hash}."))?;
 
