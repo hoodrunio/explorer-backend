@@ -48,6 +48,12 @@ impl Chain {
         Ok(ChainAmountItem::new(float_amount, ticker, self.clone()).await)
     }
 
+    //https://tutorials.cosmos.network/tutorials/6-ibc-dev/
+    //Check if denom is ibc denom path with transfer/channel-{{channel_id}}/denom
+    pub fn is_ibc_denom_path(&self, denom: &str) -> bool {
+        let split = denom.split('/').collect::<Vec<&str>>();
+        split.len() == 3 && split[0] == "transfer" && split[1].starts_with("channel")
+    }
     /// Returns the amount parsed.
     /// # Usage
     /// ```rs
