@@ -1,8 +1,10 @@
 use rust_decimal::prelude::FromPrimitive;
+use sha2::{Digest, Sha256};
 
 use crate::chain::Chain;
 
 use crate::routes::ChainAmountItem;
+use hex::encode as to_hex;
 
 use super::amount_util::TnrDecimal;
 
@@ -54,6 +56,23 @@ impl Chain {
         let split = denom.split('/').collect::<Vec<&str>>();
         split.len() == 3 && split[0] == "transfer" && split[1].starts_with("channel")
     }
+
+    //```
+    //https://tutorials.cosmos.network/tutorials/6-ibc-dev/
+    //Converts ibc transfer path to ibc denom format if given paramters valid
+    //Returns ibc/{{converted_value}}
+    ///```
+    pub fn convert_to_ibc_denom(&self, path: &String) -> Result<String, String> {
+        if self.is_ibc_denom_path(path) {
+            let mut hasher = Sha256::new();
+            hasher.update(path.as_bytes());
+            let result = to_hex(hasher.finalize()).to_uppercase();
+            return Ok(format!("IBC/{}", result));
+        };
+
+        Err(format!("Not an IBC denom path: {}", path))
+    }
+
     /// Returns the amount parsed.
     /// # Usage
     /// ```rs
