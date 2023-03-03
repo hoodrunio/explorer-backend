@@ -98,3 +98,12 @@ pub async fn tx_abi_from_database(path: Path<(String, String)>, chains: Data<Sta
     let data = chain.get_tx_abi_from_database(&contract_address).await?;
     Ok(TNRAppSuccessResponse::new(data))
 }
+
+#[get("{chain}/decode-log/{hash}")]
+pub async fn decode_tx_log(path: Path<(String, String)>, chains: Data<State>) -> Result<impl Responder, TNRAppError> {
+    let (chain, hash) = path.into_inner();
+
+    let chain = extract_chain(&chain, chains)?;
+    let data = chain.decode_log(&hash).await?;
+    Ok(TNRAppSuccessResponse::new(data))
+}

@@ -14,12 +14,20 @@ use crate::{
     chain::Chain,
     routes::{calc_pages, OutRestResponse},
     utils::get_msg_name,
+    ethereum_abi::Abi,
+    ethereum_abi::Type::Address,
 };
 use crate::database::TransactionForDb;
 use crate::database::DatabaseTR;
 use crate::fetch::socket::EvmPollVote;
 
 use super::others::{DenomAmount, InternalDenomAmount, Pagination, PaginationConfig, PublicKey};
+
+use ethereum_types::H256;
+use ethereum_types::H160;
+use ethereum_types::U256;
+use std::str::FromStr;
+use substring::Substring;
 
 impl Chain {
     /// Returns transaction by given hash.
@@ -309,15 +317,116 @@ impl Chain {
     }
 
     /// Returns abi of tx from database by given contract address
-    pub async fn get_tx_abi_from_database(&self, contract_address: &str) -> Result<OutRestResponse<Value>, String> {
+    pub async fn get_tx_abi_from_database(&self, contract_address: &str) -> Result<OutRestResponse<String>, String> {
         match self.database.find_contract_data_by_contract_address(contract_address).await {
-            Ok(res) => match serde_json::from_str::<serde_json::Value>(res.result.abi.as_str()) {
-                Ok(abi) =>  Ok(OutRestResponse::new(abi, 0)),
-                Err(e) => Err(format!("Convert Error into json: {e}"))
-            },
+            Ok(res) => Ok(OutRestResponse::new(res.result.abi, 0)),
             Err(e) => Err(format!("Fetch Error: {e}"))
         }
     }
+    
+    fn convert_readable_data(&self, data: &mut String) -> Vec<String> {
+        let length = data.len();
+        let mut dataArray = vec![];
+        let mut i: usize = 0;
+        loop {
+            if data.len() == 0 {
+                break;
+            }
+            if data.substring(0, 1).eq("0") {
+                data.remove(0);
+                i += 1;
+            } else {
+                dataArray.push(data.substring(0, 64 - i).to_string());
+                data.replace_range(0..(64 - i), "");
+                i = 0;
+            }
+        }
+        dataArray
+    }
+
+    /// Decode log based on contract abi, topics, and input data in tx
+    pub async fn decode_log(&self, hash: &str) -> Result<OutRestResponse<Vec<DecodeLogResult>>, String> {
+        match self.get_evm_tx_receipt_by_hash(hash).await {
+            Ok(res) => {
+                let mut decodeResults = vec![];
+                for log in res.logs {
+                    /// Log data
+                    let mut topics = vec![];
+                    for topic in log.topics {
+                        topics.push(H256::from_str(topic.as_str()).unwrap());
+                    }
+                    let mut data = log.data;
+                    data.remove(0);
+                    data.remove(0);
+
+                    /// Decode log
+                    match self.get_tx_abi_from_database(log.address.as_str()).await {
+                        Ok(r) => {
+                            let abi: Abi = serde_json::from_str(r.value.as_str()).unwrap();
+                            let (evt, decoded_data) = abi
+                                .decode_log_from_slice(topics.as_slice(), data.clone().as_bytes())
+                                .expect("failed decoding log");
+
+                            let mut readable_data = self.convert_readable_data(&mut data);
+
+                            let mut params = vec![];
+                            for i in 0..decoded_data.len() {
+                                let _decoded;
+                                if decoded_data[i].param.indexed == Some(true) {
+                                    _decoded = decoded_params {
+                                        param: decoded_data[i].clone().param,
+                                        value: decoded_data[i].clone().value
+                                    };
+                                } else {
+                                    if decoded_data[i].param.type_ == Address {
+                                        readable_data[0].insert_str(0, "0x");
+                                        let _value = crate::ethereum_abi::Value::Address(H160::from_str(readable_data[0].as_str()).unwrap());
+                                        readable_data.drain(0..1);
+
+                                        _decoded = decoded_params {
+                                            param: decoded_data[i].clone().param,
+                                            value: _value
+                                        };
+                                    } else {
+                                        let _value = crate::ethereum_abi::Value::Uint((U256::from_str_radix(readable_data[0].as_str(), 16)).unwrap(), 256);
+                                        readable_data.drain(0..1);
+
+                                        _decoded = decoded_params {
+                                            param: decoded_data[i].clone().param,
+                                            value: _value
+                                        };
+                                    }
+                                } 
+                                params.push(_decoded);
+                            }
+                            println!("params --------------- {:?}", params);
+                            let decode_result = DecodeLogResult {
+                                event: evt.clone(),
+                                value: params
+                            };
+                            decodeResults.push(decode_result);
+                        },
+                        Err(e) => {println!("Fetch ABI error: {e}");}
+                    }                    
+                }
+                println!("result _________ {:?}", decodeResults);
+                Ok(OutRestResponse::new(decodeResults, 0))
+            },
+            Err(e) => Err(format!("Fetch Receipt of Tx Error: {e}"))
+        }
+    }
+}
+
+#[derive(Deserialize, Serialize, Debug)]
+pub struct DecodeLogResult {
+    pub event: crate::ethereum_abi::Event,
+    pub value: Vec<decoded_params>
+}
+
+#[derive(Deserialize, Serialize, Debug)]
+pub struct decoded_params {
+    pub param: crate::ethereum_abi::Param,
+    pub value: crate::ethereum_abi::Value,
 }
 
 #[derive(Deserialize, Serialize, Debug)]
@@ -1354,16 +1463,6 @@ pub struct TxReceiptLog {
     pub log_index: String
 }
 
-// #[derive(Deserialize, Serialize, Debug, PartialEq)]
-// pub struct ContractMeta {
-//    pub meta: ContractData
-//     // pub meta: Vec<ContractAbi>
-// }
-
-// #[derive(Deserialize, Serialize, Debug, PartialEq)]
-// pub struct ContractData {
-//     pub name: String,
-// }
 
 #[derive(Deserialize, Serialize, Debug, PartialEq)]
 pub struct ContractAbi {
@@ -1389,16 +1488,3 @@ pub struct FnOutputType {
     pub name: String,
     pub r#type: String
 }
-
-#[derive(Deserialize, Serialize, Debug)]
-pub struct ContractMetadata {
-    pub compiler: CompilerMetadata,
-    pub language: String,
-    pub r#type: String
-}
-
-#[derive(Deserialize, Serialize, Debug)]
-pub struct CompilerMetadata {
-    pub version: Vec<String>
-}
-

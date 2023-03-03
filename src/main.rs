@@ -12,6 +12,7 @@ mod routes;
 mod server;
 mod state;
 mod utils;
+mod ethereum_abi;
 
 #[tokio::main]
 async fn main() {
