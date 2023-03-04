@@ -1629,3 +1629,9 @@ pub struct IBCTxMessageHeaderLastBlockIdPartSetHeader {
     pub hash: String,
     pub total: i64,
 }
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct SwapRoute {
+    pub pool_id: String,
+    pub token_out_denom: String,
+}
