@@ -75,6 +75,7 @@ impl Chain {
             jsonrpc_url: ic.jsonrpc_url,
             rest_url: ic.rest_url,
             wss_url: ic.wss_url,
+            grpc_url: ic.grpc_url,
             archive_url: ic.archive_url,
             main_denom,
             sdk_version,
@@ -130,6 +131,7 @@ pub struct ChainConfig {
     pub wss_url: String,
     /// The REST API Archive Node URL of the chain.
     pub archive_url: String,
+    pub grpc_url: Option<String>,
     /// The Cosmos SDK version of the chain.
     pub sdk_version: SemVer,
     /// Is the sdk version from the config or the actual chain
@@ -150,6 +152,7 @@ pub struct IntermediateChainConfig {
     pub rpc_url: String,
     pub rest_url: String,
     pub wss_url: String,
+    pub grpc_url: Option<String>,
     pub archive_url: String,
     pub decimals: Option<u8>,
     pub sdk_version: Option<SemVer>,

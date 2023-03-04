@@ -1,5 +1,6 @@
 use chrono::DateTime;
 use serde::{Deserialize, Serialize};
+use tonic::transport::Endpoint;
 
 use super::others::{DenomAmount, Pagination, PaginationConfig};
 use crate::{
@@ -7,28 +8,54 @@ use crate::{
     routes::{calc_pages, ChainAmountItem, OutRestResponse},
 };
 
+use crate::fetch::cosmos::gov::v1beta1::{ProposalStatus, query_client::QueryClient, QueryProposalsRequest, QueryProposalsResponse};
+use prost::Message;
+use crate::fetch::cosmos::params::v1beta1::ParameterChangeProposal;
+
 impl Chain {
     /// Returns all the proposals in voting period.
     pub async fn get_proposals_by_status(&self, status: &str, config: PaginationConfig) -> Result<OutRestResponse<Vec<ProposalItem>>, String> {
-        let mut query = vec![];
 
-        query.push(("proposal_status", status.to_string()));
-        query.push(("pagination.reverse", format!("{}", config.is_reverse())));
-        query.push(("pagination.limit", format!("{}", config.get_limit())));
-        query.push(("pagination.count_total", "true".to_string()));
-        query.push(("pagination.offset", format!("{}", config.get_offset())));
+        let proposal_request = QueryProposalsRequest {
+            proposal_status: status.parse().unwrap(),
+            voter: "".to_string(),
+            depositor: "".to_string(),
+            pagination: None,
+        };
+        let endpoint = Endpoint::from_shared(self.config.grpc_url.clone().unwrap()).unwrap();
+        let proposals: QueryProposalsResponse = QueryClient::connect(endpoint).await.unwrap().proposals(proposal_request).await.unwrap().into_inner();
 
-        let resp = self.rest_api_request::<ProposalsResp>("/cosmos/gov/v1beta1/proposals", &query).await?;
-
-        let mut proposals = vec![];
-
-        for proposal in resp.proposals {
-            proposals.push(proposal.try_into()?);
+        for proposal in proposals.proposals {
+            if let Some(content) = proposal.content {
+                match content.type_url.as_str() {
+                   "/cosmos.params.v1beta1.ParameterChangeProposal" => {
+                       let value = ParameterChangeProposal::decode(content.value.as_ref()).unwrap();
+                       dbg!(value);
+                   },
+                    _ => {}
+                }
+            }
         }
 
-        let pages = calc_pages(resp.pagination, config)?;
+        // let mut query = vec![];
 
-        Ok(OutRestResponse::new(proposals, pages))
+        // query.push(("proposal_status", status.to_string()));
+        // query.push(("pagination.reverse", format!("{}", config.is_reverse())));
+        // query.push(("pagination.limit", format!("{}", config.get_limit())));
+        // query.push(("pagination.count_total", "true".to_string()));
+        // query.push(("pagination.offset", format!("{}", config.get_offset())));
+
+        // let resp = self.rest_api_request::<ProposalsResp>("/cosmos/gov/v1beta1/proposals", &query).await?;
+        //
+        let mut proposals = vec![];
+
+        // for proposal in resp.proposals {
+        //     proposals.push(proposal.try_into()?);
+        // }
+        //
+        // let pages = calc_pages(resp.pagination, config)?;
+
+        Ok(OutRestResponse::new(proposals, 0))
     }
 
     /// Returns all the proposals unspecified.
