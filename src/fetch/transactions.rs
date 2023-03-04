@@ -635,6 +635,12 @@ pub enum InternalTransactionContentKnowns {
     EthereumTx {
         hash: String,
     },
+    SwapExactAmountIn {
+        sender: String,
+        pool_ids: Vec<String>,
+        token_in: ChainAmountItem,
+        token_out: ChainAmountItem,
+    },
     IBCUpdateClient {
         signer: String,
         client_id: String,
@@ -1119,6 +1125,29 @@ impl TxsTransactionMessage {
                             amount,
                         })
                     }
+                    TxsTransactionMessageKnowns::SwapExactAmountIn {
+                        sender,
+                        routes,
+                        token_in,
+                        token_out_min_amount,
+                    } => {
+                        let token_in_amount = chain.string_amount_parser(token_in.amount.clone(), Some(token_in.denom.clone())).await?;
+
+                        let token_out_amount = {
+                            let token_out_denom = routes.iter().last().map(|r| r.token_out_denom.clone());
+
+                            chain.string_amount_parser(token_out_min_amount, token_out_denom).await?
+                        };
+
+                        let pool_ids = routes.iter().map(|r| r.pool_id.clone()).collect();
+
+                        InternalTransactionContent::Known(InternalTransactionContentKnowns::SwapExactAmountIn {
+                            sender,
+                            pool_ids,
+                            token_in: token_in_amount,
+                            token_out: token_out_amount,
+                        })
+                    }
                 },
                 TxsTransactionMessage::Unknown(mut keys_values) => {
                     let r#type = keys_values.remove("@type").map(|t| t.to_string()).unwrap_or("Unknown".to_string());
@@ -1154,6 +1183,7 @@ impl TxsTransactionMessage {
                 TxsTransactionMessageKnowns::IBCReceived { .. } => "IBCReceived",
                 TxsTransactionMessageKnowns::IBCAcknowledgement { .. } => "IBCAcknowledgement",
                 TxsTransactionMessageKnowns::IBCTransfer { .. } => "IBCTransfer",
+                TxsTransactionMessageKnowns::SwapExactAmountIn { .. } => "SwapExactAmountIn",
             }
             .to_string(),
             TxsTransactionMessage::Unknown(keys_values) => keys_values
@@ -1261,6 +1291,15 @@ pub enum TxsTransactionMessageKnowns {
     },
     #[serde(rename = "/snapshot.v1beta1.RegisterProxyRequest")]
     RegisterProxy { sender: String, proxy_addr: String },
+
+    //Swap Exact Amount In
+    #[serde(rename = "/osmosis.gamm.v1beta1.MsgSwapExactAmountIn")]
+    SwapExactAmountIn {
+        sender: String,
+        routes: Vec<SwapRoute>,
+        token_in: DenomAmount,
+        token_out_min_amount: String,
+    },
 
     //IBC Messages
     #[serde(rename = "/ibc.core.client.v1.MsgUpdateClient")]
