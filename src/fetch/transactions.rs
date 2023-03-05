@@ -37,7 +37,8 @@ impl Chain {
                         .into_iter()
                         .find(|a| {
                             a.content.iter().any(|a| {
-                                if let InternalTransactionContent::Known(InternalTransactionContentKnowns::EthereumTx { hash: tx_hash }) = a {
+                                if let InternalTransactionContent::Known(InternalTransactionContentKnowns::EthereumTx { hash: tx_hash, data: _ }) = a
+                                {
                                     tx_hash == hash
                                 } else {
                                     false
@@ -634,6 +635,7 @@ pub enum InternalTransactionContentKnowns {
     #[serde(rename = "Ethereum Tx")]
     EthereumTx {
         hash: String,
+        data: EthereumTxData,
     },
     SwapExactAmountIn {
         sender: String,
@@ -989,8 +991,8 @@ impl TxsTransactionMessage {
 
                         InternalTransactionContent::Known(InternalTransactionContentKnowns::WithdrawValidatorCommission { amount, validator_address })
                     }
-                    TxsTransactionMessageKnowns::EthereumTx { hash } => {
-                        InternalTransactionContent::Known(InternalTransactionContentKnowns::EthereumTx { hash })
+                    TxsTransactionMessageKnowns::EthereumTx { hash, data } => {
+                        InternalTransactionContent::Known(InternalTransactionContentKnowns::EthereumTx { hash, data })
                     }
                     TxsTransactionMessageKnowns::Grant { granter, grantee, mut grant } => {
                         InternalTransactionContent::Known(InternalTransactionContentKnowns::Grant {
@@ -1284,6 +1286,7 @@ pub enum TxsTransactionMessageKnowns {
     EthereumTx {
         /// Ethereum transaction hash. Eg: `"0xc8137e7716e65483da73aa8d1f9f4730c253429c3d3dabce92cf63dd55027ac6"`
         hash: String,
+        data: EthereumTxData,
         // Ethereum transaction data.
         // There are multiple types of this property.
         // Creating an enum for it is necessary if we need to show the data in the explorer.
