@@ -1,13 +1,27 @@
 fn main() {
     tonic_build::configure()
-    .build_server(false)
+        .build_server(false)
         .build_client(true)
-        .compile(&[
-            "proto/cosmos/gov/v1beta1/gov.proto",
-            "proto/cosmos/gov/v1beta1/query.proto",
-            "cosmos/base/query/v1beta1/pagination.proto",
-            "cosmos/base/v1beta1/coin.proto",
-            "cosmos/params/v1beta1/params.proto"
-        ], &["proto"])
+        .compile(
+            &[
+                "cosmos/gov/v1beta1/gov.proto",
+                "cosmos/gov/v1beta1/query.proto",
+                "cosmos/gov/v1/query.proto",
+                "cosmos/gov/v1/gov.proto",
+                "cosmos/gov/v1/tx.proto",
+                "cosmos/bank/v1beta1/bank.proto",
+                "cosmos/base/query/v1beta1/pagination.proto",
+                "cosmos/base/v1beta1/coin.proto",
+                "cosmos/params/v1beta1/params.proto",
+                "cosmos/upgrade/v1beta1/upgrade.proto",
+                "cosmos/distribution/v1beta1/distribution.proto",
+                "ibc/core/client/v1/client.proto",
+                "evmos/erc20/v1/erc20.proto",
+                "osmosis/pool-incentives/v1beta1/gov.proto",
+                "umee/leverage/v1/tx.proto",
+                "gravity/v1/types.proto",
+            ],
+            &["proto"],
+        )
         .unwrap();
 }

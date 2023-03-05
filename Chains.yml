@@ -28,6 +28,7 @@ evmos:
   jsonrpc_url: https://eth.bd.evmos.org:8545/
   rpc_url: https://rpc.cosmos.directory/evmos
   rest_url: https://rest.bd.evmos.org:1317
+  grpc_url: https://evmos-grpc.polkachu.com:13490
   wss_url: wss://rpc-evmos.ecostake.com/websocket
   archive_url: empty
 
@@ -43,6 +44,7 @@ osmosis:
   # version: 0.45
   rpc_url: https://rpc.cosmos.directory/osmosis
   rest_url: https://rest.cosmos.directory/osmosis
+  grpc_url: https://osmosis-grpc.polkachu.com:12590
   wss_url: wss://rpc.osmosis.interbloc.org/websocket
   archive_url: empty
 
@@ -57,8 +59,9 @@ umee:
   logo: https://assets.coingecko.com/coins/images/20635/small/Asset_19.png
   # decimals: 6
   # version: 0.46
-  rpc_url: https://rpc-umee.huginn.tech
-  rest_url: https://api.umee.huginn.tech
+  rpc_url: https://umee-rpc.polkachu.com
+  rest_url: https://umee-api.polkachu.com
+  grpc_url: https://umee-grpc.polkachu.com:13690
   wss_url: wss://rpc-umee.huginn.tech/websocket
   archive_url: empty
 
@@ -91,5 +94,6 @@ quicksilver:
   # version: 0.45
   rpc_url: https://quicksilver-rpc.theamsolutions.info
   rest_url: https://quicksilver-mainnet-api.itrocket.net
+  grpc_url: https://quicksilver-grpc.polkachu.com:11190
   wss_url: wss://rpc-quicksilver-ia.cosmosia.notional.ventures/websocket
   archive_url: empty
