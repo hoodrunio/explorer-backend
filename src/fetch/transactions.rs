@@ -1268,6 +1268,7 @@ impl TxsTransactionMessage {
                         let mut destination_chain = String::from("");
                         let mut destination_address = String::from("");
                         let mut transfer_id = String::from("");
+                        let mut command_id = String::from("");
 
                         let logs = logs.clone().unwrap_or_default();
                         for log in logs {
@@ -1291,6 +1292,9 @@ impl TxsTransactionMessage {
                                         if attribute.key == "transfer_id" {
                                             transfer_id = attribute.value.replace('\"', "").clone();
                                         }
+                                        if attribute.key == "command_id" {
+                                            command_id = attribute.value.clone();
+                                        }
                                     }
                                 }
                             }
@@ -1303,7 +1307,7 @@ impl TxsTransactionMessage {
                             destination_address,
                             destination_chain,
                             transfer_id,
-                            command_id: "".to_string(),
+                            command_id,
                         })
                     }
                 },
