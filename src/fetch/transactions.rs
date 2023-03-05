@@ -725,6 +725,15 @@ pub enum InternalTransactionContentKnowns {
         deposit_address: String,
         source_chain: String,
     },
+    AxelarCreatePendingTransfersRequest {
+        chain: String,
+        sender: String,
+        amount: ChainAmountItem,
+        destination_address: String,
+        destination_chain: String,
+        transfer_id: String,
+        command_id: String,
+    },
 }
 
 impl From<InternalTransaction> for TransactionItem {
@@ -1254,6 +1263,49 @@ impl TxsTransactionMessage {
                             source_chain,
                         })
                     }
+                    TxsTransactionMessageKnowns::AxelarCreatePendingTransfersRequest { chain: tx_chain, sender } => {
+                        let mut amount = ChainAmountItem::default();
+                        let mut destination_chain = String::from("");
+                        let mut destination_address = String::from("");
+                        let mut transfer_id = String::from("");
+
+                        let logs = logs.clone().unwrap_or_default();
+                        for log in logs {
+                            for event in &log.events {
+                                if event.r#type == "axelar.evm.v1beta1.MintCommand" {
+                                    for attribute in &event.attributes {
+                                        if attribute.key == "asset" {
+                                            if let Ok(value) = serde_json::from_str::<DenomAmount>(&attribute.value) {
+                                                amount = chain.string_amount_parser(value.amount, Some(value.denom)).await?;
+                                            }
+                                        }
+                                        if attribute.key == "chain" {
+                                            destination_address = attribute.value.clone();
+                                        }
+                                        if attribute.key == "destination_chain" {
+                                            destination_chain = attribute.value.replace('\"', "").clone();
+                                        }
+                                        if attribute.key == "destination_address" {
+                                            destination_address = attribute.value.replace('\"', "").clone();
+                                        }
+                                        if attribute.key == "transfer_id" {
+                                            transfer_id = attribute.value.replace('\"', "").clone();
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        InternalTransactionContent::Known(InternalTransactionContentKnowns::AxelarCreatePendingTransfersRequest {
+                            chain: tx_chain,
+                            sender,
+                            amount,
+                            destination_address,
+                            destination_chain,
+                            transfer_id,
+                            command_id: "".to_string(),
+                        })
+                    }
                 },
                 TxsTransactionMessage::Unknown(mut keys_values) => {
                     let r#type = keys_values.remove("@type").map(|t| t.to_string()).unwrap_or("Unknown".to_string());
@@ -1292,6 +1344,7 @@ impl TxsTransactionMessage {
                 TxsTransactionMessageKnowns::AxelarRefundRequest { .. } => "AxelarRefundRequest",
                 TxsTransactionMessageKnowns::AxelarLinkRequest { .. } => "LinkRequest",
                 TxsTransactionMessageKnowns::AxelarConfirmDepositRequest { .. } => "ConfirmDepositRequest",
+                TxsTransactionMessageKnowns::AxelarCreatePendingTransfersRequest { chain, sender } => "CreatePendingTransfersRequest",
             }
             .to_string(),
             TxsTransactionMessage::Unknown(keys_values) => keys_values
@@ -1465,6 +1518,8 @@ pub enum TxsTransactionMessageKnowns {
         deposit_address: String,
         sender: String,
     },
+    #[serde(rename = "/axelar.evm.v1beta1.CreatePendingTransfersRequest")]
+    AxelarCreatePendingTransfersRequest { chain: String, sender: String },
 }
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
