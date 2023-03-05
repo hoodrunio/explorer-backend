@@ -707,6 +707,14 @@ pub enum InternalTransactionContentKnowns {
         sender: String,
         inner_message: InnerMessage,
     },
+    AxelarLinkRequest {
+        sender: String,
+        recipient_addr: String,
+        recipient_chain: String,
+        asset: String,
+        source_chain: String,
+        deposit_address: String,
+    },
 }
 
 impl From<InternalTransaction> for TransactionItem {
@@ -1150,6 +1158,43 @@ impl TxsTransactionMessage {
                             token_out: token_out_amount,
                         })
                     }
+                    TxsTransactionMessageKnowns::AxelarLinkRequest {
+                        sender,
+                        recipient_addr,
+                        recipient_chain,
+                        asset,
+                    } => {
+                        let (source_chain, deposit_address) = {
+                            let mut source_chain = String::from("");
+                            let mut deposit_address = String::from("");
+                            let logs = logs.clone().unwrap_or_default();
+                            for log in logs {
+                                for event in &log.events {
+                                    if event.r#type == "link" {
+                                        for attribute in &event.attributes {
+                                            if attribute.key == "sourceChain" {
+                                                source_chain = attribute.value.clone();
+                                            }
+                                            if attribute.key == "depositAddress" {
+                                                deposit_address = attribute.value.clone();
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
+                            (source_chain, deposit_address)
+                        };
+
+                        InternalTransactionContent::Known(InternalTransactionContentKnowns::AxelarLinkRequest {
+                            sender,
+                            recipient_addr,
+                            recipient_chain,
+                            asset,
+                            source_chain,
+                            deposit_address,
+                        })
+                    }
                 },
                 TxsTransactionMessage::Unknown(mut keys_values) => {
                     let r#type = keys_values.remove("@type").map(|t| t.to_string()).unwrap_or("Unknown".to_string());
@@ -1186,6 +1231,7 @@ impl TxsTransactionMessage {
                 TxsTransactionMessageKnowns::IBCAcknowledgement { .. } => "IBCAcknowledgement",
                 TxsTransactionMessageKnowns::IBCTransfer { .. } => "IBCTransfer",
                 TxsTransactionMessageKnowns::SwapExactAmountIn { .. } => "SwapExactAmountIn",
+                TxsTransactionMessageKnowns::AxelarLinkRequest { .. } => "LinkRequest",
             }
             .to_string(),
             TxsTransactionMessage::Unknown(keys_values) => keys_values
@@ -1346,6 +1392,13 @@ pub enum TxsTransactionMessageKnowns {
     AxelarRegisterProxy { sender: String, proxy_addr: String },
     #[serde(rename = "/axelar.reward.v1beta1.RefundMsgRequest")]
     AxelarRefundRequest { sender: String, inner_message: InnerMessage },
+    #[serde(rename = "/axelar.axelarnet.v1beta1.LinkRequest")]
+    AxelarLinkRequest {
+        sender: String,
+        recipient_addr: String,
+        recipient_chain: String,
+        asset: String,
+    },
 }
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
