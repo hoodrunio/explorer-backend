@@ -715,6 +715,16 @@ pub enum InternalTransactionContentKnowns {
         source_chain: String,
         deposit_address: String,
     },
+    AxelarConfirmDepositRequest {
+        asset: String,
+        sender: String,
+        destination_chain: String,
+        destination_address: String,
+        amount: String,
+        transfer_id: String,
+        deposit_address: String,
+        source_chain: String,
+    },
 }
 
 impl From<InternalTransaction> for TransactionItem {
@@ -1195,6 +1205,55 @@ impl TxsTransactionMessage {
                             deposit_address,
                         })
                     }
+                    TxsTransactionMessageKnowns::AxelarConfirmDepositRequest {
+                        denom,
+                        deposit_address,
+                        sender,
+                    } => {
+                        let mut amount = String::from("");
+                        let mut destination_chain = String::from("");
+                        let mut destination_address = String::from("");
+                        let mut transfer_id = String::from("");
+                        let mut source_chain = String::from("");
+
+                        let logs = logs.clone().unwrap_or_default();
+                        for log in logs {
+                            for event in &log.events {
+                                if event.r#type == "depositConfirmation" {
+                                    for attribute in &event.attributes {
+                                        if attribute.key == "sourceChain" {
+                                            source_chain = attribute.value.clone();
+                                        }
+                                        if attribute.key == "destinationAddress" {
+                                            destination_address = attribute.value.clone();
+                                        }
+                                        if attribute.key == "destinationChain" {
+                                            destination_chain = attribute.value.clone();
+                                        }
+                                        if attribute.key == "amount" {
+                                            amount = attribute.value.clone();
+                                        }
+                                        if attribute.key == "transferID" {
+                                            transfer_id = attribute.value.clone();
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        let amount = amount.replace(&denom, "");
+
+                        InternalTransactionContent::Known(InternalTransactionContentKnowns::AxelarConfirmDepositRequest {
+                            asset: denom,
+                            deposit_address,
+                            sender,
+                            destination_chain,
+                            destination_address,
+                            amount,
+                            transfer_id,
+                            source_chain,
+                        })
+                    }
                 },
                 TxsTransactionMessage::Unknown(mut keys_values) => {
                     let r#type = keys_values.remove("@type").map(|t| t.to_string()).unwrap_or("Unknown".to_string());
@@ -1224,14 +1283,15 @@ impl TxsTransactionMessage {
                 TxsTransactionMessageKnowns::Grant { .. } => "Grant",
                 TxsTransactionMessageKnowns::Exec { .. } => "Exec",
                 TxsTransactionMessageKnowns::RegisterProxy { .. } => "RegisterProxy",
-                TxsTransactionMessageKnowns::AxelarRegisterProxy { .. } => "RegisterProxy",
-                TxsTransactionMessageKnowns::AxelarRefundRequest { .. } => "AxelarRefundRequest",
                 TxsTransactionMessageKnowns::IBCUpdateClient { .. } => "IBCUpdateClient",
                 TxsTransactionMessageKnowns::IBCReceived { .. } => "IBCReceived",
                 TxsTransactionMessageKnowns::IBCAcknowledgement { .. } => "IBCAcknowledgement",
                 TxsTransactionMessageKnowns::IBCTransfer { .. } => "IBCTransfer",
                 TxsTransactionMessageKnowns::SwapExactAmountIn { .. } => "SwapExactAmountIn",
+                TxsTransactionMessageKnowns::AxelarRegisterProxy { .. } => "RegisterProxy",
+                TxsTransactionMessageKnowns::AxelarRefundRequest { .. } => "AxelarRefundRequest",
                 TxsTransactionMessageKnowns::AxelarLinkRequest { .. } => "LinkRequest",
+                TxsTransactionMessageKnowns::AxelarConfirmDepositRequest { .. } => "ConfirmDepositRequest",
             }
             .to_string(),
             TxsTransactionMessage::Unknown(keys_values) => keys_values
@@ -1398,6 +1458,12 @@ pub enum TxsTransactionMessageKnowns {
         recipient_addr: String,
         recipient_chain: String,
         asset: String,
+    },
+    #[serde(rename = "/axelar.axelarnet.v1beta1.ConfirmDepositRequest")]
+    AxelarConfirmDepositRequest {
+        denom: String,
+        deposit_address: String,
+        sender: String,
     },
 }
 
