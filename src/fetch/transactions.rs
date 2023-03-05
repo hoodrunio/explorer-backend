@@ -1674,3 +1674,18 @@ pub struct SwapRoute {
     pub pool_id: String,
     pub token_out_denom: String,
 }
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct EthereumTxData {
+    #[serde(rename = "@type")]
+    pub r#type: String,
+    pub nonce: String,
+    pub gas_price: Option<String>,
+    pub gas_tip_cap: Option<String>,
+    pub gas_fee_cap: Option<String>,
+    pub gas: String,
+    pub to: String,
+    pub value: String,
+    pub data: Option<String>,
+    pub accesses: Option<Vec<HashMap<String, Value>>>,
+}
