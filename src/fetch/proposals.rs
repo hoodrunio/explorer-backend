@@ -87,7 +87,7 @@ impl Chain {
     /// Returns all the proposals in voting period.
     pub async fn get_proposals_by_status(&self, status: &str, config: PaginationData) -> Result<ListDbResult<ProposalItem>, String> {
         let endpoint = Endpoint::from_shared(self.config.grpc_url.clone().unwrap()).unwrap();
-        let items = if dbg!(self.config.sdk_version.minor) >= 46 {
+        let items = if dbg!(self.config.sdk_version.minor) >= 47 {
             use crate::fetch::cosmos::gov::v1::{query_client::QueryClient, QueryProposalsRequest, QueryProposalsResponse};
             let proposal_request = QueryProposalsRequest {
                 proposal_status: status.parse().unwrap(),
