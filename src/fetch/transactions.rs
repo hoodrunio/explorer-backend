@@ -330,6 +330,9 @@ impl Chain {
         let mut i: usize = 0;
         loop {
             if data.len() == 0 {
+                if i == 63 {
+                    dataArray.push("0".to_string());
+                }
                 break;
             }
             if data.substring(0, 1).eq("0") {
@@ -368,7 +371,7 @@ impl Chain {
                                 .expect("failed decoding log");
 
                             let mut readable_data = self.convert_readable_data(&mut data);
-
+                            println!("evt: {:?}, decoded_data: {:?}", evt, decoded_data);
                             let mut params = vec![];
                             for i in 0..decoded_data.len() {
                                 let _decoded;

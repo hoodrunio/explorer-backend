@@ -723,7 +723,7 @@ impl DatabaseTR {
     /// database.find_contract_data_by_contract_address(contract_address).await;
     /// ```
     pub async fn find_contract_data_by_contract_address(&self, contract_address: &str) -> Result<ContractData, String> {
-        self.find_contract_data(doc! {"contract_address":contract_address}).await
+        self.find_contract_data(doc! {"contract_address":contract_address.to_string().to_lowercase()}).await
     }
 }
 
