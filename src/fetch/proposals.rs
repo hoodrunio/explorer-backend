@@ -4,30 +4,45 @@ use tonic::transport::Endpoint;
 
 use super::others::{DenomAmount, Pagination, PaginationConfig};
 use crate::{
+    fetch::{
+        evmos::{
+            erc20::{
+                v1::{
+                    RegisterCoinProposal,
+                    ToggleTokenConversionProposal,
+                    RegisterErc20Proposal
+                }
+            },
+            incentives::v1::RegisterIncentiveProposal
+        },
+        cosmos::{
+            params::v1beta1::ParameterChangeProposal,
+            gov::v1::MsgExecLegacyContent,
+            base::query::v1beta1::PageRequest,
+            gov::v1beta1::TextProposal,
+            distribution::v1beta1::CommunityPoolSpendProposal,
+            upgrade::v1beta1::SoftwareUpgradeProposal
+        },
+        umee::leverage::v1::MsgGovUpdateRegistry,
+        ibc::core::client::v1::ClientUpdateProposal,
+        gravity::v1::IbcMetadataProposal,
+        osmosis::poolincentives::v1beta1::UpdatePoolIncentivesProposal,
+        quicksilver::interchainstaking::v1::RegisterZoneProposal,
+    },
     chain::Chain,
     database::ListDbResult,
-    fetch::cosmos::distribution::v1beta1::CommunityPoolSpendProposal,
-    fetch::cosmos::gov::v1beta1::TextProposal,
-    fetch::gravity::v1::IbcMetadataProposal,
-    fetch::{cosmos::base::query::v1beta1::PageRequest, ibc::core::client::v1::ClientUpdateProposal},
-    fetch::{cosmos::gov::v1::MsgExecLegacyContent, umee::leverage::v1::MsgGovUpdateRegistry},
-    fetch::{
-        cosmos::params::v1beta1::ParameterChangeProposal,
-        evmos::erc20::v1::{RegisterCoinProposal, ToggleTokenConversionProposal},
-    },
-    fetch::{
-        cosmos::upgrade::v1beta1::SoftwareUpgradeProposal, evmos::erc20::v1::RegisterErc20Proposal,
-        osmosis::poolincentives::v1beta1::UpdatePoolIncentivesProposal,
-    },
-    routes::{calc_pages, ChainAmountItem, OutRestResponse, PaginationData},
+    routes::calc_pages,
+    routes::ChainAmountItem,
+    routes::OutRestResponse,
+    routes::PaginationData,
 };
 
 use prost::Message;
 
 pub struct ProposalInfo(String, String);
 
-impl From<prost_types::Any> for ProposalInfo {
-    fn from(content: prost_types::Any) -> ProposalInfo {
+impl From<prost_wkt_types::Any> for ProposalInfo {
+    fn from(content: prost_wkt_types::Any) -> ProposalInfo {
         let (title, description) = match content.type_url.as_str() {
             "/cosmos.params.v1beta1.ParameterChangeProposal" => {
                 let value = ParameterChangeProposal::decode(content.value.as_ref()).unwrap();
@@ -73,6 +88,15 @@ impl From<prost_types::Any> for ProposalInfo {
                 let value = MsgGovUpdateRegistry::decode(content.value.as_ref()).unwrap();
                 (value.title, value.description)
             }
+            "/evmos.incentives.v1.RegisterIncentiveProposal" => {
+                let value = RegisterIncentiveProposal::decode(content.value.as_ref()).unwrap();
+                (value.title, value.description)
+            }
+            "/quicksilver.interchainstaking.v1.RegisterZoneProposal" => {
+                let value = RegisterZoneProposal::decode(content.value.as_ref()).unwrap();
+                (value.title, value.description)
+            }
+
 
             other => {
                 dbg!(other);
@@ -87,8 +111,10 @@ impl Chain {
     /// Returns all the proposals in voting period.
     pub async fn get_proposals_by_status(&self, status: &str, config: PaginationData) -> Result<ListDbResult<ProposalItem>, String> {
         let endpoint = Endpoint::from_shared(self.config.grpc_url.clone().unwrap()).unwrap();
-        let items = if dbg!(self.config.sdk_version.minor) >= 47 {
+        let mut fallback = false;
+        let items = if dbg!(self.config.sdk_version.minor) >= 46 {
             use crate::fetch::cosmos::gov::v1::{query_client::QueryClient, QueryProposalsRequest, QueryProposalsResponse};
+            let config =  config.clone();
             let proposal_request = QueryProposalsRequest {
                 proposal_status: status.parse().unwrap(),
                 voter: "".to_string(),
@@ -102,32 +128,47 @@ impl Chain {
                 }),
             };
 
-            let proposals: QueryProposalsResponse = QueryClient::connect(endpoint)
+
+            if let Ok(resp ) = QueryClient::connect(endpoint.clone())
                 .await
                 .unwrap()
                 .proposals(proposal_request)
-                .await
-                .unwrap()
-                .into_inner();
+                .await {
 
-            let mut items = Vec::with_capacity(proposals.proposals.len());
-            for proposal in proposals.proposals {
-                if let Some(content) = proposal.messages.get(0).cloned() {
-                    let legacy_content = MsgExecLegacyContent::decode(content.value.as_ref()).unwrap();
-                    let ProposalInfo(title, description) = legacy_content.content.unwrap().into();
-                    let proposal_item = ProposalItem {
-                        proposal_id: proposal.id,
-                        title,
-                        description,
-                        time: proposal.submit_time.map(|t| t.seconds),
-                        status: proposal.status,
+                let proposals = resp
+                    .into_inner();
+
+                let mut items = Vec::with_capacity(proposals.proposals.len());
+                for proposal in proposals.proposals {
+                    if let Some(content) = proposal.messages.get(0).cloned() {
+                        let content = if content.type_url == "/cosmos.gov.v1.MsgExecLegacyContent" {
+                            let legacy_content = MsgExecLegacyContent::decode(content.value.as_ref()).unwrap();
+                            legacy_content.content
+                        } else {
+                            Some(content)
+                        };
+                        let ProposalInfo(title, description) = content.unwrap().into();
+                        let proposal_item = ProposalItem {
+                            proposal_id: proposal.id,
+                            title,
+                            description,
+                            time: proposal.submit_time.map(|t| t.seconds),
+                            status: proposal.status,
+                        };
+
+                        items.push(proposal_item);
                     };
+                }
 
-                    items.push(proposal_item);
-                };
+                Some(items)
+            } else {
+                None
             }
-
-            items
+        } else {
+            None
+        };
+        let items = if let Some(items) = items {
+           items
         } else {
             use crate::fetch::cosmos::gov::v1beta1::{query_client::QueryClient, QueryProposalsRequest, QueryProposalsResponse, TextProposal};
             let proposal_request = QueryProposalsRequest {
@@ -169,23 +210,6 @@ impl Chain {
 
             items
         };
-
-        // let mut query = vec![];
-
-        // query.push(("proposal_status", status.to_string()));
-        // query.push(("pagination.reverse", format!("{}", config.is_reverse())));
-        // query.push(("pagination.limit", format!("{}", config.get_limit())));
-        // query.push(("pagination.count_total", "true".to_string()));
-        // query.push(("pagination.offset", format!("{}", config.get_offset())));
-
-        // let resp = self.rest_api_request::<ProposalsResp>("/cosmos/gov/v1beta1/proposals", &query).await?;
-        //
-
-        // for proposal in resp.proposals {
-        //     proposals.push(proposal.try_into()?);
-        // }
-        //
-        // let pages = calc_pages(resp.pagination, config)?;
 
         Ok(ListDbResult {
             data: items,

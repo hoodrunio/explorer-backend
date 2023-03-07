@@ -75,6 +75,12 @@ pub mod evmos {
             tonic::include_proto!("evmos.erc20.v1");
         }
     }
+
+    pub mod incentives {
+        pub mod v1 {
+            tonic::include_proto!("evmos.incentives.v1");
+        }
+    }
 }
 
 pub mod osmosis {
@@ -96,5 +102,13 @@ pub mod umee {
 pub mod gravity {
     pub mod v1 {
         tonic::include_proto!("gravity.v1");
+    }
+}
+
+pub mod quicksilver {
+    pub mod interchainstaking {
+        pub mod v1 {
+            tonic::include_proto!("quicksilver.interchainstaking.v1");
+        }
     }
 }
