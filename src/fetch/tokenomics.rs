@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use super::others::{DenomAmount, InternalDenomAmount, Pagination, PaginationConfig};
+use super::others::{DenomAmount, Pagination, PaginationConfig};
 use crate::{
     chain::Chain,
     routes::{calc_pages, ChainAmountItem, OutRestResponse},
@@ -32,12 +32,32 @@ impl Chain {
     }
 
     /// Returns the supply of given token.
-    pub async fn get_supply_by_denom(&self, denom: &str) -> Result<OutRestResponse<InternalDenomAmount>, String> {
+    pub async fn get_supply_by_denom(&self, denom: &str) -> Result<OutRestResponse<ChainAmountItem>, String> {
+        if self.config.name == "evmos" {
+            let query = vec![];
+
+            let resp = self
+                .rest_api_request::<SupplyOfAllTokensResp>("/cosmos/bank/v1beta1/supply", &query)
+                .await?
+                .supply
+                .iter()
+                .find(|supply| supply.denom == denom)
+                .cloned();
+
+            if let Some(supply) = resp {
+                let supply = self.string_amount_parser(supply.amount.clone(), Some(supply.denom.clone())).await?;
+
+                return Ok(OutRestResponse::new(supply, 0));
+            };
+
+            return Err("Token not found".to_string());
+        };
+
         let path = format!("/cosmos/bank/v1beta1/supply/{denom}");
 
         let resp = self.rest_api_request::<SupplyByDenomResp>(&path, &[]).await?;
 
-        let supply = resp.amount.try_into()?;
+        let supply = self.string_amount_parser(resp.amount.amount, Some(resp.amount.denom)).await?;
 
         Ok(OutRestResponse::new(supply, 0))
     }
