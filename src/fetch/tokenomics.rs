@@ -8,7 +8,7 @@ use crate::{
 
 impl Chain {
     /// Returns the total supply of all tokens.
-    pub async fn get_supply_of_all_tokens(&self, config: PaginationConfig) -> Result<OutRestResponse<Vec<InternalDenomAmount>>, String> {
+    pub async fn get_supply_of_all_tokens(&self, config: PaginationConfig) -> Result<OutRestResponse<Vec<ChainAmountItem>>, String> {
         let mut query = vec![];
 
         query.push(("pagination.reverse", format!("{}", config.is_reverse())));
@@ -23,7 +23,7 @@ impl Chain {
         let mut supplies = vec![];
 
         for supply in resp.supply {
-            supplies.push(supply.try_into()?)
+            supplies.push(self.string_amount_parser(supply.amount, Some(supply.denom)).await?);
         }
 
         let pages = calc_pages(resp.pagination, config)?;
