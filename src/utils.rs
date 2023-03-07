@@ -39,7 +39,7 @@ pub async fn get_validator_logo(client: Client, validator_identity: &str) -> Str
     }
 
     // Here, we will set a URL as the default logo.
-    String::from("example.com")
+    String::from("https://raw.githubusercontent.com/testnetrunn/explorer-assets/main/validators/default/validator-default.webp")
 }
 
 #[derive(Deserialize, Debug)]
