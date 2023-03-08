@@ -1,3 +1,4 @@
+use mongodb::bson::doc;
 use serde::{Deserialize, Serialize};
 
 use crate::{chain::Chain, routes::TNRAppError};
@@ -36,6 +37,31 @@ impl Chain {
             market_history: vec![],
         })
     }
+
+    pub async fn get_stats(&self) -> Result<ChainStatsInfoResponse, TNRAppError> {
+        let latest_block_height: u64 = self
+            .database
+            .find_last_count_blocks(None, 1)
+            .await
+            .map(|blocks| blocks.first().map(|block| block.height).unwrap_or(0))
+            .unwrap_or(0);
+
+        let average_block_time = 0.0;
+        let price = 0.0;
+        let active_validators = self
+            .database
+            .find_validators(Some(doc! {"$match":{"is_active":true}}))
+            .await
+            .map(|res| res.len() as u16)
+            .unwrap_or(0);
+
+        Ok(ChainStatsInfoResponse {
+            latest_block_height,
+            average_block_time,
+            price,
+            active_validator_count: active_validators,
+        })
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -48,6 +74,14 @@ pub struct ChainDashboardInfoResponse {
     pub total_supply: TnrDecimal,
     pub community_pool: u64,
     pub market_history: Vec<MarketHistory>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct ChainStatsInfoResponse {
+    pub latest_block_height: u64,
+    pub average_block_time: f32,
+    pub price: f32,
+    pub active_validator_count: u16,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
