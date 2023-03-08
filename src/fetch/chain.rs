@@ -8,12 +8,22 @@ impl Chain {
     pub async fn get_dashboard_info(&self) -> Result<ChainDashboardInfoResponse, TNRAppError> {
         let market_cap = 0.0;
         let inflation_rate = self.get_inflation_rate().await?.value;
-        let apr = self.get_apr().await?;
-        let staking_poll = self.get_staking_pool().await?.value;
-        let total_unbonded = staking_poll.unbonded as f64;
-        let total_bonded = staking_poll.bonded as f64;
-        let total_supply = self.get_supply_by_denom(&self.config.main_denom).await?.value.amount;
-        let community_pool = self.get_community_pool().await?.value;
+        let apr = self.get_apr().await.unwrap_or(0.0);
+
+        let mut total_unbonded = 0.0;
+        let mut total_bonded = 0.0;
+        if let Ok(result) = self.get_staking_pool().await {
+            total_unbonded = result.value.unbonded as f64;
+            total_bonded = result.value.bonded as f64;
+        };
+
+        let total_supply = self
+            .get_supply_by_denom(&self.config.main_denom)
+            .await
+            .map(|res| res.value.amount)
+            .unwrap_or(TnrDecimal::ZERO);
+
+        let community_pool = self.get_community_pool().await.map(|res| res.value).unwrap_or(0);
 
         Ok(ChainDashboardInfoResponse {
             inflation_rate,
