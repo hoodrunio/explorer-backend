@@ -2,6 +2,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::{chain::Chain, routes::TNRAppError};
 
+use super::amount_util::TnrDecimal;
+
 impl Chain {
     pub async fn get_dashboard_info(&self) -> Result<ChainDashboardInfo, TNRAppError> {
         let market_cap = 0.0;
@@ -33,7 +35,7 @@ pub struct ChainDashboardInfo {
     pub apr: f64,
     pub total_unbonded: f64,
     pub total_bonded: f64,
-    pub total_supply: f64,
+    pub total_supply: TnrDecimal,
     pub community_pool: u64,
     pub market_history: Vec<MarketHistory>,
 }
