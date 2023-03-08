@@ -1,7 +1,11 @@
-use actix_web::{get, web::Data, Responder};
+use actix_web::{
+    get,
+    web::{Data, Path},
+    Responder,
+};
 use serde::{Deserialize, Serialize};
 
-use crate::routes::{TNRAppError, TNRAppSuccessResponse};
+use crate::routes::{extract_chain, TNRAppError, TNRAppSuccessResponse};
 use crate::state::State;
 
 // ======== Chains Methods ========
@@ -28,3 +32,4 @@ pub async fn chains(state: Data<State>) -> Result<impl Responder, TNRAppError> {
 
     Ok(TNRAppSuccessResponse::new(chains))
 }
+
