@@ -41,3 +41,12 @@ pub async fn dashboard(path: Path<String>, chains_data: Data<State>) -> Result<i
     let data = chain.get_dashboard_info().await?;
     Ok(TNRAppSuccessResponse::new(data))
 }
+
+#[get("{chain}/stats")]
+pub async fn stats(path: Path<String>, chains_data: Data<State>) -> Result<impl Responder, TNRAppError> {
+    let chain = path.into_inner();
+    let chain = extract_chain(&chain, chains_data)?;
+
+    let data = chain.get_stats().await?;
+    Ok(TNRAppSuccessResponse::new(data))
+}

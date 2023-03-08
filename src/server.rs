@@ -75,6 +75,7 @@ pub async fn start_web_server() -> std::io::Result<()> {
             // Services.
             .service(initial)
             .service(routes::dashboard)
+            .service(routes::stats)
             .service(routes::chains)
             .service(routes::block_by_hash)
             .service(routes::block_by_height)
