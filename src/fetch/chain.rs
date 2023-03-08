@@ -5,7 +5,7 @@ use crate::{chain::Chain, routes::TNRAppError};
 use super::amount_util::TnrDecimal;
 
 impl Chain {
-    pub async fn get_dashboard_info(&self) -> Result<ChainDashboardInfo, TNRAppError> {
+    pub async fn get_dashboard_info(&self) -> Result<ChainDashboardInfoResponse, TNRAppError> {
         let market_cap = 0.0;
         let inflation_rate = self.get_inflation_rate().await?.value;
         let apr = self.get_apr().await?;
@@ -15,7 +15,7 @@ impl Chain {
         let total_supply = self.get_supply_by_denom(&self.config.main_denom).await?.value.amount;
         let community_pool = self.get_community_pool().await?.value;
 
-        Ok(ChainDashboardInfo {
+        Ok(ChainDashboardInfoResponse {
             inflation_rate,
             apr,
             total_unbonded,
@@ -29,7 +29,7 @@ impl Chain {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct ChainDashboardInfo {
+pub struct ChainDashboardInfoResponse {
     pub market_cap: f64,
     pub inflation_rate: f64,
     pub apr: f64,
