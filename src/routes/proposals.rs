@@ -1,14 +1,11 @@
 use actix_web::{
     get,
-    Responder,
     web::{Data, Path, Query},
+    Responder,
 };
 
-use crate::{
-    fetch::others::PaginationConfig,
-    state::State,
-};
 use crate::routes::{extract_chain, TNRAppError, TNRAppSuccessResponse};
+use crate::{fetch::others::PaginationConfig, state::State};
 
 use super::QueryParams;
 

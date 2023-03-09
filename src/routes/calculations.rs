@@ -1,10 +1,10 @@
-use crate::{state::State};
+use crate::routes::{extract_chain, TNRAppError, TNRAppSuccessResponse};
+use crate::state::State;
 use actix_web::{
     get,
     web::{Data, Path},
     Responder,
 };
-use crate::routes::{extract_chain, TNRAppError, TNRAppSuccessResponse};
 
 // ======== Calculations Methods ========
 

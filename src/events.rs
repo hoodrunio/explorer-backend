@@ -96,6 +96,7 @@ pub async fn handle_connection(
                     WsEvent::NewBLock(_) => mode.block,
                     WsEvent::NewEvmPoll(_) => mode.poll,
                     WsEvent::UpdateEvmPollParticipant(_) => mode.poll,
+                    WsEvent::Dummy(_) => true,
                 };
                 if chain == wanted_chain && should_send {
                     outgoing.send(Message::Text(serde_json::to_string(&msg).unwrap())).await;
@@ -123,6 +124,7 @@ pub enum WsEvent {
     NewBLock(BlockForDb),
     NewEvmPoll(EvmPollForDb),
     UpdateEvmPollParticipant((String, EvmPollParticipantForDb)),
+    Dummy(String),
 }
 
 impl Display for WsEvent {
@@ -146,6 +148,9 @@ impl Display for WsEvent {
                     f,
                     "WsEvent (UpdateEvmPollParticipant), poll_id: {poll_id}, participant_hash: {participant_address}"
                 )
+            }
+            WsEvent::Dummy(s) => {
+                write!(f, "WsEvent (Dummy) data: {s}")
             }
         }
     }
