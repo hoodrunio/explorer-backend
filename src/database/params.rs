@@ -1,12 +1,15 @@
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
 
+use crate::fetch::chain::TokenMarketHistory;
+
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct Params {
     pub staking: StakingParams,
     pub slashing: SlashingParams,
     pub gov: GovParams,
     pub distribution: DistributionParams,
+    pub market_price_history: Option<TokenMarketPriceHistories>,
 }
 
 /// The staking params.
@@ -81,4 +84,67 @@ impl Default for VotingPower {
             ts: Utc::now().timestamp_millis(),
         }
     }
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct TokenMarketPriceHistories {
+    pub daily: TokenMarketPriceHistory,
+}
+
+impl From<TokenMarketHistory> for TokenMarketPriceHistories {
+    fn from(value: TokenMarketHistory) -> Self {
+        let market_caps = value
+            .market_caps
+            .into_iter()
+            .map(|v| MarketChart {
+                timestamp: v.timestamp,
+                value: v.value,
+            })
+            .collect();
+
+        let prices = value
+            .prices
+            .into_iter()
+            .map(|v| MarketChart {
+                timestamp: v.timestamp,
+                value: v.value,
+            })
+            .collect();
+
+        let total_volumes = value
+            .total_volumes
+            .into_iter()
+            .map(|v| MarketChart {
+                timestamp: v.timestamp,
+                value: v.value,
+            })
+            .collect();
+
+        Self {
+            daily: TokenMarketPriceHistory {
+                parity: value.parity,
+                token_id: value.token_id,
+                day_period: value.day_period,
+                market_caps,
+                prices,
+                total_volumes,
+            },
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct TokenMarketPriceHistory {
+    pub parity: String,
+    pub token_id: String,
+    pub day_period: String,
+    pub market_caps: Vec<MarketChart>,
+    pub prices: Vec<MarketChart>,
+    pub total_volumes: Vec<MarketChart>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct MarketChart {
+    pub timestamp: u64,
+    pub value: f64,
 }

@@ -7,7 +7,9 @@ use mongodb::{
 
 use crate::database::blocks::Block;
 use crate::database::params::{HistoricalValidatorData, VotingPower};
-use crate::database::{EvmPollForDb, EvmPollParticipantForDb, HeartbeatForDb, ListDbResult, PaginationDb, TransactionForDb};
+use crate::database::{
+    EvmPollForDb, EvmPollParticipantForDb, HeartbeatForDb, ListDbResult, PaginationDb, TokenMarketPriceHistoriesForDb, TransactionForDb,
+};
 use crate::fetch::evm::{EvmPollListDbResp, EvmSupportedChains, PollStatus};
 use crate::fetch::others::PaginationConfig;
 use crate::fetch::validators::ValidatorListDbResp;
@@ -631,6 +633,46 @@ impl DatabaseTR {
         match self.db().run_command(command, None).await {
             Ok(_) => Ok(()),
             Err(e) => Err(format!("Cannot save the params: {e}")),
+        }
+    }
+
+    /// # Usage
+    /// ```rs
+    /// database.insert_market_price_history(token_market_price_histories).await;
+    /// ```
+    pub async fn insert_market_price_history(&self, token_market_price_histories: TokenMarketPriceHistoriesForDb) -> Result<(), String> {
+        let doc = to_document(&token_market_price_histories).unwrap();
+        let command = doc! {
+            "update":"params",
+            "updates":[{
+                "q":{"staking":{"$exists":true}},
+                "u":{"$set":{"market_price_history":doc}}
+            }]
+        };
+        match self.db().run_command(command, None).await {
+            Ok(_) => Ok(()),
+            Err(e) => Err(format!("Cannot save the market_price_history: {e}")),
+        }
+    }
+
+    /// # Usage
+    /// ```rs
+    /// database.insertfind_market_history_market_price_history(token_market_price_histories).await;
+    /// ```
+    pub async fn find_market_history(&self) -> Result<TokenMarketPriceHistoriesForDb, String> {
+        let filter = doc! {"market_price_history":{"$exists":true}};
+
+        let res: Params = match self.db().collection("params").find_one(filter, None).await {
+            Ok(params) => match params {
+                Some(params) => params,
+                None => return Err("No validator is found.".into()),
+            },
+            Err(e) => return Err(format!("Cannot make request to DB: {e}")),
+        };
+
+        match res.market_price_history {
+            Some(market_price_history) => Ok(market_price_history),
+            None => Err("No market_price_history is found.".into()),
         }
     }
 
