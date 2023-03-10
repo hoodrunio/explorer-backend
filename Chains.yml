@@ -13,7 +13,6 @@ axelar:
   wss_url: wss://rpc-axelar.stakerun.com/websocket
   archive_url: https://axelararchive-lcd.quickapi.com
 
-
 evmos:
   name: evmos
   epoch: true
@@ -45,7 +44,6 @@ osmosis:
   wss_url: wss://rpc.osmosis.interbloc.org/websocket
   archive_url: empty
 
-
 umee:
   name: umee
   epoch: false
@@ -61,7 +59,6 @@ umee:
   wss_url: wss://rpc-umee.huginn.tech/websocket
   archive_url: empty
 
-
 secret:
   name: secret
   epoch: false
@@ -76,7 +73,6 @@ secret:
   rest_url: https://secretnetwork-lcd.stakely.io
   wss_url: wss://scrt-rpc.agoranodes.com/websocket
   archive_url: empty
-
 
 quicksilver:
   name: quicksilver

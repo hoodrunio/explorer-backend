@@ -24,6 +24,10 @@ impl Chain {
                     tracing::error!("validator supported chains error: {error}")
                 };
 
+                if let Err(error) = clone_chain.cron_job_chain_price_history().await {
+                    tracing::error!("chain price history cronjob error: {error}")
+                };
+
                 sleep(duration).await;
             }
         });

@@ -7,7 +7,9 @@ use mongodb::{
 
 use crate::database::blocks::Block;
 use crate::database::params::{HistoricalValidatorData, VotingPower};
-use crate::database::{EvmPollForDb, EvmPollParticipantForDb, HeartbeatForDb, ListDbResult, PaginationDb, TransactionForDb};
+use crate::database::{
+    EvmPollForDb, EvmPollParticipantForDb, HeartbeatForDb, ListDbResult, PaginationDb, TokenMarketPriceHistoriesForDb, TransactionForDb,
+};
 use crate::fetch::evm::{EvmPollListDbResp, EvmSupportedChains, PollStatus};
 use crate::fetch::others::PaginationConfig;
 use crate::fetch::validators::ValidatorListDbResp;
@@ -109,6 +111,15 @@ impl DatabaseTR {
     /// ```
     fn heartbeat_collection(&self) -> Collection<HeartbeatForDb> {
         self.db().collection("heartbeats")
+    }
+
+    /// Returns the market price history collection.
+    /// # Usage
+    /// ```rs
+    /// let collection = database.market_price_history();
+    /// ```
+    fn market_price_history(&self) -> Collection<TokenMarketPriceHistoriesForDb> {
+        self.db().collection("market_price_history")
     }
 
     pub async fn upsert_validator(&self, validator: Validator) -> Result<(), String> {
@@ -631,6 +642,42 @@ impl DatabaseTR {
         match self.db().run_command(command, None).await {
             Ok(_) => Ok(()),
             Err(e) => Err(format!("Cannot save the params: {e}")),
+        }
+    }
+
+    /// # Usage
+    /// ```rs
+    /// database.insert_market_price_history(token_market_price_histories).await;
+    /// ```
+    pub async fn insert_market_price_history(&self, token_market_price_histories: TokenMarketPriceHistoriesForDb) -> Result<(), String> {
+        let doc = to_document(&token_market_price_histories).unwrap();
+        let command = doc! {
+            "update":"market_price_history",
+            "updates":[{
+                "q":{"token": token_market_price_histories.token.clone()},
+                "u":{"$set":doc},
+                "upsert":true}
+                ]
+        };
+        match self.db().run_command(command, None).await {
+            Ok(_) => Ok(()),
+            Err(e) => Err(format!("Cannot save the market_price_history: {e}")),
+        }
+    }
+
+    /// # Usage
+    /// ```rs
+    /// database.insertfind_market_history_market_price_history(token_market_price_histories).await;
+    /// ```
+    pub async fn find_market_history(&self, token: String) -> Result<TokenMarketPriceHistoriesForDb, String> {
+        let filter = doc! {"token":token};
+
+        match self.market_price_history().find_one(filter, None).await {
+            Ok(history) => match history {
+                Some(history) => Ok(history),
+                None => return Err("No validator is found.".into()),
+            },
+            Err(e) => return Err(format!("Cannot make request to DB: {e}")),
         }
     }
 
