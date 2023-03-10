@@ -2,13 +2,13 @@ use mongodb::bson::doc;
 use serde::{Deserialize, Serialize};
 use serde_json::Number;
 
-use crate::{chain::Chain, routes::TNRAppError};
+use crate::{chain::Chain, database::TokenMarketPriceHistoriesForDb, routes::TNRAppError};
 
 use super::amount_util::TnrDecimal;
 
 impl Chain {
     pub async fn get_dashboard_info(&self) -> Result<ChainDashboardInfoResponse, TNRAppError> {
-        let market_cap = 0.0;
+        let mut market_cap = InternalMarketChart::default();
         let inflation_rate = self.get_inflation_rate().await?.value;
         let apr = self.get_apr().await.unwrap_or(0.0);
 
@@ -26,6 +26,13 @@ impl Chain {
             .unwrap_or(TnrDecimal::ZERO);
 
         let community_pool = self.get_community_pool().await.map(|res| res.value).unwrap_or(0);
+        let market_history = match self.get_chain_market_chart_history().await {
+            Ok(res) => {
+                market_cap = res.market_caps.first().cloned().unwrap_or_default();
+                Some(res)
+            }
+            Err(_) => None,
+        };
 
         Ok(ChainDashboardInfoResponse {
             inflation_rate,
@@ -35,8 +42,20 @@ impl Chain {
             total_supply,
             community_pool,
             market_cap,
-            market_history: vec![],
+            market_history,
         })
+    }
+
+    pub async fn get_chain_market_chart_history(&self) -> Result<TokenMarketHistory, String> {
+        let result = match self.database.find_market_history().await {
+            Ok(res) => res,
+            Err(e) => {
+                tracing::error!("Error while fetching market history: {}", e);
+                return Err("Error while fetching market history".to_string());
+            }
+        };
+
+        Ok(result.into())
     }
 
     pub async fn get_stats(&self) -> Result<ChainStatsInfoResponse, TNRAppError> {
@@ -83,14 +102,14 @@ impl Chain {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ChainDashboardInfoResponse {
-    pub market_cap: f64,
+    pub market_cap: InternalMarketChart,
     pub inflation_rate: f64,
     pub apr: f64,
     pub total_unbonded: f64,
     pub total_bonded: f64,
     pub total_supply: TnrDecimal,
     pub community_pool: u64,
-    pub market_history: Vec<MarketHistory>,
+    pub market_history: Option<TokenMarketHistory>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -116,7 +135,7 @@ pub struct GeckoTokenMarketChartResponse {
     pub total_volumes: GeckoMarketChartValue,
 }
 
-type GeckoMarketChartValue = Vec<Vec<Number>>;
+pub type GeckoMarketChartValue = Vec<Vec<Number>>;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct InternalMarketChart {
@@ -124,16 +143,61 @@ pub struct InternalMarketChart {
     pub value: f64,
 }
 
-type TokenMarketHistoryValue = Vec<InternalMarketChart>;
+impl Default for InternalMarketChart {
+    fn default() -> Self {
+        Self { timestamp: 0, value: 0.0 }
+    }
+}
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct TokenMarketHistory {
     pub parity: String,
     pub token_id: String,
     pub day_period: String,
-    pub market_caps: TokenMarketHistoryValue,
-    pub prices: TokenMarketHistoryValue,
-    pub total_volumes: TokenMarketHistoryValue,
+    pub market_caps: Vec<InternalMarketChart>,
+    pub prices: Vec<InternalMarketChart>,
+    pub total_volumes: Vec<InternalMarketChart>,
+}
+
+impl From<TokenMarketPriceHistoriesForDb> for TokenMarketHistory {
+    fn from(value: TokenMarketPriceHistoriesForDb) -> Self {
+        let daily = value.daily;
+        let market_caps = daily
+            .market_caps
+            .into_iter()
+            .map(|cap| InternalMarketChart {
+                timestamp: cap.timestamp,
+                value: cap.value,
+            })
+            .collect();
+
+        let prices = daily
+            .prices
+            .into_iter()
+            .map(|price| InternalMarketChart {
+                timestamp: price.timestamp,
+                value: price.value,
+            })
+            .collect();
+
+        let total_volumes = daily
+            .total_volumes
+            .into_iter()
+            .map(|volume| InternalMarketChart {
+                timestamp: volume.timestamp,
+                value: volume.value,
+            })
+            .collect();
+
+        Self {
+            market_caps,
+            prices,
+            total_volumes,
+            parity: daily.parity,
+            token_id: daily.token_id,
+            day_period: daily.day_period,
+        }
+    }
 }
 
 impl TokenMarketHistory {
@@ -163,8 +227,8 @@ impl TokenMarketHistory {
         }
     }
 
-    fn gecko_chart_mapper(&self, gecko_chart_value: &GeckoMarketChartValue) -> TokenMarketHistoryValue {
-        let mut internal_market_charts: TokenMarketHistoryValue = vec![];
+    fn gecko_chart_mapper(&self, gecko_chart_value: &GeckoMarketChartValue) -> Vec<InternalMarketChart> {
+        let mut internal_market_charts: Vec<InternalMarketChart> = vec![];
         for gecko_chart in gecko_chart_value {
             let timestamp = gecko_chart[0].as_u64().unwrap_or(0);
             let value = gecko_chart[1].as_f64().unwrap_or(0.0);
