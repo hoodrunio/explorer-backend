@@ -64,7 +64,7 @@ impl Chain {
         })
     }
 
-    pub async fn get_token_market_chart(
+    pub async fn gecko_token_market_chart(
         &self,
         token_id: String,
         parity: Option<String>,
