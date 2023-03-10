@@ -16,7 +16,7 @@ axelar:
 evmos:
   name: evmos
   epoch: true
-  gecko: aevmos
+  gecko: evmos
   symbol: EVMOS
   denom: aevmos
   # prefix: evmos
@@ -32,7 +32,7 @@ evmos:
 osmosis:
   name: osmosis
   epoch: true
-  gecko: uosmo
+  gecko: osmosis
   symbol: OSMO
   denom: uosmo
   prefix: osmo
@@ -47,7 +47,7 @@ osmosis:
 umee:
   name: umee
   epoch: false
-  gecko: uumee
+  gecko: umee
   symbol: UMEE
   denom: uumee
   # prefix: umee
@@ -62,7 +62,7 @@ umee:
 secret:
   name: secret
   epoch: false
-  gecko: uscrt
+  gecko: secret
   symbol: SCRT
   denom: usecret
   # prefix: secret
