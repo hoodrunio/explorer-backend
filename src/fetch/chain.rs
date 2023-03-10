@@ -119,3 +119,41 @@ pub struct TokenMarketHistory {
     pub prices: TokenMarketHistoryValue,
     pub total_volumes: TokenMarketHistoryValue,
 }
+
+impl TokenMarketHistory {
+    pub fn new() -> Self {
+        Self {
+            market_caps: vec![],
+            prices: vec![],
+            total_volumes: vec![],
+            parity: "".to_string(),
+            token_id: "".to_string(),
+            day_period: "".to_string(),
+        }
+    }
+
+    pub fn gecko_response_from(&self, value: GeckoTokenMarketChartResponse, parity: String, token_id: String, day_period: String) -> Self {
+        let market_caps = self.gecko_chart_mapper(&value.market_caps);
+        let prices = self.gecko_chart_mapper(&value.prices);
+        let total_volumes = self.gecko_chart_mapper(&value.total_volumes);
+
+        Self {
+            market_caps,
+            prices,
+            total_volumes,
+            parity,
+            token_id,
+            day_period,
+        }
+    }
+
+    fn gecko_chart_mapper(&self, gecko_chart_value: &GeckoMarketChartValue) -> TokenMarketHistoryValue {
+        let mut internal_market_charts: TokenMarketHistoryValue = vec![];
+        for gecko_chart in gecko_chart_value {
+            let timestamp = gecko_chart[0].as_u64().unwrap_or(0);
+            let value = gecko_chart[1].as_f64().unwrap_or(0.0);
+            internal_market_charts.push(InternalMarketChart { timestamp, value });
+        }
+        internal_market_charts
+    }
+}
