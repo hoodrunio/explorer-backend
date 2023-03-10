@@ -97,6 +97,14 @@ impl Chain {
             Err(_) => Err(format!("Cannot make a request to `{full_path}`.")),
         }
     }
+
+    pub(super) async fn coingecko_rest_client<T: DeserializeOwned>(&self, url: String, query: &[(&'static str, String)]) -> Result<T, String> {
+        let client = Client::new();
+        let method = Method::GET;
+        let full_path = format!("https://api.coingecko.com/api/v3{url}");
+
+        self.external_rest_api_req::<T>(&client, method, &full_path, query).await
+    }
 }
 
 #[derive(Deserialize, Serialize, Debug)]
