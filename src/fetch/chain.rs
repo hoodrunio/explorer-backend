@@ -72,12 +72,8 @@ impl Chain {
         let average_block_time = 0.0;
         let mut price = 0.0;
 
-        match self.get_chain_market_chart_history().await {
-            Ok(res) => {
-                price = res.prices.first().cloned().unwrap_or_default().value;
-                Some(res)
-            }
-            Err(_) => None,
+        if let Ok(res) = self.get_chain_market_chart_history().await {
+            price = res.prices.first().cloned().unwrap_or_default().value;
         };
 
         let active_validators = self
