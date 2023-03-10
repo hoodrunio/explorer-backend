@@ -1,5 +1,7 @@
 use crate::chain::Chain;
-use crate::database::{DistributionParamsForDb, GovParamsForDb, ParamsForDb, SlashingParamsForDb, StakingParamsForDb};
+use crate::database::{
+    DistributionParamsForDb, GovParamsForDb, ParamsForDb, SlashingParamsForDb, StakingParamsForDb, TokenMarketPriceHistoriesForDb,
+};
 
 impl Chain {
     pub async fn cron_job_params(&self) -> Result<(), String> {
@@ -35,7 +37,6 @@ impl Chain {
                     bonus_proposer_reward: all_params.distribution.bonus_proposer_reward,
                     withdraw_addr_enabled: all_params.distribution.withdraw_addr_enabled,
                 },
-                market_price_history: None,
             })
             .await?;
 
@@ -56,7 +57,11 @@ impl Chain {
                 return Ok(());
             }
         };
-        match self.database.insert_market_price_history(market_chart.into()).await {
+        match self
+            .database
+            .insert_market_price_history(TokenMarketPriceHistoriesForDb::for_db(market_chart, self.config.name.clone()))
+            .await
+        {
             Ok(_) => {}
             Err(e) => {
                 tracing::error!("Error occured on inserting token prices to db {}", e);

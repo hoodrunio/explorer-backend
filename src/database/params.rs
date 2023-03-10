@@ -9,7 +9,6 @@ pub struct Params {
     pub slashing: SlashingParams,
     pub gov: GovParams,
     pub distribution: DistributionParams,
-    pub market_price_history: Option<TokenMarketPriceHistories>,
 }
 
 /// The staking params.
@@ -88,11 +87,12 @@ impl Default for VotingPower {
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct TokenMarketPriceHistories {
+    pub token: String,
     pub daily: TokenMarketPriceHistory,
 }
 
-impl From<TokenMarketHistory> for TokenMarketPriceHistories {
-    fn from(value: TokenMarketHistory) -> Self {
+impl TokenMarketPriceHistories {
+    pub fn for_db(value: TokenMarketHistory, token: String) -> Self {
         let market_caps = value
             .market_caps
             .into_iter()
@@ -121,6 +121,7 @@ impl From<TokenMarketHistory> for TokenMarketPriceHistories {
             .collect();
 
         Self {
+            token,
             daily: TokenMarketPriceHistory {
                 parity: value.parity,
                 token_id: value.token_id,

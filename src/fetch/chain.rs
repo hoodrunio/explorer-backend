@@ -8,7 +8,8 @@ use super::amount_util::TnrDecimal;
 
 impl Chain {
     pub async fn get_dashboard_info(&self) -> Result<ChainDashboardInfoResponse, TNRAppError> {
-        let mut market_cap = InternalMarketChart::default();
+        let mut market_cap = 0.0;
+        let mut price = 0.0;
         let inflation_rate = self.get_inflation_rate().await?.value;
         let apr = self.get_apr().await.unwrap_or(0.0);
 
@@ -28,7 +29,8 @@ impl Chain {
         let community_pool = self.get_community_pool().await.map(|res| res.value).unwrap_or(0);
         let market_history = match self.get_chain_market_chart_history().await {
             Ok(res) => {
-                market_cap = res.market_caps.first().cloned().unwrap_or_default();
+                market_cap = res.market_caps.first().cloned().unwrap_or_default().value;
+                price = res.prices.first().cloned().unwrap_or_default().value;
                 Some(res)
             }
             Err(_) => None,
@@ -40,6 +42,7 @@ impl Chain {
             total_unbonded,
             total_bonded,
             total_supply,
+            price,
             community_pool,
             market_cap,
             market_history,
@@ -47,7 +50,7 @@ impl Chain {
     }
 
     pub async fn get_chain_market_chart_history(&self) -> Result<TokenMarketHistory, String> {
-        let result = match self.database.find_market_history().await {
+        let result = match self.database.find_market_history(self.config.name.clone()).await {
             Ok(res) => res,
             Err(e) => {
                 tracing::error!("Error while fetching market history: {}", e);
@@ -102,7 +105,8 @@ impl Chain {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ChainDashboardInfoResponse {
-    pub market_cap: InternalMarketChart,
+    pub price: f64,
+    pub market_cap: f64,
     pub inflation_rate: f64,
     pub apr: f64,
     pub total_unbonded: f64,
@@ -216,7 +220,6 @@ impl TokenMarketHistory {
         let market_caps = self.gecko_chart_mapper(&value.market_caps);
         let prices = self.gecko_chart_mapper(&value.prices);
         let total_volumes = self.gecko_chart_mapper(&value.total_volumes);
-
         Self {
             market_caps,
             prices,
