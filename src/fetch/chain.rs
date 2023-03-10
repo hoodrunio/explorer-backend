@@ -1,5 +1,6 @@
 use mongodb::bson::doc;
 use serde::{Deserialize, Serialize};
+use serde_json::Number;
 
 use crate::{chain::Chain, routes::TNRAppError};
 
@@ -90,4 +91,31 @@ pub struct MarketHistory {
     pub latest_update: String,
     pub volume: f64,
     pub market_cap: f64,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct GeckoTokenMarketChartResponse {
+    pub market_caps: GeckoMarketChartValue,
+    pub prices: GeckoMarketChartValue,
+    pub total_volumes: GeckoMarketChartValue,
+}
+
+type GeckoMarketChartValue = Vec<Vec<Number>>;
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct InternalMarketChart {
+    pub timestamp: u64,
+    pub value: f64,
+}
+
+type TokenMarketHistoryValue = Vec<InternalMarketChart>;
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct TokenMarketHistory {
+    pub parity: String,
+    pub token_id: String,
+    pub day_period: String,
+    pub market_caps: TokenMarketHistoryValue,
+    pub prices: TokenMarketHistoryValue,
+    pub total_volumes: TokenMarketHistoryValue,
 }
