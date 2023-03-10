@@ -70,7 +70,16 @@ impl Chain {
             .unwrap_or(0);
 
         let average_block_time = 0.0;
-        let price = 0.0;
+        let mut price = 0.0;
+
+        match self.get_chain_market_chart_history().await {
+            Ok(res) => {
+                price = res.prices.first().cloned().unwrap_or_default().value;
+                Some(res)
+            }
+            Err(_) => None,
+        };
+
         let active_validators = self
             .database
             .find_validators(Some(doc! {"$match":{"is_active":true}}))
@@ -120,7 +129,7 @@ pub struct ChainDashboardInfoResponse {
 pub struct ChainStatsInfoResponse {
     pub latest_block_height: u64,
     pub average_block_time: f32,
-    pub price: f32,
+    pub price: f64,
     pub active_validator_count: u16,
 }
 
