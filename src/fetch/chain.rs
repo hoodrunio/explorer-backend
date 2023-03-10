@@ -63,6 +63,22 @@ impl Chain {
             active_validator_count: active_validators,
         })
     }
+
+    pub async fn get_token_market_chart(
+        &self,
+        token_id: String,
+        parity: Option<String>,
+        day_period: Option<String>,
+    ) -> Result<TokenMarketHistory, String> {
+        let parity = parity.unwrap_or("usd".to_string());
+        let day_period = day_period.unwrap_or("1".to_string());
+        let query = vec![("vs_currency", parity.clone()), ("days", day_period.clone())];
+
+        let url = format!("/coins/{token_id}/market_chart");
+        let result = self.coingecko_rest_client::<GeckoTokenMarketChartResponse>(url, &query).await?;
+
+        Ok(TokenMarketHistory::new().gecko_response_from(result, parity, token_id, day_period))
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
