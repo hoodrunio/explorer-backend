@@ -29,8 +29,8 @@ impl Chain {
         let community_pool = self.get_community_pool().await.map(|res| res.value).unwrap_or(0);
         let market_history = match self.get_chain_market_chart_history().await {
             Ok(res) => {
-                market_cap = res.market_caps.first().cloned().unwrap_or_default().value;
-                price = res.prices.first().cloned().unwrap_or_default().value;
+                market_cap = res.market_caps.last().cloned().unwrap_or_default().value;
+                price = res.prices.last().cloned().unwrap_or_default().value;
                 Some(res)
             }
             Err(_) => None,
@@ -73,7 +73,7 @@ impl Chain {
         let mut price = 0.0;
 
         if let Ok(res) = self.get_chain_market_chart_history().await {
-            price = res.prices.first().cloned().unwrap_or_default().value;
+            price = res.prices.last().cloned().unwrap_or_default().value;
         };
 
         let active_validators = self
