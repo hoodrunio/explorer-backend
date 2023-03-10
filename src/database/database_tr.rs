@@ -113,6 +113,15 @@ impl DatabaseTR {
         self.db().collection("heartbeats")
     }
 
+    /// Returns the market price history collection.
+    /// # Usage
+    /// ```rs
+    /// let collection = database.market_price_history();
+    /// ```
+    fn market_price_history(&self) -> Collection<TokenMarketPriceHistoriesForDb> {
+        self.db().collection("market_price_history")
+    }
+
     pub async fn upsert_validator(&self, validator: Validator) -> Result<(), String> {
         let doc = to_document(&validator).unwrap();
         let command = doc! {"update":"validators","updates":[{"q":{"operator_address":&validator.operator_address},"u":doc,"upsert":true}]};
@@ -643,11 +652,12 @@ impl DatabaseTR {
     pub async fn insert_market_price_history(&self, token_market_price_histories: TokenMarketPriceHistoriesForDb) -> Result<(), String> {
         let doc = to_document(&token_market_price_histories).unwrap();
         let command = doc! {
-            "update":"params",
+            "update":"market_price_history",
             "updates":[{
-                "q":{"staking":{"$exists":true}},
-                "u":{"$set":{"market_price_history":doc}}
-            }]
+                "q":{"token": token_market_price_histories.token.clone()},
+                "u":{"$set":doc},
+                "upsert":true}
+                ]
         };
         match self.db().run_command(command, None).await {
             Ok(_) => Ok(()),
@@ -659,20 +669,15 @@ impl DatabaseTR {
     /// ```rs
     /// database.insertfind_market_history_market_price_history(token_market_price_histories).await;
     /// ```
-    pub async fn find_market_history(&self) -> Result<TokenMarketPriceHistoriesForDb, String> {
-        let filter = doc! {"market_price_history":{"$exists":true}};
+    pub async fn find_market_history(&self, token: String) -> Result<TokenMarketPriceHistoriesForDb, String> {
+        let filter = doc! {"token":token};
 
-        let res: Params = match self.db().collection("params").find_one(filter, None).await {
-            Ok(params) => match params {
-                Some(params) => params,
+        match self.market_price_history().find_one(filter, None).await {
+            Ok(history) => match history {
+                Some(history) => Ok(history),
                 None => return Err("No validator is found.".into()),
             },
             Err(e) => return Err(format!("Cannot make request to DB: {e}")),
-        };
-
-        match res.market_price_history {
-            Some(market_price_history) => Ok(market_price_history),
-            None => Err("No market_price_history is found.".into()),
         }
     }
 
