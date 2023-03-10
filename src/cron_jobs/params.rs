@@ -35,9 +35,33 @@ impl Chain {
                     bonus_proposer_reward: all_params.distribution.bonus_proposer_reward,
                     withdraw_addr_enabled: all_params.distribution.withdraw_addr_enabled,
                 },
+                market_price_history: None,
             })
             .await?;
 
+        Ok(())
+    }
+
+    pub async fn cron_job_chain_price_history(&self) -> Result<(), String> {
+        let token_id = self
+            .config
+            .gecko
+            .clone()
+            .ok_or(format!("{} gecko token id not found", self.config.name))?;
+
+        let market_chart = match self.gecko_token_market_chart(token_id, None, None).await {
+            Ok(res) => res,
+            Err(e) => {
+                tracing::error!("Error occured on cron job for token prices {}", e);
+                return Ok(());
+            }
+        };
+        match self.database.insert_market_price_history(market_chart.into()).await {
+            Ok(_) => {}
+            Err(e) => {
+                tracing::error!("Error occured on inserting token prices to db {}", e);
+            }
+        };
         Ok(())
     }
 }
