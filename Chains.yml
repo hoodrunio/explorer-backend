@@ -13,11 +13,10 @@ axelar:
   wss_url: wss://rpc-axelar.stakerun.com/websocket
   archive_url: https://axelararchive-lcd.quickapi.com
 
-
 evmos:
   name: evmos
   epoch: true
-  gecko: evmos
+  gecko: aevmos
   symbol: EVMOS
   denom: aevmos
   # prefix: evmos
@@ -33,7 +32,7 @@ evmos:
 osmosis:
   name: osmosis
   epoch: true
-  gecko: osmosis
+  gecko: uosmo
   symbol: OSMO
   denom: uosmo
   prefix: osmo
@@ -45,11 +44,10 @@ osmosis:
   wss_url: wss://rpc.osmosis.interbloc.org/websocket
   archive_url: empty
 
-
 umee:
   name: umee
   epoch: false
-  gecko: umee
+  gecko: uumee
   symbol: UMEE
   denom: uumee
   # prefix: umee
@@ -61,11 +59,10 @@ umee:
   wss_url: wss://rpc-umee.huginn.tech/websocket
   archive_url: empty
 
-
 secret:
   name: secret
   epoch: false
-  gecko: secret
+  gecko: uscrt
   symbol: SCRT
   denom: usecret
   # prefix: secret
@@ -76,7 +73,6 @@ secret:
   rest_url: https://secretnetwork-lcd.stakely.io
   wss_url: wss://scrt-rpc.agoranodes.com/websocket
   archive_url: empty
-
 
 quicksilver:
   name: quicksilver
