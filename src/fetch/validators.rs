@@ -673,10 +673,10 @@ impl ValidatorListResp {
             let delegator_shares = v.delegator_shares;
             let uptime = v.uptime;
             let voting_power = delegator_shares as u64;
-            let voting_power_ratio = delegator_shares / bonded_token as f64;
+            let voting_power_ratio = (delegator_shares / bonded_token as f64) / 10000.0;
             let rank = i + 1;
             let cumulative_bonded_tokens = v.cumulative_bonded_tokens.unwrap_or(0.0);
-            let cumulative_share = cumulative_bonded_tokens / bonded_token as f64;
+            let cumulative_share = (cumulative_bonded_tokens / bonded_token as f64) / 10000.0;
             let missed_29k = 0;
             if v.is_active {
                 //WARNING This request takes too much time can turn to a cron job
