@@ -69,36 +69,34 @@ impl Chain {
     }
 
     pub async fn get_stats(&self) -> Result<ChainStatsInfoResponse, TNRAppError> {
-        let latest_block_height: u64 = self
-            .database
-            .find_last_count_blocks(None, 1)
-            .await
+        let (latest_block_height_resp, avg_block_time_resp, chain_market_history, active_validators_query) = join!(
+            self.database.find_last_count_blocks(None, 1),
+            self.get_avg_block_time(),
+            self.get_chain_market_chart_history(),
+            self.database.find_validators(Some(doc! {"$match":{"is_active":true}}))
+        );
+        let latest_block_height: u64 = latest_block_height_resp
             .map(|blocks| blocks.first().map(|block| block.height).unwrap_or(0))
             .unwrap_or(0);
 
         let mut average_block_time_ms = 0.0;
         let mut price = 0.0;
 
-        if let Ok(avg_block_time_ms) = self.get_avg_block_time().await {
+        if let Ok(avg_block_time_ms) = avg_block_time_resp {
             average_block_time_ms = avg_block_time_ms;
         };
 
-        if let Ok(res) = self.get_chain_market_chart_history().await {
+        if let Ok(res) = chain_market_history {
             price = res.prices.last().cloned().unwrap_or_default().value;
         };
 
-        let active_validators = self
-            .database
-            .find_validators(Some(doc! {"$match":{"is_active":true}}))
-            .await
-            .map(|res| res.len() as u16)
-            .unwrap_or(0);
+        let active_validator_count: u16 = active_validators_query.map(|res| res.len() as u16).unwrap_or(0);
 
         Ok(ChainStatsInfoResponse {
             latest_block_height,
             average_block_time_ms,
             price,
-            active_validator_count: active_validators,
+            active_validator_count,
         })
     }
 
