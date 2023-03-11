@@ -201,6 +201,27 @@ impl Chain {
 
         Ok(validator_signed_or_not_items)
     }
+
+    ///
+    /// Returns average block time as milliseconds.
+    ///
+    pub async fn get_avg_block_time(&self) -> Result<f64, String> {
+        let block_time_period: u64 = 10000;
+        let latest_block = self.get_latest_block().await?;
+        let latest_block_height = match latest_block.header.height.parse::<u64>() {
+            Ok(res) => res,
+            Err(e) => return Err(format!("Avg block time scope Parsing Error: {e}")),
+        };
+        let lower_block_height = latest_block_height - block_time_period;
+        let lower_block = self.get_block_by_height(Some(lower_block_height)).await?.value;
+        let latest_block_date_time = match DateTime::parse_from_rfc3339(&latest_block.header.time) {
+            Ok(res) => res,
+            Err(e) => return Err(format!("Latest block time parsing error: {e}")),
+        };
+        let avg_block_time = ((latest_block_date_time.timestamp_millis() - lower_block.time) as f64) / block_time_period as f64;
+
+        Ok(avg_block_time)
+    }
 }
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
