@@ -69,8 +69,12 @@ impl Chain {
             .map(|blocks| blocks.first().map(|block| block.height).unwrap_or(0))
             .unwrap_or(0);
 
-        let average_block_time = 0.0;
+        let mut average_block_time_ms = 0.0;
         let mut price = 0.0;
+
+        if let Ok(avg_block_time_ms) = self.get_avg_block_time().await {
+            average_block_time_ms = avg_block_time_ms;
+        };
 
         if let Ok(res) = self.get_chain_market_chart_history().await {
             price = res.prices.last().cloned().unwrap_or_default().value;
@@ -85,7 +89,7 @@ impl Chain {
 
         Ok(ChainStatsInfoResponse {
             latest_block_height,
-            average_block_time,
+            average_block_time_ms,
             price,
             active_validator_count: active_validators,
         })
@@ -124,7 +128,7 @@ pub struct ChainDashboardInfoResponse {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ChainStatsInfoResponse {
     pub latest_block_height: u64,
-    pub average_block_time: f32,
+    pub average_block_time_ms: f64,
     pub price: f64,
     pub active_validator_count: u16,
 }
