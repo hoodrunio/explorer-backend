@@ -43,6 +43,7 @@ pub struct EvmPollRespElement {
     pub event: String,
     pub status: String,
     pub height: u64,
+    pub timestamp: u64,
     pub deposit_address: String,
     pub participants: Vec<EvmPollParticipantForDb>,
 }
@@ -58,6 +59,7 @@ impl From<EvmPollForDb> for EvmPollRespElement {
             participants: value.participants.clone(),
             sender_chain: value.chain_name.clone(),
             tx_id: value.evm_tx_id,
+            timestamp: value.timestamp,
         }
     }
 }
