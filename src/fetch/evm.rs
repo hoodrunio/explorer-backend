@@ -45,11 +45,18 @@ pub struct EvmPollRespElement {
     pub height: u64,
     pub timestamp: u64,
     pub deposit_address: String,
+    pub vote_count_info: EvmPollVoteCountInfoElement,
     pub participants: Vec<EvmPollParticipantForDb>,
 }
 
 impl From<EvmPollForDb> for EvmPollRespElement {
     fn from(value: EvmPollForDb) -> Self {
+        let mut vote_count_info = EvmPollVoteCountInfoElement::default();
+        value
+            .participants
+            .iter()
+            .for_each(|participant| vote_count_info.increment_count(&participant.vote));
+
         Self {
             deposit_address: value.evm_deposit_address.clone(),
             event: value.action.clone(),
@@ -60,6 +67,7 @@ impl From<EvmPollForDb> for EvmPollRespElement {
             sender_chain: value.chain_name.clone(),
             tx_id: value.evm_tx_id,
             timestamp: value.timestamp,
+            vote_count_info,
         }
     }
 }
@@ -147,4 +155,27 @@ pub struct EvmVoteRespElement {
     pub tx_height: u64,
     pub tx_hash: String,
     pub voter_address: String,
+}
+
+#[derive(Deserialize, Serialize, Debug)]
+pub struct EvmPollVoteCountInfoElement {
+    pub yes: u32,
+    pub no: u32,
+    pub unsubmit: u32,
+}
+
+impl EvmPollVoteCountInfoElement {
+    pub fn increment_count(&mut self, vote: &EvmPollVote) {
+        match vote {
+            EvmPollVote::Yes => self.yes += 1,
+            EvmPollVote::No => self.no += 1,
+            EvmPollVote::UnSubmit => self.unsubmit += 1,
+        }
+    }
+}
+
+impl Default for EvmPollVoteCountInfoElement {
+    fn default() -> Self {
+        Self { yes: 0, no: 0, unsubmit: 0 }
+    }
 }
