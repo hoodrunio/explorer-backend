@@ -1348,7 +1348,7 @@ impl TxsTransactionMessage {
                 TxsTransactionMessageKnowns::AxelarRefundRequest { .. } => "AxelarRefundRequest",
                 TxsTransactionMessageKnowns::AxelarLinkRequest { .. } => "LinkRequest",
                 TxsTransactionMessageKnowns::AxelarConfirmDepositRequest { .. } => "ConfirmDepositRequest",
-                TxsTransactionMessageKnowns::AxelarCreatePendingTransfersRequest { chain, sender } => "CreatePendingTransfersRequest",
+                TxsTransactionMessageKnowns::AxelarCreatePendingTransfersRequest { .. } => "CreatePendingTransfersRequest",
             }
             .to_string(),
             TxsTransactionMessage::Unknown(keys_values) => keys_values
