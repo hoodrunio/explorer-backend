@@ -1,5 +1,7 @@
 use crate::chain::Chain;
-use crate::database::{DistributionParamsForDb, GovParamsForDb, ParamsForDb, SlashingParamsForDb, StakingParamsForDb};
+use crate::database::{
+    DistributionParamsForDb, GovParamsForDb, ParamsForDb, SlashingParamsForDb, StakingParamsForDb, TokenMarketPriceHistoriesForDb,
+};
 
 impl Chain {
     pub async fn cron_job_params(&self) -> Result<(), String> {
@@ -38,6 +40,33 @@ impl Chain {
             })
             .await?;
 
+        Ok(())
+    }
+
+    pub async fn cron_job_chain_price_history(&self) -> Result<(), String> {
+        let token_id = self
+            .config
+            .gecko
+            .clone()
+            .ok_or(format!("{} gecko token id not found", self.config.name))?;
+
+        let market_chart = match self.gecko_token_market_chart(token_id, None, None).await {
+            Ok(res) => res,
+            Err(e) => {
+                tracing::error!("Error occured on cron job for token prices {}", e);
+                return Ok(());
+            }
+        };
+        match self
+            .database
+            .insert_market_price_history(TokenMarketPriceHistoriesForDb::for_db(market_chart, self.config.name.clone()))
+            .await
+        {
+            Ok(_) => {}
+            Err(e) => {
+                tracing::error!("Error occured on inserting token prices to db {}", e);
+            }
+        };
         Ok(())
     }
 }

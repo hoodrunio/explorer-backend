@@ -74,6 +74,8 @@ pub async fn start_web_server() -> std::io::Result<()> {
             .app_data(state.clone())
             // Services.
             .service(initial)
+            .service(routes::dashboard)
+            .service(routes::stats)
             .service(routes::chains)
             .service(routes::block_by_hash)
             .service(routes::block_by_height)
@@ -101,9 +103,6 @@ pub async fn start_web_server() -> std::io::Result<()> {
             .service(routes::signing)
             .service(routes::calculations)
             .service(routes::staking_pool)
-            // Socket's are not working as we store neither blocks nor txs in the database.
-            // And the Web Socket connection between this program and nodes is broken.
-            .service(web::resource("{chain}/socket").route(web::get().to(routes::socket)))
             .service(routes::supplies)
             .service(routes::supply)
             .service(routes::account)

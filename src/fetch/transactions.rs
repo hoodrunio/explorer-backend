@@ -36,16 +36,14 @@ impl Chain {
                         .value
                         .into_iter()
                         .find(|a| {
-                            a.content
-                                .iter()
-                                .find(|a| {
-                                    if let InternalTransactionContent::Known(InternalTransactionContentKnowns::EthereumTx { hash: tx_hash }) = a {
-                                        tx_hash == hash
-                                    } else {
-                                        false
-                                    }
-                                })
-                                .is_some()
+                            a.content.iter().any(|a| {
+                                if let InternalTransactionContent::Known(InternalTransactionContentKnowns::EthereumTx { hash: tx_hash, data: _ }) = a
+                                {
+                                    tx_hash == hash
+                                } else {
+                                    false
+                                }
+                            })
                         })
                         .ok_or_else(|| format!("This transaction does not exist, {hash}."))?;
 
@@ -637,6 +635,13 @@ pub enum InternalTransactionContentKnowns {
     #[serde(rename = "Ethereum Tx")]
     EthereumTx {
         hash: String,
+        data: EthereumTxData,
+    },
+    SwapExactAmountIn {
+        sender: String,
+        pool_ids: Vec<String>,
+        token_in: ChainAmountItem,
+        token_out: ChainAmountItem,
     },
     IBCUpdateClient {
         signer: String,
@@ -701,6 +706,33 @@ pub enum InternalTransactionContentKnowns {
     AxelarRefundRequest {
         sender: String,
         inner_message: InnerMessage,
+    },
+    AxelarLinkRequest {
+        sender: String,
+        recipient_addr: String,
+        recipient_chain: String,
+        asset: String,
+        source_chain: String,
+        deposit_address: String,
+    },
+    AxelarConfirmDepositRequest {
+        asset: String,
+        sender: String,
+        destination_chain: String,
+        destination_address: String,
+        amount: String,
+        transfer_id: String,
+        deposit_address: String,
+        source_chain: String,
+    },
+    AxelarCreatePendingTransfersRequest {
+        chain: String,
+        sender: String,
+        amount: ChainAmountItem,
+        destination_address: String,
+        destination_chain: String,
+        transfer_id: String,
+        command_id: String,
     },
 }
 
@@ -986,8 +1018,8 @@ impl TxsTransactionMessage {
 
                         InternalTransactionContent::Known(InternalTransactionContentKnowns::WithdrawValidatorCommission { amount, validator_address })
                     }
-                    TxsTransactionMessageKnowns::EthereumTx { hash } => {
-                        InternalTransactionContent::Known(InternalTransactionContentKnowns::EthereumTx { hash })
+                    TxsTransactionMessageKnowns::EthereumTx { hash, data } => {
+                        InternalTransactionContent::Known(InternalTransactionContentKnowns::EthereumTx { hash, data })
                     }
                     TxsTransactionMessageKnowns::Grant { granter, grantee, mut grant } => {
                         InternalTransactionContent::Known(InternalTransactionContentKnowns::Grant {
@@ -1122,6 +1154,162 @@ impl TxsTransactionMessage {
                             amount,
                         })
                     }
+                    TxsTransactionMessageKnowns::SwapExactAmountIn {
+                        sender,
+                        routes,
+                        token_in,
+                        token_out_min_amount,
+                    } => {
+                        let token_in_amount = chain.string_amount_parser(token_in.amount.clone(), Some(token_in.denom.clone())).await?;
+
+                        let token_out_amount = {
+                            let token_out_denom = routes.iter().last().map(|r| r.token_out_denom.clone());
+
+                            chain.string_amount_parser(token_out_min_amount, token_out_denom).await?
+                        };
+
+                        let pool_ids = routes.iter().map(|r| r.pool_id.clone()).collect();
+
+                        InternalTransactionContent::Known(InternalTransactionContentKnowns::SwapExactAmountIn {
+                            sender,
+                            pool_ids,
+                            token_in: token_in_amount,
+                            token_out: token_out_amount,
+                        })
+                    }
+                    TxsTransactionMessageKnowns::AxelarLinkRequest {
+                        sender,
+                        recipient_addr,
+                        recipient_chain,
+                        asset,
+                    } => {
+                        let (source_chain, deposit_address) = {
+                            let mut source_chain = String::from("");
+                            let mut deposit_address = String::from("");
+                            let logs = logs.clone().unwrap_or_default();
+                            for log in logs {
+                                for event in &log.events {
+                                    if event.r#type == "link" {
+                                        for attribute in &event.attributes {
+                                            if attribute.key == "sourceChain" {
+                                                source_chain = attribute.value.clone();
+                                            }
+                                            if attribute.key == "depositAddress" {
+                                                deposit_address = attribute.value.clone();
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
+                            (source_chain, deposit_address)
+                        };
+
+                        InternalTransactionContent::Known(InternalTransactionContentKnowns::AxelarLinkRequest {
+                            sender,
+                            recipient_addr,
+                            recipient_chain,
+                            asset,
+                            source_chain,
+                            deposit_address,
+                        })
+                    }
+                    TxsTransactionMessageKnowns::AxelarConfirmDepositRequest {
+                        denom,
+                        deposit_address,
+                        sender,
+                    } => {
+                        let mut amount = String::from("");
+                        let mut destination_chain = String::from("");
+                        let mut destination_address = String::from("");
+                        let mut transfer_id = String::from("");
+                        let mut source_chain = String::from("");
+
+                        let logs = logs.clone().unwrap_or_default();
+                        for log in logs {
+                            for event in &log.events {
+                                if event.r#type == "depositConfirmation" {
+                                    for attribute in &event.attributes {
+                                        if attribute.key == "sourceChain" {
+                                            source_chain = attribute.value.clone();
+                                        }
+                                        if attribute.key == "destinationAddress" {
+                                            destination_address = attribute.value.clone();
+                                        }
+                                        if attribute.key == "destinationChain" {
+                                            destination_chain = attribute.value.clone();
+                                        }
+                                        if attribute.key == "amount" {
+                                            amount = attribute.value.clone();
+                                        }
+                                        if attribute.key == "transferID" {
+                                            transfer_id = attribute.value.clone();
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        let amount = amount.replace(&denom, "");
+
+                        InternalTransactionContent::Known(InternalTransactionContentKnowns::AxelarConfirmDepositRequest {
+                            asset: denom,
+                            deposit_address,
+                            sender,
+                            destination_chain,
+                            destination_address,
+                            amount,
+                            transfer_id,
+                            source_chain,
+                        })
+                    }
+                    TxsTransactionMessageKnowns::AxelarCreatePendingTransfersRequest { chain: tx_chain, sender } => {
+                        let mut amount = ChainAmountItem::default();
+                        let mut destination_chain = String::from("");
+                        let mut destination_address = String::from("");
+                        let mut transfer_id = String::from("");
+                        let mut command_id = String::from("");
+
+                        let logs = logs.clone().unwrap_or_default();
+                        for log in logs {
+                            for event in &log.events {
+                                if event.r#type == "axelar.evm.v1beta1.MintCommand" {
+                                    for attribute in &event.attributes {
+                                        if attribute.key == "asset" {
+                                            if let Ok(value) = serde_json::from_str::<DenomAmount>(&attribute.value) {
+                                                amount = chain.string_amount_parser(value.amount, Some(value.denom)).await?;
+                                            }
+                                        }
+                                        if attribute.key == "chain" {
+                                            destination_address = attribute.value.clone();
+                                        }
+                                        if attribute.key == "destination_chain" {
+                                            destination_chain = attribute.value.replace('\"', "").clone();
+                                        }
+                                        if attribute.key == "destination_address" {
+                                            destination_address = attribute.value.replace('\"', "").clone();
+                                        }
+                                        if attribute.key == "transfer_id" {
+                                            transfer_id = attribute.value.replace('\"', "").clone();
+                                        }
+                                        if attribute.key == "command_id" {
+                                            command_id = attribute.value.clone();
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        InternalTransactionContent::Known(InternalTransactionContentKnowns::AxelarCreatePendingTransfersRequest {
+                            chain: tx_chain,
+                            sender,
+                            amount,
+                            destination_address,
+                            destination_chain,
+                            transfer_id,
+                            command_id,
+                        })
+                    }
                 },
                 TxsTransactionMessage::Unknown(mut keys_values) => {
                     let r#type = keys_values.remove("@type").map(|t| t.to_string()).unwrap_or("Unknown".to_string());
@@ -1151,12 +1339,16 @@ impl TxsTransactionMessage {
                 TxsTransactionMessageKnowns::Grant { .. } => "Grant",
                 TxsTransactionMessageKnowns::Exec { .. } => "Exec",
                 TxsTransactionMessageKnowns::RegisterProxy { .. } => "RegisterProxy",
-                TxsTransactionMessageKnowns::AxelarRegisterProxy { .. } => "RegisterProxy",
-                TxsTransactionMessageKnowns::AxelarRefundRequest { .. } => "AxelarRefundRequest",
                 TxsTransactionMessageKnowns::IBCUpdateClient { .. } => "IBCUpdateClient",
                 TxsTransactionMessageKnowns::IBCReceived { .. } => "IBCReceived",
                 TxsTransactionMessageKnowns::IBCAcknowledgement { .. } => "IBCAcknowledgement",
                 TxsTransactionMessageKnowns::IBCTransfer { .. } => "IBCTransfer",
+                TxsTransactionMessageKnowns::SwapExactAmountIn { .. } => "SwapExactAmountIn",
+                TxsTransactionMessageKnowns::AxelarRegisterProxy { .. } => "RegisterProxy",
+                TxsTransactionMessageKnowns::AxelarRefundRequest { .. } => "AxelarRefundRequest",
+                TxsTransactionMessageKnowns::AxelarLinkRequest { .. } => "LinkRequest",
+                TxsTransactionMessageKnowns::AxelarConfirmDepositRequest { .. } => "ConfirmDepositRequest",
+                TxsTransactionMessageKnowns::AxelarCreatePendingTransfersRequest { chain, sender } => "CreatePendingTransfersRequest",
             }
             .to_string(),
             TxsTransactionMessage::Unknown(keys_values) => keys_values
@@ -1257,6 +1449,7 @@ pub enum TxsTransactionMessageKnowns {
     EthereumTx {
         /// Ethereum transaction hash. Eg: `"0xc8137e7716e65483da73aa8d1f9f4730c253429c3d3dabce92cf63dd55027ac6"`
         hash: String,
+        data: EthereumTxData,
         // Ethereum transaction data.
         // There are multiple types of this property.
         // Creating an enum for it is necessary if we need to show the data in the explorer.
@@ -1264,6 +1457,15 @@ pub enum TxsTransactionMessageKnowns {
     },
     #[serde(rename = "/snapshot.v1beta1.RegisterProxyRequest")]
     RegisterProxy { sender: String, proxy_addr: String },
+
+    //Swap Exact Amount In
+    #[serde(rename = "/osmosis.gamm.v1beta1.MsgSwapExactAmountIn")]
+    SwapExactAmountIn {
+        sender: String,
+        routes: Vec<SwapRoute>,
+        token_in: DenomAmount,
+        token_out_min_amount: String,
+    },
 
     //IBC Messages
     #[serde(rename = "/ibc.core.client.v1.MsgUpdateClient")]
@@ -1299,7 +1501,7 @@ pub enum TxsTransactionMessageKnowns {
         receiver: String,
         timeout_height: RevisionHeight,
         timeout_timestamp: String,
-        memo: String,
+        memo: Option<String>,
     },
 
     //Axelar Messages
@@ -1307,6 +1509,21 @@ pub enum TxsTransactionMessageKnowns {
     AxelarRegisterProxy { sender: String, proxy_addr: String },
     #[serde(rename = "/axelar.reward.v1beta1.RefundMsgRequest")]
     AxelarRefundRequest { sender: String, inner_message: InnerMessage },
+    #[serde(rename = "/axelar.axelarnet.v1beta1.LinkRequest")]
+    AxelarLinkRequest {
+        sender: String,
+        recipient_addr: String,
+        recipient_chain: String,
+        asset: String,
+    },
+    #[serde(rename = "/axelar.axelarnet.v1beta1.ConfirmDepositRequest")]
+    AxelarConfirmDepositRequest {
+        denom: String,
+        deposit_address: String,
+        sender: String,
+    },
+    #[serde(rename = "/axelar.evm.v1beta1.CreatePendingTransfersRequest")]
+    AxelarCreatePendingTransfersRequest { chain: String, sender: String },
 }
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
@@ -1631,4 +1848,25 @@ pub struct IBCTxMessageHeaderLastBlockId {
 pub struct IBCTxMessageHeaderLastBlockIdPartSetHeader {
     pub hash: String,
     pub total: i64,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct SwapRoute {
+    pub pool_id: String,
+    pub token_out_denom: String,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct EthereumTxData {
+    #[serde(rename = "@type")]
+    pub r#type: String,
+    pub nonce: String,
+    pub gas_price: Option<String>,
+    pub gas_tip_cap: Option<String>,
+    pub gas_fee_cap: Option<String>,
+    pub gas: String,
+    pub to: String,
+    pub value: String,
+    pub data: Option<String>,
+    pub accesses: Option<Vec<HashMap<String, Value>>>,
 }

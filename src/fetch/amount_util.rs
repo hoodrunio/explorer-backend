@@ -45,8 +45,16 @@ impl ChainAmountItemBuilder {
                     ticker = asset.symbol;
                 }
                 None => {
-                    amount = chain.calc_tnr_decimal_amount(amount, None);
-                    ticker = String::from("Unknown");
+                    let cosmos_decimal = 6;
+                    let mut ticker_result = ticker.clone();
+                    let mut amount_result = chain.calc_tnr_decimal_amount(amount, None);
+                    if let Ok(ibc_denom) = chain.convert_to_ibc_denom(&ticker) {
+                        ticker_result = ibc_denom;
+                        amount_result = chain.calc_tnr_decimal_amount(amount, Some(cosmos_decimal));
+                    };
+
+                    amount = amount_result;
+                    ticker = ticker_result;
                 }
             };
         };

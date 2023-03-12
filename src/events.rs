@@ -2,7 +2,6 @@ use std::collections::HashSet;
 use std::fmt::{Display, Formatter};
 use std::net::SocketAddr;
 
-use dashmap::{DashMap, DashSet};
 use futures::{SinkExt, StreamExt};
 use serde::{Deserialize, Serialize};
 use serde_querystring::de::ParseMode;
@@ -15,8 +14,6 @@ use tokio_tungstenite::tungstenite::Message;
 use crate::database::{BlockForDb, EvmPollForDb, EvmPollParticipantForDb};
 use crate::fetch::transactions::TransactionItem;
 
-pub type PeerMap = DashMap<SocketAddr, DashSet<String>>;
-
 #[derive(Serialize, Deserialize, Debug)]
 struct SubscriptionMode {
     #[serde(default)]
@@ -27,12 +24,17 @@ struct SubscriptionMode {
     poll: bool,
 }
 
-pub async fn handle_connection(tx: Sender<(String, WsEvent)>, raw_stream: TcpStream, addr: SocketAddr, chains: HashSet<String>) -> Result<(), String> {
+pub async fn handle_connection(
+    tx: Sender<(String, WsEvent)>,
+    raw_stream: TcpStream,
+    addr: SocketAddr,
+    chains: HashSet<String>,
+) -> Result<(), String> {
     tracing::info!("Incoming TCP connection from: {addr}");
 
     let (tx_config, rx_config) = oneshot::channel();
     let callback = |request: &Request, response: Response| -> Result<Response, ErrorResponse> {
-        let Some(chain) = request.uri().path().to_string()[1..].split("/").next().map(|s| s.to_string()) else {
+        let Some(chain) = request.uri().path().to_string()[1..].split('/').next().map(|s| s.to_string()) else {
             return Err(ErrorResponse::new(Some("No chain specified".to_string())));
         };
 
@@ -48,7 +50,7 @@ pub async fn handle_connection(tx: Sender<(String, WsEvent)>, raw_stream: TcpStr
             return Err(ErrorResponse::new(Some("Invalid query parameters".to_string())));
         };
 
-        tx_config.send((chain.to_string(), parsed)).ok();
+        tx_config.send((chain, parsed)).ok();
 
         // let protocol = request.headers().get(SEC_WEBSOCKET_PROTOCOL).expect("the client should specify a protocol").to_owned(); //save the protocol to use outside the closure
         // let response_protocol = request.headers().get(SEC_WEBSOCKET_PROTOCOL).expect("the client should specify a protocol").to_owned();
@@ -60,7 +62,6 @@ pub async fn handle_connection(tx: Sender<(String, WsEvent)>, raw_stream: TcpStr
     let ws_stream = tokio_tungstenite::accept_hdr_async(raw_stream, callback)
         .await
         .map_err(|e| format!("Error creating websocket connection: {e}"))?;
-
 
     let (wanted_chain, mode) = rx_config.await.map_err(|e| format!("Error getting the subjects: {e}"))?;
 
@@ -141,7 +142,10 @@ impl Display for WsEvent {
             }
             WsEvent::UpdateEvmPollParticipant((poll_id, participant)) => {
                 let participant_address = participant.voter_address.clone();
-                write!(f, "WsEvent (UpdateEvmPollParticipant), poll_id: {poll_id}, participant_hash: {participant_address}")
+                write!(
+                    f,
+                    "WsEvent (UpdateEvmPollParticipant), poll_id: {poll_id}, participant_hash: {participant_address}"
+                )
             }
         }
     }

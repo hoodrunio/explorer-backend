@@ -6,26 +6,30 @@ use crate::fetch::others::PaginationConfig;
 use crate::routes::{HeartbeatsListResp, TNRAppError};
 
 impl Chain {
-    pub async fn get_val_heartbeats(&self, operator_address: String, heartbeats_query: HeartbeatsQuery, config: PaginationConfig) -> Result<HeartbeatsListResp, TNRAppError> {
+    pub async fn get_val_heartbeats(
+        &self,
+        operator_address: String,
+        heartbeats_query: HeartbeatsQuery,
+        config: PaginationConfig,
+    ) -> Result<HeartbeatsListResp, TNRAppError> {
         let query = doc! {"operator_address": operator_address};
         let val_voter_address = match self.database.find_validator(query).await {
-            Ok(res) => {
-                match res.voter_address {
-                    Some(res) => { res }
-                    None => { return Err(TNRAppError::from(format!("Validator does not have voter address"))); }
+            Ok(res) => match res.voter_address {
+                Some(res) => res,
+                None => {
+                    return Err(TNRAppError::from("Validator does not have voter address".to_string()));
                 }
+            },
+            Err(e) => {
+                return Err(TNRAppError::from(e));
             }
-            Err(e) => { return Err(TNRAppError::from(e)); }
         };
 
         let match_pipe = doc! {"$match":{"sender": val_voter_address}};
         let mut pipeline = vec![match_pipe];
-        match (heartbeats_query.from_block, heartbeats_query.to_block) {
-            (Some(from), Some(to)) => {
-                let range_match_pipe = doc! {"$match":{"period_height":{"$gte":from as i64,"$lt":to as i64}}};
-                pipeline.push(range_match_pipe);
-            }
-            _ => {}
+        if let (Some(from), Some(to)) = (heartbeats_query.from_block, heartbeats_query.to_block) {
+            let range_match_pipe = doc! {"$match":{"period_height":{"$gte":from,"$lt":to}}};
+            pipeline.push(range_match_pipe);
         };
 
         let heartbeats = self.database.find_paginated_heartbeats(pipeline, config).await?;
@@ -67,10 +71,7 @@ impl HeartbeatsQuery {
             return Err(String::from("Please specify from_block and to_block properties together"));
         };
 
-        Ok(Self {
-            from_block,
-            to_block,
-        })
+        Ok(Self { from_block, to_block })
     }
 }
 

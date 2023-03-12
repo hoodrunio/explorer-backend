@@ -19,15 +19,6 @@ use super::{
 };
 
 impl Chain {
-    /// Returns validator by given validator address.
-    pub async fn get_validator(&self, validator_addr: &str) -> Result<OutRestResponse<ValidatorListValidator>, String> {
-        let path = format!("/cosmos/staking/v1beta1/validators/{validator_addr}");
-
-        match self.rest_api_request::<ValidatorResp>(&path, &[]).await {
-            Ok(res) => Ok(OutRestResponse::new(res.validator, 0)),
-            Err(error) => Err(error),
-        }
-    }
     /// Returns the signing info by given cons address.
     pub async fn get_validator_signing_info(&self, cons_addr: &str) -> Result<OutRestResponse<InternalSlashingSigningInfoItem>, String> {
         let path = format!("/cosmos/slashing/v1beta1/signing_infos/{cons_addr}");
@@ -255,32 +246,6 @@ impl Chain {
         let path = format!("/cosmos/distribution/v1beta1/validators/{validator_addr}/outstanding_rewards");
 
         self.rest_api_request(&path, &[]).await
-    }
-
-    /// Returns the list of validators with bonded status.
-    pub async fn get_validators_bonded(&self, pagination_config: PaginationConfig) -> Result<ValidatorListApiResp, String> {
-        let mut query = vec![];
-
-        query.push(("status", "BOND_STATUS_BONDED".to_string()));
-        query.push(("pagination.reverse", format!("{}", pagination_config.is_reverse())));
-        query.push(("pagination.limit", format!("{}", pagination_config.get_limit())));
-        query.push(("pagination.count_total", "true".to_string()));
-        query.push(("pagination.offset", format!("{}", pagination_config.get_offset())));
-
-        self.rest_api_request("/cosmos/staking/v1beta1/validators", &query).await
-    }
-
-    /// Returns the list of validators with unbonded status.
-    pub async fn get_validators_unbonded(&self, pagination_config: PaginationConfig) -> Result<ValidatorListApiResp, String> {
-        let mut query = vec![];
-
-        query.push(("status", "BOND_STATUS_UNBONDED".to_string()));
-        query.push(("pagination.reverse", format!("{}", pagination_config.is_reverse())));
-        query.push(("pagination.limit", format!("{}", pagination_config.get_limit())));
-        query.push(("pagination.count_total", "true".to_string()));
-        query.push(("pagination.offset", format!("{}", pagination_config.get_offset())));
-
-        self.rest_api_request("/cosmos/staking/v1beta1/validators", &query).await
     }
 
     /// Returns the list of validators with unbonding status.
@@ -526,12 +491,9 @@ impl Chain {
         for tx in resp.txs.iter() {
             for message in &tx.body.messages {
                 let res = message.clone().to_internal(self, &None).await?;
-                match res {
-                    InternalTransactionContent::Known(InternalTransactionContentKnowns::RegisterProxy { sender: _, proxy_addr }) => {
-                        result = Some(proxy_addr);
-                    }
-                    _ => {}
-                }
+                if let InternalTransactionContent::Known(InternalTransactionContentKnowns::RegisterProxy { sender: _, proxy_addr }) = res {
+                    result = Some(proxy_addr);
+                };
             }
         }
 
@@ -695,10 +657,13 @@ pub struct ValidatorListElement {
     pub voting_power: u64,
     pub voting_power_ratio: f64,
     pub cumulative_share: f64,
-    pub validator_commissions: ValidatorListElementValidatorCommission,
+    pub account_address: String,
+    pub operator_address: String,
+    pub consensus_address: String,
     pub uptime: f64,
     pub missed_29k: u16,
     pub logo_url: String,
+    pub validator_commissions: ValidatorListElementValidatorCommission,
 }
 
 impl ValidatorListResp {
@@ -711,10 +676,10 @@ impl ValidatorListResp {
             let delegator_shares = v.delegator_shares;
             let uptime = v.uptime;
             let voting_power = delegator_shares as u64;
-            let voting_power_ratio = delegator_shares / bonded_token as f64;
+            let voting_power_ratio = (delegator_shares / bonded_token as f64) / 10000.0;
             let rank = i + 1;
             let cumulative_bonded_tokens = v.cumulative_bonded_tokens.unwrap_or(0.0);
-            let cumulative_share = cumulative_bonded_tokens / bonded_token as f64;
+            let cumulative_share = (cumulative_bonded_tokens / bonded_token as f64) / 10000.0;
             let missed_29k = 0;
             if v.is_active {
                 //WARNING This request takes too much time can turn to a cron job
@@ -731,6 +696,9 @@ impl ValidatorListResp {
                 voting_power_ratio,
                 uptime,
                 logo_url: v.logo_url.clone(),
+                account_address: v.self_delegate_address.clone(),
+                operator_address: v.operator_address.clone(),
+                consensus_address: v.consensus_address.clone(),
             })
         }
 

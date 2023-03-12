@@ -1,5 +1,3 @@
-use std::collections::HashMap;
-
 use base64::decode as decode_from_base64;
 use base64::decode as from_base_64;
 use bech32::ToBase32;
@@ -9,19 +7,19 @@ use serde::Deserialize;
 use sha2::{Digest, Sha256};
 
 /// Returns the prices of coins with given Coin Gecko IDs.
-pub async fn get_prices(client: Client, coin_ids: &[&'static str]) -> HashMap<String, f64> {
-    const URL: &str = "https://api.coingecko.com/api/v3/simple/price";
+// pub async fn get_prices(client: Client, coin_ids: &[&'static str]) -> HashMap<String, f64> {
+//     const URL: &str = "https://api.coingecko.com/api/v3/simple/price";
 
-    let query = &[("ids", coin_ids.join("%2C")), ("vs_currencies", "usd".to_string())];
+//     let query = &[("ids", coin_ids.join("%2C")), ("vs_currencies", "usd".to_string())];
 
-    match client.get(URL).query(query).send().await {
-        Ok(resp) => match resp.json::<HashMap<String, CoinGeckoPrice>>().await {
-            Ok(price_map) => return price_map.iter().map(|(name, cgp)| (name.clone(), cgp.usd)).collect(),
-            _ => HashMap::new(),
-        },
-        _ => HashMap::new(),
-    }
-}
+//     match client.get(URL).query(query).send().await {
+//         Ok(resp) => match resp.json::<HashMap<String, CoinGeckoPrice>>().await {
+//             Ok(price_map) => return price_map.iter().map(|(name, cgp)| (name.clone(), cgp.usd)).collect(),
+//             _ => HashMap::new(),
+//         },
+//         _ => HashMap::new(),
+//     }
+// }
 
 #[derive(Deserialize)]
 pub struct CoinGeckoPrice {
@@ -41,7 +39,7 @@ pub async fn get_validator_logo(client: Client, validator_identity: &str) -> Str
     }
 
     // Here, we will set a URL as the default logo.
-    String::from("example.com")
+    String::from("https://raw.githubusercontent.com/testnetrunn/explorer-assets/main/validators/default/validator-default.webp")
 }
 
 #[derive(Deserialize, Debug)]

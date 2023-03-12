@@ -5,22 +5,25 @@
   </a>
 </p>
 
+This repo only serves as an API for the UI and has no D. connection with it.
+
+The UI repo can be found [here.](https://github.com/testnetrunn/explorer-ui-v2)
+
 
 **Explorer backend is an app:**
 - Deals with blockchain nodes.
 - Supports our database implementation.
-- Provides a nice REST & websocket API.
+- Provides REST & websocket API.
 
 
 # To-do
-- **APR** calculation. (✅)
-- EVM TX support - decode ethabi func/specs. in progress (🚧)
-- Consensus address conversation from pubkey. (✅)
+- EVM TX support - decode ethabi func/specs. (✅)
+- Smart contract verification (Solidity only) for Evmos. (✅: UI dependent works still in development.)
 - Axelar EVM-poll/heartbeats features. (✅)
-- Add validator signature route. (✅)
-- Add uptime calculation. (✅)
 - **Database** implementation to store important stuff. (✅)
 - **WebSocket** interface to provide multiple events to subscribe dynamic data. (✅)
+- **gRPC** implementation. (gRPC infra instead of REST.) - Under development. (🚧)
+- Support Kyve Pools and protocol layer features. - Under development. (🚧)
 
 
 
@@ -34,7 +37,7 @@ cd explorer-backend
 ```
 
 - Install MongoDB
-> Original resources can be found [here.](https://www.mongodb.com/docs/manual/tutorial/install-mongodb-on-ubuntu).
+> Original resources can be found [here](https://www.mongodb.com/docs/manual/tutorial/install-mongodb-on-ubuntu).
 
 ```
 wget -qO - https://www.mongodb.org/static/pgp/server-6.0.asc | sudo apt-key add -
@@ -61,6 +64,8 @@ server {
 
     server_name example.com;
     location / {
+        proxy_read_timeout 86400s;
+        proxy_send_timeout 86400s;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection upgrade;
         proxy_redirect                      off;
@@ -71,7 +76,8 @@ server {
       proxy_pass      http://127.0.0.1:8080;
        }
     location /socket {
-        proxy_read_timeout 600s;
+        proxy_read_timeout 86400s;
+        proxy_send_timeout 86400s;
         rewrite  ^/socket/(.*) /$1 break;
         proxy_connect_timeout 175s;
         proxy_http_version 1.1;

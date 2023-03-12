@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use super::others::{DenomAmount, InternalDenomAmount, Pagination, PaginationConfig};
+use super::others::{DenomAmount, Pagination, PaginationConfig};
 use crate::{
     chain::Chain,
     routes::{calc_pages, ChainAmountItem, OutRestResponse},
@@ -8,7 +8,7 @@ use crate::{
 
 impl Chain {
     /// Returns the total supply of all tokens.
-    pub async fn get_supply_of_all_tokens(&self, config: PaginationConfig) -> Result<OutRestResponse<Vec<InternalDenomAmount>>, String> {
+    pub async fn get_supply_of_all_tokens(&self, config: PaginationConfig) -> Result<OutRestResponse<Vec<ChainAmountItem>>, String> {
         let mut query = vec![];
 
         query.push(("pagination.reverse", format!("{}", config.is_reverse())));
@@ -23,7 +23,7 @@ impl Chain {
         let mut supplies = vec![];
 
         for supply in resp.supply {
-            supplies.push(supply.try_into()?)
+            supplies.push(self.string_amount_parser(supply.amount, Some(supply.denom)).await?);
         }
 
         let pages = calc_pages(resp.pagination, config)?;
@@ -32,19 +32,35 @@ impl Chain {
     }
 
     /// Returns the supply of given token.
-    pub async fn get_supply_by_denom(&self, denom: &str) -> Result<OutRestResponse<InternalDenomAmount>, String> {
+    pub async fn get_supply_by_denom(&self, denom: &str) -> Result<OutRestResponse<ChainAmountItem>, String> {
+        let from_supply_list_chains = vec!["evmos", "umee", "quicksilver"];
+        if from_supply_list_chains.contains(&self.config.name.as_str()) {
+            let query = vec![];
+
+            let resp = self
+                .rest_api_request::<SupplyOfAllTokensResp>("/cosmos/bank/v1beta1/supply", &query)
+                .await?
+                .supply
+                .iter()
+                .find(|supply| supply.denom == denom)
+                .cloned();
+
+            if let Some(supply) = resp {
+                let supply = self.string_amount_parser(supply.amount.clone(), Some(supply.denom.clone())).await?;
+
+                return Ok(OutRestResponse::new(supply, 0));
+            };
+
+            return Err("Token not found".to_string());
+        };
+
         let path = format!("/cosmos/bank/v1beta1/supply/{denom}");
 
         let resp = self.rest_api_request::<SupplyByDenomResp>(&path, &[]).await?;
 
-        let supply = resp.amount.try_into()?;
+        let supply = self.string_amount_parser(resp.amount.amount, Some(resp.amount.denom)).await?;
 
         Ok(OutRestResponse::new(supply, 0))
-    }
-
-    /// Returns the supply of the native coin.
-    pub async fn get_supply_of_native_coin(&self) -> Result<OutRestResponse<InternalDenomAmount>, String> {
-        self.get_supply_by_denom(&self.config.main_denom).await
     }
 
     pub async fn get_evm_supported_chains(&self) -> Result<Vec<String>, String> {
@@ -182,9 +198,9 @@ pub struct AxelarExternalChainVotingInflationRateParam {
 
 impl AxelarExternalChainVotingInflationRateParam {
     pub fn get_parsed_value(&self) -> Result<f64, String> {
-        match self.value.replace("\"", "").parse::<f64>() {
+        match self.value.replace('\"', "").parse::<f64>() {
             Ok(parsed_value) => Ok(parsed_value),
-            Err(_) => Err(format!("Parsed value error on AxelarExternalChainVotingInflationRateParam")),
+            Err(_) => Err("Parsed value error on AxelarExternalChainVotingInflationRateParam".to_string()),
         }
     }
 }

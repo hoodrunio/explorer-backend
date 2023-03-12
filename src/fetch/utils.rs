@@ -1,8 +1,10 @@
 use rust_decimal::prelude::FromPrimitive;
+use sha2::{Digest, Sha256};
 
 use crate::chain::Chain;
 
 use crate::routes::ChainAmountItem;
+use hex::encode as to_hex;
 
 use super::amount_util::TnrDecimal;
 
@@ -19,9 +21,9 @@ impl Chain {
         amount as u64 / (self.config.decimals_pow * 10000)
     }
 
-    pub fn calc_amount_f64_to_f64(&self, amount: f64) -> f64 {
-        amount / (self.config.decimals_pow as f64 * 10000.0)
-    }
+    // pub fn calc_amount_f64_to_f64(&self, amount: f64) -> f64 {
+    //     amount / (self.config.decimals_pow as f64 * 10000.0)
+    // }
 
     pub fn calc_tnr_decimal_amount(&self, amount: TnrDecimal, decimal: Option<i64>) -> TnrDecimal {
         let main_decimal = match decimal {
@@ -46,6 +48,29 @@ impl Chain {
             Some(some) => some,
         };
         Ok(ChainAmountItem::new(float_amount, ticker, self.clone()).await)
+    }
+
+    //https://tutorials.cosmos.network/tutorials/6-ibc-dev/
+    //Check if denom is ibc denom path with transfer/channel-{{channel_id}}/denom
+    pub fn is_ibc_denom_path(&self, denom: &str) -> bool {
+        let split = denom.split('/').collect::<Vec<&str>>();
+        split.len() == 3 && split[0] == "transfer" && split[1].starts_with("channel")
+    }
+
+    //```
+    //https://tutorials.cosmos.network/tutorials/6-ibc-dev/
+    //Converts ibc transfer path to ibc denom format if given paramters valid
+    //Returns ibc/{{converted_value}}
+    ///```
+    pub fn convert_to_ibc_denom(&self, path: &String) -> Result<String, String> {
+        if self.is_ibc_denom_path(path) {
+            let mut hasher = Sha256::new();
+            hasher.update(path.as_bytes());
+            let result = to_hex(hasher.finalize()).to_uppercase();
+            return Ok(format!("IBC/{}", result));
+        };
+
+        Err(format!("Not an IBC denom path: {}", path))
     }
 
     /// Returns the amount parsed.
@@ -77,7 +102,7 @@ impl Chain {
         let formatted = validator_delegator_shares
             .split_once('.')
             .map(|(pri, _)| pri)
-            .unwrap_or(&validator_delegator_shares)
+            .unwrap_or(validator_delegator_shares)
             .parse::<u128>()
             .map_err(|_| format!("Cannot parse delegator shares, {}.", validator_delegator_shares))?;
 
