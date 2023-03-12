@@ -663,6 +663,7 @@ pub struct ValidatorListElement {
     pub uptime: f64,
     pub missed_29k: u16,
     pub logo_url: String,
+    pub validator_commissions: ValidatorListElementValidatorCommission,
 }
 
 impl ValidatorListResp {
