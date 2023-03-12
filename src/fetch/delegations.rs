@@ -2,11 +2,11 @@ use chrono::DateTime;
 use serde::{Deserialize, Serialize};
 use tokio::join;
 
+use crate::routes::ChainAmountItem;
 use crate::{
     chain::Chain,
     routes::{calc_pages, OutRestResponse},
 };
-use crate::routes::ChainAmountItem;
 
 use super::others::{DenomAmount, Pagination, PaginationConfig};
 
@@ -315,8 +315,7 @@ impl TryFrom<RedelegationEntry> for InternalRedelegationEntry {
     type Error = String;
     fn try_from(value: RedelegationEntry) -> Result<Self, Self::Error> {
         Ok(Self {
-            creation_height: value
-                .creation_height,
+            creation_height: value.creation_height,
             completion_time: DateTime::parse_from_rfc3339(&value.completion_time)
                 .map_err(|_| format!("Cannot parse redelegation completion datetime, '{}'.", value.completion_time))?
                 .timestamp_millis(),
