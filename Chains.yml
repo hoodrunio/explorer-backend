@@ -80,7 +80,7 @@ quicksilver:
   gecko: quicksilver
   symbol: QCK
   denom: uqck
-  # prefix: secret
+  prefix: quick
   logo: https://raw.githubusercontent.com/testnetrunn/explorer-assets/main/mainnet/quicksilver/black-quicksilver.png
   # decimals: 6
   # version: 0.45
