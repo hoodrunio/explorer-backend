@@ -156,7 +156,7 @@ impl Chain {
     }
 
     /// Returns validator info by given validator address.
-    pub async fn get_validator_info(&self, validator_addr: &str) -> Result<OutRestResponse<InternalValidator>, String> {
+    pub async fn get_validator_info(&self, validator_addr: &str) -> Result<InternalValidator, String> {
         let path = format!("/cosmos/staking/v1beta1/validators/{validator_addr}");
 
         let (resp, bonded_height, staking_pool_resp) = join!(
@@ -217,7 +217,7 @@ impl Chain {
             voting_power_change_24h,
         };
 
-        Ok(OutRestResponse::new(validator, 0))
+        Ok(validator)
     }
 
     /// Returns all the validators by given delegator address.
