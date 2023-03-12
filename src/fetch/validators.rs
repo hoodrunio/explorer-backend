@@ -657,7 +657,9 @@ pub struct ValidatorListElement {
     pub voting_power: u64,
     pub voting_power_ratio: f64,
     pub cumulative_share: f64,
-    pub validator_commissions: ValidatorListElementValidatorCommission,
+    pub account_address: String,
+    pub operator_address: String,
+    pub consensus_address: String,
     pub uptime: f64,
     pub missed_29k: u16,
     pub logo_url: String,
@@ -693,6 +695,9 @@ impl ValidatorListResp {
                 voting_power_ratio,
                 uptime,
                 logo_url: v.logo_url.clone(),
+                account_address: v.self_delegate_address.clone(),
+                operator_address: v.operator_address.clone(),
+                consensus_address: v.consensus_address.clone(),
             })
         }
 
