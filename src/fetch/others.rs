@@ -31,7 +31,8 @@ impl Chain {
 
         let pool = resp
             .pool
-            .get(0)
+            .iter()
+            .find(|res| res.denom == self.config.main_denom.clone())
             .ok_or_else(|| format!("There is no community pool for '{}' chain.", self.config.name))?;
 
         let community_pool_amount = pool
