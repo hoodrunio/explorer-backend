@@ -162,9 +162,10 @@ impl Default for PaginationDirection {
 impl Default for PaginationData {
     fn default() -> Self {
         Self {
+            cursor: None,
+            offset: None,
             limit: Some(50),
             direction: Some(PaginationDirection::Next),
-            ..Default::default()
         }
     }
 }
