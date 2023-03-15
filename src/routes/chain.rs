@@ -30,7 +30,7 @@ pub async fn chains(state: Data<State>) -> Result<impl Responder, TNRAppError> {
         })
         .collect::<Vec<Chain>>();
 
-    Ok(TNRAppSuccessResponse::new(chains))
+    Ok(TNRAppSuccessResponse::new(chains, None))
 }
 
 #[get("{chain}/dashboard")]
@@ -39,7 +39,7 @@ pub async fn dashboard(path: Path<String>, chains_data: Data<State>) -> Result<i
     let chain = extract_chain(&chain, chains_data)?;
 
     let data = chain.get_dashboard_info().await?;
-    Ok(TNRAppSuccessResponse::new(data))
+    Ok(TNRAppSuccessResponse::new(data, None))
 }
 
 #[get("{chain}/stats")]
@@ -48,5 +48,5 @@ pub async fn stats(path: Path<String>, chains_data: Data<State>) -> Result<impl 
     let chain = extract_chain(&chain, chains_data)?;
 
     let data = chain.get_stats().await?;
-    Ok(TNRAppSuccessResponse::new(data))
+    Ok(TNRAppSuccessResponse::new(data, None))
 }

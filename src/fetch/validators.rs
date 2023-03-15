@@ -4,14 +4,15 @@ use mongodb::bson::doc;
 use serde::{Deserialize, Serialize};
 use tokio::join;
 
-use crate::database::{PaginationDb, ValidatorForDb};
-use crate::fetch::transactions::{InternalTransactionContent, InternalTransactionContentKnowns};
-use crate::routes::{ChainAmountItem, TNRAppError};
-use crate::utils::convert_consensus_pubkey_to_consensus_address;
+use crate::routes::{ChainAmountItem};
 use crate::{
     chain::Chain,
     routes::{calc_pages, OutRestResponse},
 };
+use crate::database::{ListDbResult, ValidatorForDb};
+use crate::fetch::transactions::{InternalTransactionContent, InternalTransactionContentKnowns};
+use crate::routes::{PaginationData, TNRAppError};
+use crate::utils::convert_consensus_pubkey_to_consensus_address;
 
 use super::{
     others::{DenomAmount, Pagination, PaginationConfig},
@@ -641,14 +642,11 @@ pub struct ValidatorListDbResp {
     /// Array of validators.
     pub validators: Vec<ValidatorForDb>,
     /// Pagination.
-    pub pagination: PaginationDb,
+    pub pagination: PaginationData,
 }
 
 #[derive(Deserialize, Serialize, Debug)]
-pub struct ValidatorListResp {
-    pub validators: Vec<ValidatorListElement>,
-    pub pagination: PaginationDb,
-}
+pub struct ValidatorListResp(Vec<ValidatorListElement>);
 
 #[derive(Deserialize, Serialize, Debug)]
 pub struct ValidatorListElement {
@@ -667,12 +665,12 @@ pub struct ValidatorListElement {
 }
 
 impl ValidatorListResp {
-    pub async fn from_db_list(other: ValidatorListDbResp, chain: &Chain) -> Result<Self, TNRAppError> {
+    pub async fn from_db_list(other: ListDbResult<ValidatorForDb>, chain: &Chain) -> Result<Self, TNRAppError> {
         let staking_pool_resp = chain.get_staking_pool().await?.value;
         let bonded_token = staking_pool_resp.bonded;
         let mut validators = vec![];
 
-        for (i, v) in other.validators.iter().enumerate() {
+        for (i, v) in other.data.iter().enumerate() {
             let delegator_shares = v.delegator_shares;
             let uptime = v.uptime;
             let voting_power = delegator_shares as u64;
@@ -702,10 +700,7 @@ impl ValidatorListResp {
             })
         }
 
-        Ok(Self {
-            validators,
-            pagination: other.pagination,
-        })
+        Ok(Self(validators))
     }
 }
 

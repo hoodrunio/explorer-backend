@@ -1,17 +1,14 @@
 use actix_web::{
     get,
-    Responder,
     web::{Data, Path, Query},
+    Responder,
 };
 use mongodb::bson::doc;
 use serde::Deserialize;
 
-use crate::{
-    fetch::others::PaginationConfig,
-    state::State,
-};
 use crate::fetch::validators::{ValidatorListResp, ValidatorRedelegationQuery};
-use crate::routes::{extract_chain, TNRAppError, TNRAppSuccessResponse};
+use crate::routes::{extract_chain, PaginationData, TNRAppError, TNRAppSuccessResponse};
+use crate::{fetch::others::PaginationConfig, state::State};
 
 use super::QueryParams;
 
@@ -23,41 +20,56 @@ pub async fn validator(path: Path<(String, String)>, chains: Data<State>) -> Res
 
     let chain = extract_chain(&chain, chains)?;
     let data = chain.get_validator_info(&validator_addr).await?;
-    Ok(TNRAppSuccessResponse::new(data))
+    Ok(TNRAppSuccessResponse::new(data, None))
 }
 
 #[get("{chain}/validator-delegations/{address}")]
-pub async fn validator_delegations(path: Path<(String, String)>, chains: Data<State>, query: Query<QueryParams>) -> Result<impl Responder, TNRAppError> {
+pub async fn validator_delegations(
+    path: Path<(String, String)>,
+    chains: Data<State>,
+    query: Query<QueryParams>,
+) -> Result<impl Responder, TNRAppError> {
     let (chain, validator_addr) = path.into_inner();
 
     let config = PaginationConfig::new().limit(6).page(query.page.unwrap_or(1));
 
     let chain = extract_chain(&chain, chains)?;
     let data = chain.get_validator_delegations(&validator_addr, config).await?;
-    Ok(TNRAppSuccessResponse::new(data))
+    Ok(TNRAppSuccessResponse::new(data, None))
 }
 
 #[get("{chain}/validator-unbondings/{address}")]
-pub async fn validator_unbondings(path: Path<(String, String)>, chains: Data<State>, query: Query<QueryParams>) -> Result<impl Responder, TNRAppError> {
+pub async fn validator_unbondings(
+    path: Path<(String, String)>,
+    chains: Data<State>,
+    query: Query<QueryParams>,
+) -> Result<impl Responder, TNRAppError> {
     let (chain, validator_addr) = path.into_inner();
 
     let config = PaginationConfig::new().limit(6).page(query.page.unwrap_or(1));
 
     let chain = extract_chain(&chain, chains)?;
     let data = chain.get_validator_unbondings(&validator_addr, config).await?;
-    Ok(TNRAppSuccessResponse::new(data))
+    Ok(TNRAppSuccessResponse::new(data, None))
 }
 
 #[get("{chain}/validator-redelegations/{address}")]
-pub async fn validator_redelegations(path: Path<(String, String)>, chains: Data<State>, query: Query<ValidatorRedelegationQueryParams>) -> Result<impl Responder, TNRAppError> {
+pub async fn validator_redelegations(
+    path: Path<(String, String)>,
+    chains: Data<State>,
+    query: Query<ValidatorRedelegationQueryParams>,
+) -> Result<impl Responder, TNRAppError> {
     let (chain, validator_addr) = path.into_inner();
 
     let config = PaginationConfig::new().limit(query.limit.unwrap_or(10)).page(query.page.unwrap_or(1));
 
     let chain = extract_chain(&chain, chains)?;
-    let query_config = ValidatorRedelegationQuery { source: query.source, destination: query.destination };
+    let query_config = ValidatorRedelegationQuery {
+        source: query.source,
+        destination: query.destination,
+    };
     let data = chain.get_validator_redelegations(&validator_addr, config, query_config).await?;
-    Ok(TNRAppSuccessResponse::new(data))
+    Ok(TNRAppSuccessResponse::new(data, None))
 }
 
 #[get("{chain}/validator-commission/{address}")]
@@ -66,7 +78,7 @@ pub async fn validator_commission(path: Path<(String, String)>, chains: Data<Sta
 
     let chain = extract_chain(&chain, chains)?;
     let data = chain.get_validator_commission(&validator_addr).await?;
-    Ok(TNRAppSuccessResponse::new(data))
+    Ok(TNRAppSuccessResponse::new(data, None))
 }
 
 #[get("{chain}/validator-rewards/{address}")]
@@ -75,31 +87,39 @@ pub async fn validator_rewards(path: Path<(String, String)>, chains: Data<State>
 
     let chain = extract_chain(&chain, chains)?;
     let data = chain.get_validator_rewards(&validator_addr).await?;
-    Ok(TNRAppSuccessResponse::new(data))
+    Ok(TNRAppSuccessResponse::new(data, None))
 }
 
 #[get("{chain}/validators-bonded")]
-pub async fn validators_bonded(path: Path<String>, chains: Data<State>, query: Query<QueryParams>) -> Result<impl Responder, TNRAppError> {
+pub async fn validators_bonded(path: Path<String>, chains: Data<State>, query: Query<PaginationData>) -> Result<impl Responder, TNRAppError> {
     let chain = path.into_inner();
 
-    let config = PaginationConfig::new().limit(query.limit.unwrap_or(20)).page(query.page.unwrap_or(1));
-
     let chain = extract_chain(&chain, chains)?;
-    let validator_db_resp = chain.database.find_paginated_validators(Some(doc! {"$match":{"is_active":true}}), config).await?;
+    let validator_db_resp = chain
+        .database
+        .find_paginated_validators(Some(doc! { "is_active": true }), query.into_inner())
+        .await?;
+
+    let pagination = validator_db_resp.pagination.clone();
     let data = ValidatorListResp::from_db_list(validator_db_resp, &chain).await?;
-    Ok(TNRAppSuccessResponse::new(data))
+
+    Ok(TNRAppSuccessResponse::new(data, Some(pagination)))
 }
 
 #[get("{chain}/validators-unbonded")]
-pub async fn validators_unbonded(path: Path<String>, chains: Data<State>, query: Query<QueryParams>) -> Result<impl Responder, TNRAppError> {
+pub async fn validators_unbonded(path: Path<String>, chains: Data<State>, query: Query<PaginationData>) -> Result<impl Responder, TNRAppError> {
     let chain = path.into_inner();
 
-    let config = PaginationConfig::new().limit(query.limit.unwrap_or(20)).page(query.page.unwrap_or(1));
-
     let chain = extract_chain(&chain, chains)?;
-    let validator_db_resp = chain.database.find_paginated_validators(Some(doc! {"$match":{"is_active":false}}), config).await?;
+    let validator_db_resp = chain
+        .database
+        .find_paginated_validators(Some(doc! {"is_active":false}), query.into_inner())
+        .await?;
+
+    let pagination = validator_db_resp.pagination.clone();
     let data = ValidatorListResp::from_db_list(validator_db_resp, &chain).await?;
-    Ok(TNRAppSuccessResponse::new(data))
+
+    Ok(TNRAppSuccessResponse::new(data, Some(pagination)))
 }
 
 #[get("{chain}/validators-unbonding")]
@@ -108,7 +128,7 @@ pub async fn validators_unbonding(path: Path<String>, chains: Data<State>) -> Re
 
     let chain = extract_chain(&chain, chains)?;
     let data = chain.get_validators_unbonding(PaginationConfig::new()).await?;
-    Ok(TNRAppSuccessResponse::new(data))
+    Ok(TNRAppSuccessResponse::new(data, None))
 }
 
 #[get("{chain}/validators-unspecified")]
@@ -117,7 +137,7 @@ pub async fn validators_unspecified(path: Path<String>, chains: Data<State>) -> 
 
     let chain = extract_chain(&chain, chains)?;
     let data = chain.get_validators_unspecified(PaginationConfig::new()).await?;
-    Ok(TNRAppSuccessResponse::new(data))
+    Ok(TNRAppSuccessResponse::new(data, None))
 }
 
 #[get("{chain}/validators-of/{address}")]
@@ -126,7 +146,7 @@ pub async fn validators_of_delegator(path: Path<(String, String)>, chains: Data<
 
     let chain = extract_chain(&chain, chains)?;
     let data = chain.get_validators_by_delegator(&delegator_addr, PaginationConfig::new()).await?;
-    Ok(TNRAppSuccessResponse::new(data))
+    Ok(TNRAppSuccessResponse::new(data, None))
 }
 
 #[get("{chain}/validator-delegator-pair/{validator_address}/{delegator_address}")]
@@ -135,7 +155,7 @@ pub async fn validator_delegator_pair(path: Path<(String, String, String)>, chai
 
     let chain = extract_chain(&chain, chains)?;
     let data = chain.get_delegator_validator_pair_info(&delegator_addr, &validator_addr).await?;
-    Ok(TNRAppSuccessResponse::new(data))
+    Ok(TNRAppSuccessResponse::new(data, None))
 }
 
 #[get("{chain}/validator-set/{height}")]
@@ -144,7 +164,7 @@ pub async fn validator_set_by_height(path: Path<(String, u64)>, chains: Data<Sta
 
     let chain = extract_chain(&chain, chains)?;
     let data = chain.get_validator_set_by_height(height).await?;
-    Ok(TNRAppSuccessResponse::new(data))
+    Ok(TNRAppSuccessResponse::new(data, None))
 }
 
 #[get("{chain}/validator-set")]
@@ -153,7 +173,7 @@ pub async fn validator_set(path: Path<String>, chains: Data<State>) -> Result<im
 
     let chain = extract_chain(&chain, chains)?;
     let data = chain.get_validator_set().await?;
-    Ok(TNRAppSuccessResponse::new(data))
+    Ok(TNRAppSuccessResponse::new(data, None))
 }
 
 #[derive(Deserialize)]

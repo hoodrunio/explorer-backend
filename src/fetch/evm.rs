@@ -4,9 +4,9 @@ use mongodb::bson::doc;
 use serde::{Deserialize, Serialize};
 
 use crate::chain::Chain;
-use crate::database::{EvmPollForDb, EvmPollParticipantForDb, PaginationDb};
+use crate::database::{EvmPollForDb, EvmPollParticipantForDb};
 use crate::fetch::socket::EvmPollVote;
-use crate::routes::TNRAppError;
+use crate::routes::{PaginationData, TNRAppError};
 
 impl Chain {
     pub async fn get_supported_chains(&self, operator_address: &String) -> Result<EvmSupportedChains, TNRAppError> {
@@ -21,18 +21,6 @@ impl Chain {
 
         Ok(res.into())
     }
-}
-
-#[derive(Deserialize, Serialize, Debug)]
-pub struct EvmPollListDbResp {
-    pub polls: Vec<EvmPollForDb>,
-    pub pagination: PaginationDb,
-}
-
-#[derive(Deserialize, Serialize, Debug)]
-pub struct EvmPollListResp {
-    pub polls: Vec<EvmPollRespElement>,
-    pub pagination: PaginationDb,
 }
 
 #[derive(Deserialize, Serialize, Debug)]
@@ -72,21 +60,6 @@ impl From<EvmPollForDb> for EvmPollRespElement {
     }
 }
 
-impl EvmPollListResp {
-    pub fn from_db_list(other: EvmPollListDbResp) -> Self {
-        let mut polls: Vec<EvmPollRespElement> = vec![];
-
-        for evm_poll in other.polls.iter() {
-            polls.push(evm_poll.clone().into());
-        }
-
-        Self {
-            polls,
-            pagination: other.pagination,
-        }
-    }
-}
-
 pub type EvmSupportedChains = Vec<String>;
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
@@ -107,41 +80,32 @@ impl fmt::Display for PollStatus {
 }
 
 #[derive(Deserialize, Serialize, Debug)]
-pub struct EvmVotesListResp {
-    pub list: Vec<EvmVoteRespElement>,
-    pub pagination: PaginationDb,
-}
+pub struct EvmVotesListResp(Vec<EvmVoteRespElement>);
 
 impl EvmVotesListResp {
-    pub fn from_db_list(list_from_db: EvmPollListDbResp, operator_address: String) -> Self {
+    pub fn from_db_list(list_from_db: Vec<EvmPollForDb>, operator_address: String) -> Self {
         let mut votes: Vec<EvmVoteRespElement> = vec![];
 
-        for evm_poll in list_from_db.polls.iter() {
-            match &evm_poll
+        for evm_poll in list_from_db.iter() {
+            if let Some(evm_vote) = evm_poll
                 .participants
                 .iter()
                 .find(|participant| participant.operator_address == operator_address)
             {
-                None => {}
-                Some(evm_vote) => {
-                    votes.push(EvmVoteRespElement {
-                        operator_address: evm_vote.operator_address.clone(),
-                        poll_id: evm_vote.poll_id.clone(),
-                        chain_name: evm_vote.chain_name.clone(),
-                        vote: evm_vote.vote.clone(),
-                        time: evm_vote.time,
-                        tx_height: evm_vote.tx_height,
-                        tx_hash: evm_vote.tx_hash.clone(),
-                        voter_address: evm_vote.voter_address.clone(),
-                    });
-                }
+                votes.push(EvmVoteRespElement {
+                    operator_address: evm_vote.operator_address.clone(),
+                    poll_id: evm_vote.poll_id.clone(),
+                    chain_name: evm_vote.chain_name.clone(),
+                    vote: evm_vote.vote.clone(),
+                    time: evm_vote.time,
+                    tx_height: evm_vote.tx_height,
+                    tx_hash: evm_vote.tx_hash.clone(),
+                    voter_address: evm_vote.voter_address.clone(),
+                });
             };
         }
 
-        Self {
-            list: votes,
-            pagination: list_from_db.pagination,
-        }
+        Self(votes)
     }
 }
 

@@ -22,7 +22,7 @@ pub async fn delegations(path: Path<(String, String)>, chains: Data<State>, quer
 
     let chain = extract_chain(&chain, chains)?;
     let data = chain.get_delegations(&delegator_addr, config).await?;
-    Ok(TNRAppSuccessResponse::new(data))
+    Ok(TNRAppSuccessResponse::new(data, None))
 }
 
 #[get("{chain}/unbonding-delegations/{delegator_address}")]
@@ -33,7 +33,7 @@ pub async fn unbonding_delegations(path: Path<(String, String)>, chains: Data<St
 
     let chain = extract_chain(&chain, chains)?;
     let data = chain.get_delegations_unbonding(&delegator_addr, config).await?;
-    Ok(TNRAppSuccessResponse::new(data))
+    Ok(TNRAppSuccessResponse::new(data, None))
 }
 
 #[get("{chain}/redelegations/{delegator_address}")]
@@ -44,5 +44,5 @@ pub async fn redelegations(path: Path<(String, String)>, chains: Data<State>, qu
 
     let chain = extract_chain(&chain, chains)?;
     let data = chain.get_redelegations(&delegator_addr, config).await?;
-    Ok(TNRAppSuccessResponse::new(data))
+    Ok(TNRAppSuccessResponse::new(data, None))
 }

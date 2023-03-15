@@ -2,40 +2,28 @@ use mongodb::bson::doc;
 use serde::{Deserialize, Serialize};
 
 use crate::chain::Chain;
+use crate::database::{HeartbeatForDb, ListDbResult};
 use crate::fetch::others::PaginationConfig;
-use crate::routes::{HeartbeatsListResp, TNRAppError};
+use crate::routes::{HeartbeatsListResp, PaginationData, TNRAppError};
 
 impl Chain {
-    pub async fn get_val_heartbeats(
-        &self,
-        operator_address: String,
-        heartbeats_query: HeartbeatsQuery,
-        config: PaginationConfig,
-    ) -> Result<HeartbeatsListResp, TNRAppError> {
+    pub async fn get_val_heartbeats(&self, operator_address: String, heartbeats_query: HeartbeatsQuery, config: PaginationData) -> Result<ListDbResult<HeartbeatForDb>, TNRAppError> {
         let query = doc! {"operator_address": operator_address};
         let val_voter_address = match self.database.find_validator(query).await {
-            Ok(res) => match res.voter_address {
-                Some(res) => res,
-                None => {
-                    return Err(TNRAppError::from("Validator does not have voter address".to_string()));
+            Ok(res) => {
+                match res.voter_address {
+                    Some(res) => { res }
+                    None => { return Err(TNRAppError::from(format!("Validator does not have voter address"))); }
                 }
-            },
-            Err(e) => {
-                return Err(TNRAppError::from(e));
             }
+            Err(e) => { return Err(TNRAppError::from(e)); }
         };
 
         let match_pipe = doc! {"$match":{"sender": val_voter_address}};
-        let mut pipeline = vec![match_pipe];
-        if let (Some(from), Some(to)) = (heartbeats_query.from_block, heartbeats_query.to_block) {
-            let range_match_pipe = doc! {"$match":{"period_height":{"$gte":from,"$lt":to}}};
-            pipeline.push(range_match_pipe);
-        };
 
-        let heartbeats = self.database.find_paginated_heartbeats(pipeline, config).await?;
-        let res = HeartbeatsListResp::from_db_list(heartbeats)?;
+        let heartbeats = self.database.find_paginated_heartbeats(Some(match_pipe), Some(config)).await?;
 
-        Ok(res)
+        Ok(heartbeats)
     }
 }
 
