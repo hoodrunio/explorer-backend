@@ -1,245 +1,270 @@
 use chrono::DateTime;
+use cosmrs::tendermint::proposal;
+use futures::TryFutureExt;
 use serde::{Deserialize, Serialize};
 use tonic::transport::Endpoint;
 
 use super::others::{DenomAmount, Pagination, PaginationConfig};
 use crate::{
-    fetch::{
-        evmos::{
-            erc20::{
-                v1::{
-                    RegisterCoinProposal,
-                    ToggleTokenConversionProposal,
-                    RegisterErc20Proposal
-                }
-            },
-            incentives::v1::RegisterIncentiveProposal
-        },
-        cosmos::{
-            params::v1beta1::ParameterChangeProposal,
-            gov::v1::MsgExecLegacyContent,
-            base::query::v1beta1::PageRequest,
-            gov::v1beta1::TextProposal,
-            distribution::v1beta1::CommunityPoolSpendProposal,
-            upgrade::v1beta1::SoftwareUpgradeProposal
-        },
-        umee::leverage::v1::MsgGovUpdateRegistry,
-        ibc::core::client::v1::ClientUpdateProposal,
-        gravity::v1::IbcMetadataProposal,
-        osmosis::poolincentives::v1beta1::UpdatePoolIncentivesProposal,
-        quicksilver::interchainstaking::v1::RegisterZoneProposal,
-    },
     chain::Chain,
     database::ListDbResult,
-    routes::calc_pages,
-    routes::ChainAmountItem,
+    fetch::{
+        cosmos::{
+            base::query::v1beta1::{PageRequest, PageResponse}, distribution::v1beta1::CommunityPoolSpendProposal, gov::v1::MsgExecLegacyContent,
+            gov::{v1beta1::TextProposal, v1::Deposit}, params::v1beta1::ParameterChangeProposal, upgrade::v1beta1::SoftwareUpgradeProposal,
+        },
+        evmos::{
+            erc20::v1::{RegisterCoinProposal, RegisterErc20Proposal, ToggleTokenConversionProposal},
+            incentives::v1::RegisterIncentiveProposal,
+        },
+        gravity::v1::IbcMetadataProposal,
+        ibc::core::client::v1::ClientUpdateProposal,
+        osmosis::poolincentives::v1beta1::UpdatePoolIncentivesProposal,
+        quicksilver::interchainstaking::v1::RegisterZoneProposal,
+        umee::leverage::v1::MsgGovUpdateRegistry,
+    },
+    routes::{calc_pages, ProposalStatus},
+    routes::{ChainAmountItem, PaginationDirection},
     routes::OutRestResponse,
     routes::PaginationData,
 };
 
 use prost::Message;
 
-pub struct ProposalInfo(String, String);
+pub struct ProposalInfo(String, String, serde_json::Value);
 
 impl From<prost_wkt_types::Any> for ProposalInfo {
     fn from(content: prost_wkt_types::Any) -> ProposalInfo {
-        let (title, description) = match content.type_url.as_str() {
+        let (title, description, content) = match content.type_url.as_str() {
             "/cosmos.params.v1beta1.ParameterChangeProposal" => {
                 let value = ParameterChangeProposal::decode(content.value.as_ref()).unwrap();
-                (value.title, value.description)
+                let content = serde_json::to_value(&value).unwrap();
+                (value.title, value.description, content)
             }
             "/cosmos.upgrade.v1beta1.SoftwareUpgradeProposal" => {
                 let value = SoftwareUpgradeProposal::decode(content.value.as_ref()).unwrap();
-                (value.title, value.description)
+                 let content = serde_json::to_value(&value).unwrap();
+                (value.title, value.description, content)               
             }
             "/cosmos.distribution.v1beta1.CommunityPoolSpendProposal" => {
                 let value = CommunityPoolSpendProposal::decode(content.value.as_ref()).unwrap();
-                (value.title, value.description)
+                  let content = serde_json::to_value(&value).unwrap();
+                (value.title, value.description, content)              
             }
             "/cosmos.gov.v1beta1.TextProposal" => {
                 let value = TextProposal::decode(content.value.as_ref()).unwrap();
-                (value.title, value.description)
+                   let content = serde_json::to_value(&value).unwrap();
+                (value.title, value.description, content)             
             }
             "/ibc.core.client.v1.ClientUpdateProposal" => {
                 let value = ClientUpdateProposal::decode(content.value.as_ref()).unwrap();
-                (value.title, value.description)
+                    let content = serde_json::to_value(&value).unwrap();
+                (value.title, value.description, content)            
             }
             "/evmos.erc20.v1.RegisterCoinProposal" => {
                 let value = RegisterCoinProposal::decode(content.value.as_ref()).unwrap();
-                (value.title, value.description)
+                     let content = serde_json::to_value(&value).unwrap();
+                (value.title, value.description, content)           
             }
             "/evmos.erc20.v1.ToggleTokenConversionProposal" => {
                 let value = ToggleTokenConversionProposal::decode(content.value.as_ref()).unwrap();
-                (value.title, value.description)
+                      let content = serde_json::to_value(&value).unwrap();
+                (value.title, value.description, content)          
             }
             "/evmos.erc20.v1.RegisterERC20Proposal" => {
                 let value = RegisterErc20Proposal::decode(content.value.as_ref()).unwrap();
-                (value.title, value.description)
+                       let content = serde_json::to_value(&value).unwrap();
+                (value.title, value.description, content)         
             }
             "/osmosis.poolincentives.v1beta1.UpdatePoolIncentivesProposal" => {
                 let value = UpdatePoolIncentivesProposal::decode(content.value.as_ref()).unwrap();
-                (value.title, value.description)
+                        let content = serde_json::to_value(&value).unwrap();
+                (value.title, value.description, content)        
             }
             "/gravity.v1.IBCMetadataProposal" => {
                 let value = IbcMetadataProposal::decode(content.value.as_ref()).unwrap();
-                (value.title, value.description)
+                         let content = serde_json::to_value(&value).unwrap();
+                (value.title, value.description, content)       
             }
             "/umee.leverage.v1.MsgGovUpdateRegistry" => {
                 let value = MsgGovUpdateRegistry::decode(content.value.as_ref()).unwrap();
-                (value.title, value.description)
+                          let content = serde_json::to_value(&value).unwrap();
+                (value.title, value.description, content)      
             }
             "/evmos.incentives.v1.RegisterIncentiveProposal" => {
                 let value = RegisterIncentiveProposal::decode(content.value.as_ref()).unwrap();
-                (value.title, value.description)
+                           let content = serde_json::to_value(&value).unwrap();
+                (value.title, value.description, content)     
             }
             "/quicksilver.interchainstaking.v1.RegisterZoneProposal" => {
                 let value = RegisterZoneProposal::decode(content.value.as_ref()).unwrap();
-                (value.title, value.description)
+                            let content = serde_json::to_value(&value).unwrap();
+                (value.title, value.description, content)    
             }
-
 
             other => {
                 dbg!(other);
-                (String::from(""), String::from(""))
+                (String::from(""), String::from(""), serde_json::Value::Null)
             }
         };
-        ProposalInfo(title, description)
+        ProposalInfo(title, description, content)
+    }
+}
+
+impl Into<PageRequest> for PaginationData {
+    fn into(self) -> PageRequest {
+        PageRequest {
+            key: self.cursor.unwrap_or_else(|| "".to_string()).as_bytes().to_vec(),
+            offset: self.offset.unwrap_or_else(|| 0),
+            limit: self.limit.unwrap_or_else(|| 20),
+            count_total: true,
+            reverse: false,
+        }
+    }
+}
+
+impl From<PageResponse> for PaginationData {
+    fn from(value: PageResponse) -> Self {
+        let cursor = if !value.next_key.is_empty() {
+            Some(String::from_utf8(value.next_key).unwrap())
+        } else {
+            None
+        };
+
+        Self {
+            cursor,
+            offset: None,
+            limit: None,
+            direction: Some(PaginationDirection::Next),
+        }
     }
 }
 
 impl Chain {
-    /// Returns all the proposals in voting period.
-    pub async fn get_proposals_by_status(&self, status: &str, config: PaginationData) -> Result<ListDbResult<ProposalItem>, String> {
+    async fn get_proposals_v1(&self, status: &str, config: PaginationData) -> Result<ListDbResult<ProposalItem>, String> {
+        use crate::fetch::cosmos::gov::v1::{query_client::QueryClient, QueryProposalsRequest, QueryProposalsResponse,Proposal};
+        let config = config.clone();
         let endpoint = Endpoint::from_shared(self.config.grpc_url.clone().unwrap()).unwrap();
-        let mut fallback = false;
-        let items = if dbg!(self.config.sdk_version.minor) >= 46 {
-            use crate::fetch::cosmos::gov::v1::{query_client::QueryClient, QueryProposalsRequest, QueryProposalsResponse};
-            let config =  config.clone();
-            let proposal_request = QueryProposalsRequest {
-                proposal_status: status.parse().unwrap(),
-                voter: "".to_string(),
-                depositor: "".to_string(),
-                pagination: Some(PageRequest {
-                    key: config.cursor.unwrap_or_else(|| "".to_string()).as_bytes().to_vec(),
-                    offset: 0,
-                    limit: config.limit.unwrap_or_else(|| 50),
-                    count_total: false,
-                    reverse: false,
-                }),
-            };
-
-
-            if let Ok(resp ) = QueryClient::connect(endpoint.clone())
-                .await
-                .unwrap()
-                .proposals(proposal_request)
-                .await {
-
-                let proposals = resp
-                    .into_inner();
-
-                let mut items = Vec::with_capacity(proposals.proposals.len());
-                for proposal in proposals.proposals {
-                    if let Some(content) = proposal.messages.get(0).cloned() {
-                        let content = if content.type_url == "/cosmos.gov.v1.MsgExecLegacyContent" {
-                            let legacy_content = MsgExecLegacyContent::decode(content.value.as_ref()).unwrap();
-                            legacy_content.content
-                        } else {
-                            Some(content)
-                        };
-                        let ProposalInfo(title, description) = content.unwrap().into();
-                        let proposal_item = ProposalItem {
-                            proposal_id: proposal.id,
-                            title,
-                            description,
-                            time: proposal.submit_time.map(|t| t.seconds),
-                            status: proposal.status,
-                        };
-
-                        items.push(proposal_item);
-                    };
-                }
-
-                Some(items)
-            } else {
-                None
-            }
-        } else {
-            None
+        let proposal_request = QueryProposalsRequest {
+            proposal_status: status.parse().unwrap(),
+            voter: "".to_string(),
+            depositor: "".to_string(),
+            pagination: Some(PageRequest {
+                key: config.cursor.unwrap_or_else(|| "".to_string()).as_bytes().to_vec(),
+                offset: 0,
+                limit: config.limit.unwrap_or_else(|| 50),
+                count_total: false,
+                reverse: false,
+            }),
         };
-        let items = if let Some(items) = items {
-           items
-        } else {
-            use crate::fetch::cosmos::gov::v1beta1::{query_client::QueryClient, QueryProposalsRequest, QueryProposalsResponse, TextProposal};
-            let proposal_request = QueryProposalsRequest {
-                proposal_status: status.parse().unwrap(),
-                voter: "".to_string(),
-                depositor: "".to_string(),
-                pagination: Some(PageRequest {
-                    key: config.cursor.unwrap_or_else(|| "".to_string()).as_bytes().to_vec(),
-                    offset: 0,
-                    limit: config.limit.unwrap_or_else(|| 50),
-                    count_total: false,
-                    reverse: false,
-                }),
-            };
 
-            let proposals: QueryProposalsResponse = QueryClient::connect(endpoint)
-                .await
-                .unwrap()
-                .proposals(proposal_request)
-                .await
-                .unwrap()
-                .into_inner();
+        let resp = QueryClient::connect(endpoint.clone()).await.unwrap().proposals(proposal_request).await.map_err(|e| format!("{}", e))?;
+        let proposals = resp.into_inner();
 
-            let mut items = Vec::with_capacity(proposals.proposals.len());
-            for proposal in proposals.proposals {
-                if let Some(content) = proposal.content {
-                    let ProposalInfo(title, description) = content.into();
-                    let proposal_item = ProposalItem {
-                        proposal_id: proposal.proposal_id,
-                        title,
-                        description,
-                        time: proposal.submit_time.map(|t| t.seconds),
-                        status: proposal.status,
-                    };
-
-                    items.push(proposal_item);
+        let mut items = Vec::with_capacity(proposals.proposals.len());
+        for proposal in proposals.proposals {
+            if let Some(content) = proposal.messages.get(0).cloned() {
+                let content = if content.type_url == "/cosmos.gov.v1.MsgExecLegacyContent" {
+                    let legacy_content = MsgExecLegacyContent::decode(content.value.as_ref()).unwrap();
+                    legacy_content.content
+                } else {
+                    Some(content)
                 };
-            }
+                let ProposalInfo(title, description, content) = content.unwrap().into();
+                let Proposal {id,submit_time,status, ..} = proposal;
+                let proposal_item = ProposalItem {
+                    proposal_id: id,
+                    title,
+                    description,
+                    time: submit_time.map(|t| t.seconds),
+                    status,
+                    content,
+                };
 
-            items
-        };
+                items.push(proposal_item);
+            };
+        }
+
+        let limit = items.len() as u64;
 
         Ok(ListDbResult {
             data: items,
-            pagination: PaginationData::default(),
+            pagination: PaginationData { 
+                cursor: proposals.pagination.map(|p| String::from_utf8(p.next_key).unwrap()), 
+                offset: None, 
+                limit: Some(limit),
+                direction: Some(PaginationDirection::Next) },
         })
     }
+    async fn get_proposals_v1beta1(&self, status: &str, config: PaginationData) -> Result<ListDbResult<ProposalItem>, String> {
+        use crate::fetch::cosmos::gov::v1beta1::{query_client::QueryClient, QueryProposalsRequest, QueryProposalsResponse, TextProposal,Proposal};
+        let endpoint = Endpoint::from_shared(self.config.grpc_url.clone().unwrap()).unwrap();
+        let proposal_request = QueryProposalsRequest {
+            proposal_status: status.parse().unwrap(),
+            voter: "".to_string(),
+            depositor: "".to_string(),
+            pagination: Some(PageRequest {
+                key: config.cursor.unwrap_or_else(|| "".to_string()).as_bytes().to_vec(),
+                offset: 0,
+                limit: config.limit.unwrap_or_else(|| 50),
+                count_total: false,
+                reverse: false,
+            }),
+        };
 
-    /// Returns all the proposals unspecified.
-    pub async fn get_proposals_unspecified(&self, config: PaginationData) -> Result<ListDbResult<ProposalItem>, String> {
-        self.get_proposals_by_status("1", config).await
+        let resp = QueryClient::connect(endpoint)
+            .await
+            .unwrap()
+            .proposals(proposal_request)
+            .await.map_err(|e|format!("{}",e))?;
+        
+            let proposals = resp.into_inner();
+            
+        let mut items = Vec::with_capacity(proposals.proposals.len());
+        for proposal in proposals.proposals {
+            let Proposal {proposal_id,submit_time,status, ..} = proposal;
+            if let Some(content) = proposal.content {
+                let ProposalInfo(title, description,content) = content.into();
+                let proposal_item = ProposalItem {
+                    proposal_id,
+                    title,
+                    description,
+                    time: submit_time.map(|t| t.seconds),
+                    status,
+                    content,
+                };
+
+                items.push(proposal_item);
+            };
+        }
+
+        let limit = items.len() as u64;
+
+        Ok(ListDbResult {
+            data: items,
+            pagination: PaginationData { 
+                cursor: proposals.pagination.map(|p| String::from_utf8(p.next_key).unwrap()), 
+                offset: None, 
+                limit: Some(limit),
+                direction: Some(PaginationDirection::Next) },
+        })
     }
-
     /// Returns all the proposals in voting period.
-    pub async fn get_proposals_in_voting_period(&self, config: PaginationData) -> Result<ListDbResult<ProposalItem>, String> {
-        self.get_proposals_by_status("2", config).await
-    }
-
-    /// Returns all the proposals passed.
-    pub async fn get_proposals_passed(&self, config: PaginationData) -> Result<ListDbResult<ProposalItem>, String> {
-        self.get_proposals_by_status("3", config).await
-    }
-
-    /// Returns all the proposals rejected.
-    pub async fn get_proposals_rejected(&self, config: PaginationData) -> Result<ListDbResult<ProposalItem>, String> {
-        self.get_proposals_by_status("4", config).await
-    }
-
-    /// Returns all the proposals failed.
-    pub async fn get_proposals_failed(&self, config: PaginationData) -> Result<ListDbResult<ProposalItem>, String> {
-        self.get_proposals_by_status("5", config).await
+    pub async fn get_proposals_by_status(&self, status: ProposalStatus, config: PaginationData) -> Result<ListDbResult<ProposalItem>, String> {
+        let status_id = status.get_id().to_string();
+        let items = if dbg!(self.config.sdk_version.minor) >= 46 {
+            self.get_proposals_v1(&status_id, config.clone()).await.ok()
+        } else {
+            None
+        };
+        
+        let items = if let Some(items) = items {
+            items
+        } else {
+            self.get_proposals_v1beta1(&status_id, config).await.map_err(|e| format!("Upstream error: {}", e))?
+        };
+        
+        Ok(items)
     }
 
     /// Returns the details of given proposal.
@@ -294,47 +319,126 @@ impl Chain {
         Ok(OutRestResponse::new(proposal, 0))
     }
 
+
+    async fn proposal_deposits_v1(&self, proposal_id: u64, config: PaginationData) -> Result<ListDbResult<InternalProposalDeposit>, String> {
+        use crate::fetch::cosmos::gov::v1::{query_client::QueryClient, QueryDepositsRequest, QueryDepositResponse};
+        let endpoint = Endpoint::from_shared(self.config.grpc_url.clone().unwrap()).unwrap();
+
+        let deposits_request = QueryDepositsRequest {
+            proposal_id,
+            pagination: Some(config.into()),
+        };
+
+        let resp = QueryClient::connect(endpoint).await.unwrap().deposits(deposits_request).await.map_err(|e| format!("{}", e))?;
+        let deposits = resp.into_inner();
+
+        let internal_deposits = deposits.deposits.iter().map(|d| InternalProposalDeposit {
+            depositor: d.depositor.clone(),
+            //TODO map with amount denom utils
+            amount: 0.0,
+        }).collect();
+
+        Ok(ListDbResult {
+            data: internal_deposits,
+            pagination: deposits.pagination.map(|p| p.into()).unwrap_or_default(),
+        })
+    }
+
+    async fn proposal_deposits_v1beta1(&self,proposal_id: u64, config: PaginationData) -> Result<ListDbResult<InternalProposalDeposit>, String> {
+        use crate::fetch::cosmos::gov::v1::{query_client::QueryClient, QueryDepositsRequest,QueryDepositsResponse};
+        let endpoint = Endpoint::from_shared(self.config.grpc_url.clone().unwrap()).unwrap();
+
+        let deposit_request = QueryDepositsRequest{
+            proposal_id,
+            pagination: Some(config.into()),
+        };
+
+        let resp = QueryClient::connect(endpoint).await.unwrap().deposits(deposit_request).await.map_err(|e|format!("{}",e))?;
+
+        let deposits = resp.into_inner();
+        let internal_deposits = deposits.deposits.iter().map(|d|InternalProposalDeposit{
+            depositor: d.depositor.clone(),
+            //TODO map with amount denom utils
+            amount: 0.0
+        }).collect();
+
+        Ok(ListDbResult { data: internal_deposits, 
+            pagination: deposits.pagination.map(|p|p.into()).unwrap_or_default()
+        })
+    }
     /// Returns the deposits of given proposal.
     pub async fn get_proposal_deposits(
         &self,
         proposal_id: u64,
-        config: PaginationConfig,
-    ) -> Result<OutRestResponse<Vec<InternalProposalDeposit>>, String> {
-        let path = format!("/cosmos/gov/v1beta1/proposals/{proposal_id}/deposits");
-
-        let mut query = vec![];
-
-        query.push(("pagination.reverse", format!("{}", config.is_reverse())));
-        query.push(("pagination.limit", format!("{}", config.get_limit())));
-        query.push(("pagination.count_total", "true".to_string()));
-        query.push(("pagination.offset", format!("{}", config.get_offset())));
-
-        let resp = self.rest_api_request::<ProposalDepositsResp>(&path, &query).await?;
-
-        let mut proposal_deposits = vec![];
-
-        for proposal_deposit in resp.deposits {
-            proposal_deposits.push(InternalProposalDeposit::new(proposal_deposit, self)?);
-        }
-
-        let pages = calc_pages(resp.pagination, config)?;
-
-        Ok(OutRestResponse::new(proposal_deposits, pages))
+        config: PaginationData,
+    ) -> Result<ListDbResult<InternalProposalDeposit>, String> {
+        let items = if dbg!(self.config.sdk_version.minor) >= 46 {
+            self.proposal_deposits_v1(proposal_id,config.clone()).await.ok()
+        } else {
+            None
+        };
+        
+        let items = if let Some(items) = items {
+            items
+        } else {
+            self.proposal_deposits_v1beta1(proposal_id, config).await.map_err(|e| format!("Upstream error: {}", e))?
+        };
+        
+        Ok(items)
     }
 
+    async fn proposal_deposit_v1(&self, proposal_id: u64, depositor: &str) -> Result<InternalProposalDeposit, String> {
+        use crate::fetch::cosmos::gov::v1::{query_client::QueryClient, QueryDepositRequest, QueryDepositResponse};
+        let endpoint = Endpoint::from_shared(self.config.grpc_url.clone().unwrap()).unwrap();
+
+        let deposit_request = QueryDepositRequest {
+            proposal_id,
+            depositor: depositor.to_string(),
+        };
+
+        let client = QueryClient::connect(endpoint).await.unwrap().deposit(deposit_request).await.map_err(|e| format!("{}", e))?;
+
+        let deposit = client.into_inner();
+
+        let internal_deposit = InternalProposalDeposit {
+            depositor: depositor.to_string(),
+            // TODO
+            amount: 0.0,
+        };
+
+        Ok(internal_deposit)
+    }
+
+    async fn proposal_deposit_v1beta1(&self,proposal_id:u64,depositor:&str)->Result<InternalProposalDeposit,String>{
+        use crate::fetch::cosmos::gov::v1::{query_client::QueryClient, QueryDepositRequest, QueryDepositResponse};
+        let endpoint = Endpoint::from_shared(self.config.grpc_url.clone().unwrap()).unwrap();
+        let deposit_request = QueryDepositRequest{ proposal_id, depositor:depositor.to_string() };
+        let client = QueryClient::connect(endpoint).await.unwrap().deposit(deposit_request).await.map_err(|e|format!("{}",e))?;
+        let deposit = client.into_inner();
+
+        let internal_deposit = InternalProposalDeposit { depositor: depositor.to_string(), amount: 0.0};
+
+        Ok(internal_deposit)
+    }
     /// Returns the deposit of given proposal by given depositor.
     pub async fn get_proposal_deposit_by_depositor(
         &self,
         proposal_id: u64,
         depositor: &str,
-    ) -> Result<OutRestResponse<InternalProposalDeposit>, String> {
-        let path = format!("/cosmos/gov/v1beta1/proposals/{proposal_id}/deposits/{depositor}");
-
-        let resp = self.rest_api_request::<ProposalDepositByDepositorResp>(&path, &[]).await?;
-
-        let deposit = InternalProposalDeposit::new(resp.deposit, self)?;
-
-        Ok(OutRestResponse::new(deposit, 0))
+    ) -> Result<InternalProposalDeposit, String> {
+        let items = if dbg!(self.config.sdk_version.minor) >= 46 {
+            self.proposal_deposit_v1(proposal_id,depositor).await.ok()
+        } else {
+            None
+        };
+        
+        let items = if let Some(items) = items {
+            items
+        } else {
+            self.proposal_deposit_v1beta1(proposal_id, depositor).await.map_err(|e| format!("Upstream error: {}", e))?
+        };
+        
+        Ok(items)
     }
 
     /// Returns the tally of given proposal.
@@ -849,4 +953,6 @@ pub struct ProposalItem {
     pub time: Option<i64>,
     /// Proposal status.
     pub status: i32,
+    // Content.
+    pub content: serde_json::Value,
 }

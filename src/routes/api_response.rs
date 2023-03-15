@@ -96,14 +96,14 @@ pub struct TNRAppSuccessResponse<T> {
 }
 
 impl<T> TNRAppSuccessResponse<T> {
-    pub fn new(data: T, pagination: Option<PaginationData>) -> Self<> {
+    pub fn new(data: T, pagination: Option<PaginationData>) -> Self {
         Self {
             data,
             pagination
         }
     }
 
-    pub fn cursor(data: T, cursor: Option<String>, limit: u64, direction: Option<PaginationDirection>) -> Self<> {
+    pub fn cursor(data: T, cursor: Option<String>, limit: u64, direction: Option<PaginationDirection>) -> Self {
         let direction = direction.unwrap_or_default();
 
         Self {
@@ -117,7 +117,7 @@ impl<T> TNRAppSuccessResponse<T> {
         }
     }
 
-    pub fn offset(data: T, offset: u64, limit: u64, dir: Option<PaginationDirection>) -> Self<> {
+    pub fn offset(data: T, offset: u64, limit: u64, dir: Option<PaginationDirection>) -> Self {
         let dir = dir.unwrap_or_default();
 
         Self {
