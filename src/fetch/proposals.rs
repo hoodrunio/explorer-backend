@@ -722,9 +722,91 @@ impl Chain {
         Ok(items)
     }
 
+    async fn proposal_vote_by_voter_v1(&self, proposal_id: u64, voter: &str) -> Result<InternalProposalVote, String> {
+        use crate::fetch::cosmos::gov::v1::{query_client::QueryClient, QueryVoteRequest};
+        let endpoint = Endpoint::from_shared(self.config.grpc_url.clone().unwrap()).unwrap();
+        let vote_request = QueryVoteRequest {
+            proposal_id,
+            voter: voter.to_string(),
+        };
+        let resp = QueryClient::connect(endpoint)
+            .await
+            .unwrap()
+            .vote(vote_request)
+            .await
+            .map_err(|e| format!("{}", e))?;
+
+        let vote_resp = resp.into_inner();
+        let vote = vote_resp.vote.ok_or_else(|| String::from("Vote not found"))?;
+
+        let internal_proposal_vote = InternalProposalVote {
+            proposal_id,
+            voter: vote.voter.clone(),
+            option: String::default(),
+            options: vote
+                .options
+                .iter()
+                .map(|o| ProposalOption {
+                    option: o.option,
+                    weight: o.weight.clone(),
+                })
+                .collect(),
+            metadata: Some(vote.metadata.clone()),
+        };
+
+        Ok(internal_proposal_vote)
+    }
+    async fn proposal_vote_by_voter_v1beta1(&self, proposal_id: u64, voter: &str) -> Result<InternalProposalVote, String> {
+        use crate::fetch::cosmos::gov::v1beta1::{query_client::QueryClient, QueryVoteRequest};
+        let endpoint = Endpoint::from_shared(self.config.grpc_url.clone().unwrap()).unwrap();
+        let vote_request = QueryVoteRequest {
+            proposal_id,
+            voter: voter.to_string(),
+        };
+        let resp = QueryClient::connect(endpoint)
+            .await
+            .unwrap()
+            .vote(vote_request)
+            .await
+            .map_err(|e| format!("{}", e))?;
+
+        let vote_resp = resp.into_inner();
+        let vote = vote_resp.vote.ok_or_else(|| String::from("Vote not found"))?;
+
+        let internal_proposal_vote = InternalProposalVote {
+            proposal_id,
+            voter: vote.voter.clone(),
+            option: String::default(),
+            options: vote
+                .options
+                .iter()
+                .map(|o| ProposalOption {
+                    option: o.option,
+                    weight: o.weight.clone(),
+                })
+                .collect(),
+            metadata: None,
+        };
+
+        Ok(internal_proposal_vote)
+    }
     /// Returns the vote of given proposal by given voter.
     pub async fn get_proposal_vote_by_voter(&self, proposal_id: u64, voter: &str) -> Result<InternalProposalVote, String> {
-        Err("Not implemented".to_string())
+        let items = if dbg!(self.config.sdk_version.minor) >= 46 {
+            self.proposal_vote_by_voter_v1(proposal_id, voter).await.ok()
+        } else {
+            None
+        };
+
+        let items = if let Some(items) = items {
+            items
+        } else {
+            self.proposal_vote_by_voter_v1beta1(proposal_id, voter)
+                .await
+                .map_err(|e| format!("Upstream error: {}", e))?
+        };
+
+        Ok(items)
     }
 }
 
