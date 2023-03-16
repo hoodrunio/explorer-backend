@@ -64,7 +64,7 @@ pub async fn proposals(path: Path<String>, chains: Data<State>, query: Query<Pro
     let data = chain
         .get_proposals_by_status(query.0.status.unwrap_or(ProposalStatus::Unspecified), query.0.pagination)
         .await?;
-    Ok(TNRAppSuccessResponse::new(data, None))
+    Ok(TNRAppSuccessResponse::from(data))
 }
 
 #[get("{chain}/proposal-deposits/{id}")]
@@ -100,7 +100,7 @@ pub async fn proposal_votes(path: Path<(String, u64)>, chains: Data<State>, quer
 
     let chain = extract_chain(&chain, chains)?;
     let data = chain.get_proposal_votes(proposal_id, query.0).await?;
-    Ok(TNRAppSuccessResponse::new(data, None))
+    Ok(TNRAppSuccessResponse::from(data))
 }
 
 #[get("{chain}/proposal-vote/{id}/{voter_address}")]
