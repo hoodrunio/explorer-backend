@@ -26,10 +26,7 @@ pub async fn validator_hearbeats(
     let chain = extract_chain(&chain, chains)?;
 
     if &chain.config.name != "axelar" {
-        return Err(TNRAppError::from(String::from(format!(
-            "Heartbeats not supported for {}",
-            &chain.config.name
-        ))));
+        return Err(TNRAppError::from(format!("Heartbeats not supported for {}", &chain.config.name)));
     };
 
     let (from, to) = match body {
@@ -72,40 +69,4 @@ pub struct ValidatorHeartbeatsQBody {
 pub struct HeartbeatsListResp {
     pub list: Vec<HeartbeatsListElement>,
     pub pagination: PaginationData,
-}
-
-impl HeartbeatsListResp {
-    pub fn from_db_list(list_db_result: ListDbResult<HeartbeatForDb>) -> Result<Self, TNRAppError> {
-        let heartbeats = list_db_result
-            .data
-            .into_iter()
-            .map(|heartbeat| {
-                let heartbeat_raw = match heartbeat.heartbeat_raw {
-                    None => None,
-                    Some(res) => Some(HeartbeatsListRawElement {
-                        tx_hash: res.tx_hash.clone(),
-                        height: res.height.clone(),
-                        period_height: res.period_height.clone(),
-                        timestamp: res.timestamp.clone(),
-                        signatures: res.signatures.clone(),
-                        sender: res.sender.clone(),
-                        key_ids: res.key_ids.clone(),
-                    }),
-                };
-
-                HeartbeatsListElement {
-                    id: heartbeat.id.clone(),
-                    status: heartbeat.status.clone(),
-                    period_height: heartbeat.period_height.clone(),
-                    sender: heartbeat.sender.clone(),
-                    heartbeat_raw,
-                }
-            })
-            .collect();
-
-        Ok(Self {
-            list: heartbeats,
-            pagination: list_db_result.pagination,
-        })
-    }
 }
