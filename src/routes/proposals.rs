@@ -6,10 +6,8 @@ use actix_web::{
 
 use crate::routes::PaginationData;
 use crate::routes::{extract_chain, TNRAppError, TNRAppSuccessResponse};
-use crate::{fetch::others::PaginationConfig, state::State};
+use crate::state::State;
 use serde::{Deserialize, Serialize};
-
-use super::QueryParams;
 
 // ======== 'axelar' Propsals Methods ========
 
@@ -64,7 +62,7 @@ pub async fn proposals(path: Path<String>, chains: Data<State>, query: Query<Pro
 
     let chain = extract_chain(&chain, chains)?;
     let data = chain
-        .get_proposals_by_status(query.0.status.unwrap_or_else(|| ProposalStatus::Unspecified), query.0.pagination)
+        .get_proposals_by_status(query.0.status.unwrap_or(ProposalStatus::Unspecified), query.0.pagination)
         .await?;
     Ok(TNRAppSuccessResponse::new(data, None))
 }
@@ -97,13 +95,11 @@ pub async fn proposal_tally(path: Path<(String, u64)>, chains: Data<State>) -> R
 }
 
 #[get("{chain}/proposal-votes/{id}")]
-pub async fn proposal_votes(path: Path<(String, u64)>, chains: Data<State>, query: Query<QueryParams>) -> Result<impl Responder, TNRAppError> {
+pub async fn proposal_votes(path: Path<(String, u64)>, chains: Data<State>, query: Query<PaginationData>) -> Result<impl Responder, TNRAppError> {
     let (chain, proposal_id) = path.into_inner();
 
-    let config = PaginationConfig::new().limit(6).page(query.page.unwrap_or(1));
-
     let chain = extract_chain(&chain, chains)?;
-    let data = chain.get_proposal_votes(proposal_id, config).await?;
+    let data = chain.get_proposal_votes(proposal_id, query.0).await?;
     Ok(TNRAppSuccessResponse::new(data, None))
 }
 
