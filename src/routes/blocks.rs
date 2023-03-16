@@ -5,10 +5,19 @@ use actix_web::{
     Responder,
 };
 
-use crate::routes::{extract_chain, LastCountListsQueryParams, TNRAppError, TNRAppSuccessResponse};
+use crate::routes::{extract_chain, LastCountListsQueryParams, PaginationData, TNRAppError, TNRAppSuccessResponse};
 use crate::{fetch::others::Response, state::State};
 
 // ====== Block Methods ======
+
+#[get("{chain}/blocks")]
+pub async fn blocks(path: Path<String>, chains: Data<State>, query: Query<PaginationData>) -> Result<impl Responder, TNRAppError> {
+    let chain = path.into_inner();
+
+    let chain = extract_chain(&chain, chains)?;
+    let data = chain.database.find_paginated_blocks(None, query.into_inner()).await?;
+    Ok(TNRAppSuccessResponse::new(data.data, Some(data.pagination)))
+}
 
 #[get("{chain}/block-by-height/{height}")]
 pub async fn block_by_height(path: Path<(String, u64)>, chains: Data<State>) -> Result<impl Responder, TNRAppError> {

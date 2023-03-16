@@ -100,104 +100,115 @@ impl Chain {
         // The variable to hold the previous block header response to have block hash value.
         let previous_block_header_resp: Arc<Mutex<Option<NewBlockValue>>> = Arc::new(Mutex::new(None));
 
-        while let Some(msg) = read.next().await {
+        let mut interval = tokio::time::interval(tokio::time::Duration::from_millis(500));
+
+        loop {
+            tokio::select! {
+                Some(msg) = read.next() => {
             // Run the function below for each message received.
-            if let Ok(Message::Text(msg)) = msg {
-                match serde_json::from_str::<SocketMessage>(&msg) {
-                    Ok(msg) => match msg.result {
-                        SocketResult::NonEmpty(SocketResultNonEmpty::Tx { events }) => {
-                            tracing::info!("wss: new tx on {}", clone.config.name);
-                            let tx_fee_denom = events.tx_fee[0].clone();
+                    if let Ok(Message::Text(msg)) = msg {
+                        match serde_json::from_str::<SocketMessage>(&msg) {
+                            Ok(msg) => match msg.result {
+                                SocketResult::NonEmpty(SocketResultNonEmpty::Tx { events }) => {
+                                    tracing::info!("wss: new tx on {}", clone.config.name);
+                                    let tx_fee_denom = events.tx_fee[0].clone();
 
-                            let tx_item = TransactionItem {
-                                amount: clone
-                                    .string_amount_parser(
-                                        events
-                                            .transfer_amount
-                                            .iter()
-                                            .filter(|str| str.to_string() != tx_fee_denom)
-                                            .map(String::from)
-                                            .collect::<Vec<String>>()
-                                            .get(0)
-                                            .map(|amount| amount.replace(clone.config.main_denom.as_str(), ""))
-                                            .unwrap_or(String::from("0.00"))
-                                            .clone(),
-                                        None,
-                                    )
-                                    .await?,
-                                fee: clone
-                                    .string_amount_parser(tx_fee_denom.replace(clone.config.main_denom.as_str(), "").clone(), None)
-                                    .await?,
-                                hash: events.tx_hash[0].clone(),
-                                height: events.tx_height[0]
-                                    .parse::<u64>()
-                                    .map_err(|e| format!("Cannot parse tx height {}: {e}", events.tx_height[0]))?,
-                                time: std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_millis() as i64,
-                                result: "Success".to_string(),
-                                r#type: events.message_action[0]
-                                    .split_once("Msg")
-                                    .map(|(_, r)| r)
-                                    .unwrap_or(events.message_action[0].split('.').last().unwrap_or("Unknown"))
-                                    .to_string(),
-                            };
-
-                            tx.send((self.config.name.clone(), WsEvent::NewTX(tx_item.clone()))).ok();
-                            let _ = self.database.add_transaction(tx_item.into()).await;
-                            // clone.store_new_tx(tx_item);
-                        }
-                        SocketResult::NonEmpty(SocketResultNonEmpty::Block { data }) => {
-                            tracing::info!("wss: new block on {}", clone.config.name);
-                            let data = data;
-                            let current_resp = data.value;
-
-                            let mut mutex_previous_resp = previous_block_header_resp.lock().await;
-                            match mutex_previous_resp.as_ref() {
-                                Some(previous_resp) => {
-                                    let proposer_metadata = self
-                                        .database
-                                        .find_validator_by_hex_addr(&previous_resp.block.header.proposer_address.clone())
-                                        .await
-                                        .map_err(|e| format!("block+ error: {e}"))?;
-
-                                    let prev_block_data = &previous_resp.block;
-                                    let current_block_data = &current_resp.block;
-
-                                    let block_item = BlockForDb {
-                                        hash: current_block_data.header.last_block_id.hash.clone(),
-                                        height: prev_block_data
-                                            .header
-                                            .height
+                                    let tx_item = TransactionItem {
+                                        amount: clone
+                                            .string_amount_parser(
+                                                events
+                                                    .transfer_amount
+                                                    .iter()
+                                                    .filter(|str| str.to_string() != tx_fee_denom)
+                                                    .map(String::from)
+                                                    .collect::<Vec<String>>()
+                                                    .get(0)
+                                                    .map(|amount| amount.replace(clone.config.main_denom.as_str(), ""))
+                                                    .unwrap_or(String::from("0.00"))
+                                                    .clone(),
+                                                None,
+                                            )
+                                            .await?,
+                                        fee: clone
+                                            .string_amount_parser(tx_fee_denom.replace(clone.config.main_denom.as_str(), "").clone(), None)
+                                            .await?,
+                                        hash: events.tx_hash[0].clone(),
+                                        height: events.tx_height[0]
                                             .parse::<u64>()
-                                            .map_err(|e| format!("Cannot parse block height, {}: {e}", prev_block_data.header.height))?,
-                                        timestamp: DateTime::parse_from_rfc3339(&prev_block_data.header.time)
-                                            .map(|d| d.timestamp_millis())
-                                            .map_err(|_e| format!("Cannot parse datetime, {}: e", prev_block_data.header.time))?,
-                                        tx_count: prev_block_data.data.txs.len() as u64,
-                                        proposer_logo_url: proposer_metadata.logo_url,
-                                        proposer_name: proposer_metadata.name,
-                                        proposer_address: proposer_metadata.operator_address,
-                                        signatures: current_block_data.last_commit.signatures.clone(),
+                                            .map_err(|e| format!("Cannot parse tx height {}: {e}", events.tx_height[0]))?,
+                                        time: std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_millis() as i64,
+                                        result: "Success".to_string(),
+                                        r#type: events.message_action[0]
+                                            .split_once("Msg")
+                                            .map(|(_, r)| r)
+                                            .unwrap_or(events.message_action[0].split('.').last().unwrap_or("Unknown"))
+                                            .to_string(),
                                     };
 
-                                    tx.send((self.config.name.clone(), WsEvent::NewBLock(block_item.clone()))).ok();
-
-                                    if let Err(e) = self.database.upsert_block(block_item).await {
-                                        tracing::error!("Error saving block to the database: {e} ")
-                                    }
-
-                                    *mutex_previous_resp = Some(current_resp);
+                                    tx.send((self.config.name.clone(), WsEvent::NewTX(tx_item.clone()))).ok();
+                                    let _ = self.database.add_transaction(tx_item.into()).await;
+                                    // clone.store_new_tx(tx_item);
                                 }
-                                None => *mutex_previous_resp = Some(current_resp),
-                            }
+                                SocketResult::NonEmpty(SocketResultNonEmpty::Block { data }) => {
+                                    tracing::info!("wss: new block on {}", clone.config.name);
+                                    let data = data;
+                                    let current_resp = data.value;
+
+                                    let mut mutex_previous_resp = previous_block_header_resp.lock().await;
+                                    match mutex_previous_resp.as_ref() {
+                                        Some(previous_resp) => {
+                                            let proposer_metadata = self
+                                                .database
+                                                .find_validator_by_hex_addr(&previous_resp.block.header.proposer_address.clone())
+                                                .await
+                                                .map_err(|e| format!("block+ error: {e}"))?;
+
+                                            let prev_block_data = &previous_resp.block;
+                                            let current_block_data = &current_resp.block;
+
+                                            let block_item = BlockForDb {
+                                                hash: current_block_data.header.last_block_id.hash.clone(),
+                                                height: prev_block_data
+                                                    .header
+                                                    .height
+                                                    .parse::<u64>()
+                                                    .map_err(|e| format!("Cannot parse block height, {}: {e}", prev_block_data.header.height))?,
+                                                timestamp: DateTime::parse_from_rfc3339(&prev_block_data.header.time)
+                                                    .map(|d| d.timestamp_millis())
+                                                    .map_err(|_e| format!("Cannot parse datetime, {}: e", prev_block_data.header.time))?,
+                                                tx_count: prev_block_data.data.txs.len() as u64,
+                                                proposer_logo_url: proposer_metadata.logo_url,
+                                                proposer_name: proposer_metadata.name,
+                                                proposer_address: proposer_metadata.operator_address,
+                                                signatures: current_block_data.last_commit.signatures.clone(),
+                                            };
+
+                                            tx.send((self.config.name.clone(), WsEvent::NewBLock(block_item.clone()))).ok();
+
+                                            if let Err(e) = self.database.upsert_block(block_item).await {
+                                                tracing::error!("Error saving block to the database: {e} ")
+                                            }
+
+                                            *mutex_previous_resp = Some(current_resp);
+                                        }
+                                        None => *mutex_previous_resp = Some(current_resp),
+                                    }
+                                }
+                                SocketResult::Empty {} => (),
+                                _ => {}
+                            },
+                            Err(error) => tracing::info!("Websocket JSON parse error for {}: {error}", clone.config.name),
                         }
-                        SocketResult::Empty {} => (),
-                        _ => {}
-                    },
-                    Err(error) => tracing::info!("Websocket JSON parse error for {}: {error}", clone.config.name),
+                    }else if let Err(e) = msg {
+                        tracing::error!("Websocket error for {}: {}", clone.config.name,e);
+                        continue;
+                    }
+                },
+                _ = interval.tick() => {
+                    write.send(Message::Pong(vec![1, 2, 3, 4])).await.ok();
                 }
             }
         }
-        Ok(())
     }
 
     pub async fn sub_axelar_events(axelar: Chain, tx: Sender<(String, WsEvent)>) -> Result<(), String> {

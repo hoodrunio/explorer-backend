@@ -2,7 +2,6 @@ use prost_wkt_types::Timestamp;
 use serde::{Deserialize, Serialize};
 use tonic::transport::Endpoint;
 
-use super::others::{Pagination, PaginationConfig};
 use crate::{
     chain::Chain,
     database::ListDbResult,
@@ -25,9 +24,8 @@ use crate::{
         quicksilver::interchainstaking::v1::RegisterZoneProposal,
         umee::leverage::v1::MsgGovUpdateRegistry,
     },
-    routes::OutRestResponse,
     routes::PaginationData,
-    routes::{calc_pages, ProposalStatus},
+    routes::ProposalStatus,
     routes::{ChainAmountItem, PaginationDirection},
 };
 

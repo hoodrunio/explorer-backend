@@ -1,6 +1,6 @@
+use prost_wkt_build::{FileDescriptorSet, Message};
 use std::env;
 use std::path::PathBuf;
-use prost_wkt_build::{FileDescriptorSet, Message};
 
 fn main() {
     let out = PathBuf::from(env::var("OUT_DIR").unwrap());
@@ -34,7 +34,7 @@ fn main() {
                 "osmosis/pool-incentives/v1beta1/gov.proto",
                 "umee/leverage/v1/tx.proto",
                 "gravity/v1/types.proto",
-                "quicksilver/interchainstaking/v1/proposals.proto"
+                "quicksilver/interchainstaking/v1/proposals.proto",
             ],
             &["proto"],
         )
@@ -44,5 +44,4 @@ fn main() {
     let descriptor = FileDescriptorSet::decode(&descriptor_bytes[..]).unwrap();
 
     prost_wkt_build::add_serde(out, descriptor);
-
 }

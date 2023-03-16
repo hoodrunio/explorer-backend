@@ -14,7 +14,6 @@ axelar:
   grpc_url: https://grpc-axelar.stakerun.com:9090
   archive_url: https://axelararchive-lcd.quickapi.com
 
-
 evmos:
   name: evmos
   epoch: true
@@ -48,7 +47,6 @@ osmosis:
   wss_url: wss://rpc.osmosis.interbloc.org/websocket
   archive_url: empty
 
-
 umee:
   name: umee
   epoch: false
@@ -65,7 +63,6 @@ umee:
   wss_url: wss://rpc-umee.huginn.tech/websocket
   archive_url: empty
 
-
 secret:
   name: secret
   epoch: false
@@ -81,14 +78,13 @@ secret:
   wss_url: wss://scrt-rpc.agoranodes.com/websocket
   archive_url: empty
 
-
 quicksilver:
   name: quicksilver
   epoch: false
   gecko: quicksilver
   symbol: QCK
   denom: uqck
-  # prefix: secret
+  prefix: quick
   logo: https://raw.githubusercontent.com/testnetrunn/explorer-assets/main/mainnet/quicksilver/black-quicksilver.png
   # decimals: 6
   # version: 0.45
