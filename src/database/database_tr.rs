@@ -110,7 +110,7 @@ impl DatabaseTR {
     /// ```rs
     /// let collection = database.blocks_collection();
     /// ```
-    fn blocks_collection(&self) -> Collection<HistoricalValidatorData> {
+    fn blocks_collection(&self) -> Collection<Block> {
         self.db().collection("blocks")
     }
 
@@ -265,6 +265,26 @@ impl DatabaseTR {
             Ok(_) => Ok(()),
             Err(e) => Err(format!("Cannot save the block to db: {e}")),
         }
+    }
+
+    /// Finds a sorted blocks list by given document.
+    /// # Usage
+    /// ```rs
+    /// let blocks = database.find_paginated_blocks().await;
+    /// ```
+    pub async fn find_paginated_blocks(&self, query: Option<Document>, config: PaginationData) -> Result<ListDbResult<Block>, String> {
+        let find_options = FindOptions::builder()
+            .sort(doc! { "timestamp": - 1})
+            .limit(config.limit.map(|l| l as i64).unwrap_or_else(|| 20))
+            .build();
+
+        let collection = self.db().collection("blocks");
+        let results = PaginatedCursor::new(Some(find_options), config.cursor, None)
+            .find(&collection, query.as_ref())
+            .await
+            .map_err(|e| e.to_string())?;
+
+        Ok(ListDbResult::from(results))
     }
 
     /// Finds counted blocks in the blocks collection
