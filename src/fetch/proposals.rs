@@ -36,7 +36,7 @@ use crate::{
 
 use prost::Message;
 
-#[derive(Clone)]
+#[derive(Deserialize, Serialize, Clone, Debug)]
 pub struct ProposalInfo(String, String, serde_json::Value);
 
 impl From<prost_wkt_types::Any> for ProposalInfo {
@@ -330,7 +330,7 @@ impl Chain {
         Ok(internal_proposal)
     }
     async fn get_proposal_details_v1beta1(&self, proposal_id: u64) -> Result<InternalProposal, String> {
-        use crate::fetch::cosmos::gov::v1beta1::{query_client::QueryClient, Proposal, QueryProposalRequest,TallyResult};
+        use crate::fetch::cosmos::gov::v1beta1::{query_client::QueryClient, Proposal, QueryProposalRequest, TallyResult};
         let endpoint = Endpoint::from_shared(self.config.grpc_url.clone().unwrap()).unwrap();
         let proposal_request = QueryProposalRequest { proposal_id };
 
@@ -343,28 +343,33 @@ impl Chain {
 
         let proposal_resp = resp.into_inner();
         let proposal = proposal_resp.proposal.ok_or_else(|| String::from("No proposal content"))?;
-    
 
-        let prop_info:Option<ProposalInfo> = proposal.content.map(|c| c.into());
-        
-        
-        let (title,summary) = prop_info.clone().map_or_else(||(String::from(""),String::from("")),|p|(p.0.clone(),p.1.clone()));
+        let prop_info: Option<ProposalInfo> = proposal.content.map(|c| c.into());
+
+        let (title, summary) = prop_info
+            .clone()
+            .map_or_else(|| (String::from(""), String::from("")), |p| (p.0.clone(), p.1.clone()));
         let mut messages = vec![];
         if let Some(p) = prop_info {
             messages.push(p);
         }
-        let final_tally_result = proposal.final_tally_result.map(|t|InternalProposalFinalTallyResult{ yes_count: t.yes, abstain_count: t.abstain, no_count: t.no, no_with_veto_count:t.no_with_veto});
-        
+        let final_tally_result = proposal.final_tally_result.map(|t| InternalProposalFinalTallyResult {
+            yes_count: t.yes,
+            abstain_count: t.abstain,
+            no_count: t.no,
+            no_with_veto_count: t.no_with_veto,
+        });
+
         let internal_proposal = InternalProposal {
             id: proposal_id,
             messages,
             status: ProposalStatus::from_id(proposal.status),
             final_tally_result,
-            submit_time:proposal.submit_time,
-            deposit_end_time:proposal.deposit_end_time,
+            submit_time: proposal.submit_time,
+            deposit_end_time: proposal.deposit_end_time,
             total_deposit: ChainAmountItem::default(),
-            voting_start_time:proposal.voting_start_time,
-            voting_end_time:proposal.voting_end_time,
+            voting_start_time: proposal.voting_start_time,
+            voting_end_time: proposal.voting_end_time,
             title,
             summary,
             metadata: None,
@@ -545,16 +550,71 @@ impl Chain {
         Ok(items)
     }
 
+    async fn proposal_tally_v1(&self, proposal_id: u64) -> Result<InternalProposalFinalTallyResult, String> {
+        use crate::fetch::cosmos::gov::v1::{query_client::QueryClient, QueryTallyResultRequest};
+        let endpoint = Endpoint::from_shared(self.config.grpc_url.clone().unwrap()).unwrap();
+        let tally_request = QueryTallyResultRequest { proposal_id };
+        let resp = QueryClient::connect(endpoint)
+            .await
+            .unwrap()
+            .tally_result(tally_request)
+            .await
+            .map_err(|e| format!("{}", e))?;
+
+        let tally_resp = resp.into_inner();
+        let tally = tally_resp.tally.ok_or_else(|| String::from("Tally not found"))?;
+
+        let internal_pro_final_tally_result = InternalProposalFinalTallyResult {
+            yes_count: tally.yes_count,
+            abstain_count: tally.abstain_count,
+            no_count: tally.no_count,
+            no_with_veto_count: tally.no_with_veto_count,
+        };
+
+        Ok(internal_pro_final_tally_result)
+    }
+
+    async fn proposal_tally_v1beta1(&self, proposal_id: u64) -> Result<InternalProposalFinalTallyResult, String> {
+        use crate::fetch::cosmos::gov::v1beta1::{query_client::QueryClient, QueryTallyResultRequest};
+        let endpoint = Endpoint::from_shared(self.config.grpc_url.clone().unwrap()).unwrap();
+        let tally_request = QueryTallyResultRequest { proposal_id };
+        let resp = QueryClient::connect(endpoint)
+            .await
+            .unwrap()
+            .tally_result(tally_request)
+            .await
+            .map_err(|e| format!("{}", e))?;
+
+        let tally_resp = resp.into_inner();
+        let tally = tally_resp.tally.ok_or_else(|| String::from("Tally not found"))?;
+
+        let internal_pro_final_tally_result = InternalProposalFinalTallyResult {
+            yes_count: tally.yes,
+            abstain_count: tally.abstain,
+            no_count: tally.no,
+            no_with_veto_count: tally.no_with_veto,
+        };
+
+        Ok(internal_pro_final_tally_result)
+    }
+
     /// Returns the tally of given proposal.
-    pub async fn get_proposal_tally(&self, proposal_id: u64) -> Result<OutRestResponse<InternalProposalFinalTallyResult>, String> {
-        let path = format!("/cosmos/gov/v1beta1/proposals/{proposal_id}/tally");
+    pub async fn get_proposal_tally(&self, proposal_id: u64) -> Result<InternalProposalFinalTallyResult, String> {
+        let items = if dbg!(self.config.sdk_version.minor) >= 46 {
+            self.proposal_tally_v1(proposal_id).await.ok()
+        } else {
+            None
+        };
 
-        let resp = self.rest_api_request::<ProposalTallyResp>(&path, &[]).await?;
+        let items = if let Some(items) = items {
+            items
+        } else {
+            self.proposal_tally_v1beta1(proposal_id)
+                .await
+                .map_err(|e| format!("Upstream error: {}", e))?
+        };
 
-        Ok(OutRestResponse::new(
-            InternalProposalFinalTallyResult::try_from_with(resp.tally, |a| self.calc_amount_u128_to_f64(a))?,
-            0,
-        ))
+        Ok(items)
     }
 
     /// Returns the votes of given proposal.
@@ -662,55 +722,11 @@ pub struct ProposalOption {
 }
 
 #[derive(Deserialize, Serialize, Debug)]
-pub struct ProposalTallyResp {
-    /// Proposal tally.
-    pub tally: ProposalFinalTallyResult,
-}
-
-#[derive(Deserialize, Serialize, Debug)]
-pub struct ProposalDepositByDepositorResp {
-    /// Proposal deposit.
-    pub deposit: ProposalDeposit,
-}
-
-#[derive(Deserialize, Serialize, Debug)]
-pub struct ProposalDepositsResp {
-    /// Proposal deposits.
-    pub deposits: Vec<ProposalDeposit>,
-    /// Pagination.
-    pub pagination: Pagination,
-}
-
-#[derive(Deserialize, Serialize, Debug)]
-pub struct ProposalDeposit {
-    /// Proposal depositor. Eg: `""`
-    pub depositor: String,
-    /// Amounts and denom deposited.
-    pub amount: Vec<DenomAmount>,
-}
-
-#[derive(Deserialize, Serialize, Debug)]
 pub struct InternalProposalDeposit {
     /// Proposal depositor. Eg: `""`
     pub depositor: String,
     /// Amount deposited.
     pub amount: f64,
-}
-
-impl InternalProposalDeposit {
-    fn new(value: ProposalDeposit, chain: &Chain) -> Result<Self, String> {
-        Ok(Self {
-            depositor: value.depositor,
-            amount: match value.amount.get(0) {
-                Some(da) => chain.calc_amount_u128_to_f64(
-                    da.amount
-                        .parse::<u128>()
-                        .map_err(|_| "Cannot parse proposal deposit amount.".to_string())?,
-                ),
-                None => return Err("There is no proposal deposit.".to_string()),
-            },
-        })
-    }
 }
 
 #[derive(Deserialize, Serialize, Debug)]
