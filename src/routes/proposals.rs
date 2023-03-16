@@ -17,7 +17,8 @@ use super::QueryParams;
 #[serde(rename_all = "snake_case")]
 pub enum ProposalStatus {
     Unspecified,
-    Voting,
+    DepositPeriod,
+    VotingPeriod,
     Passed,
     Rejected,
     Failed,
@@ -27,18 +28,31 @@ impl ProposalStatus {
     pub fn get_id(&self) -> u8 {
         use ProposalStatus::*;
         match self {
-            Unspecified => 1,
-            Voting => 2,
+            Unspecified => 0,
+            DepositPeriod => 1,
+            VotingPeriod => 2,
             Passed => 3,
             Rejected => 4,
             Failed => 5,
+        }
+    }
+
+    pub fn from_id(id: i32) -> Self {
+        use ProposalStatus::*;
+        match id {
+            0 => Unspecified,
+            1 => DepositPeriod,
+            2 => VotingPeriod,
+            3 => Passed,
+            4 => Rejected,
+            5 => Failed,
         }
     }
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ProposalsQueryParams {
-    status: ProposalStatus,
+    status: Option<ProposalStatus>,
     #[serde(flatten)]
     pagination: PaginationData
 }
@@ -48,7 +62,7 @@ pub async fn proposals(path: Path<String>, chains: Data<State>, query: Query<Pro
     let chain = path.into_inner();
 
     let chain = extract_chain(&chain, chains)?;
-    let data = chain.get_proposals_by_status(query.0.status, query.0.pagination).await?;
+    let data = chain.get_proposals_by_status(query.0.status.unwrap_or_else(|| ProposalStatus::Unspecified), query.0.pagination).await?;
     Ok(TNRAppSuccessResponse::new(data, None))
 }
 
