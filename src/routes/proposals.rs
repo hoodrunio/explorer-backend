@@ -4,10 +4,10 @@ use actix_web::{
     Responder,
 };
 
+use crate::routes::PaginationData;
 use crate::routes::{extract_chain, TNRAppError, TNRAppSuccessResponse};
 use crate::{fetch::others::PaginationConfig, state::State};
-use crate::{routes::PaginationData};
-use serde::{Serialize,Deserialize};
+use serde::{Deserialize, Serialize};
 
 use super::QueryParams;
 
@@ -46,6 +46,7 @@ impl ProposalStatus {
             3 => Passed,
             4 => Rejected,
             5 => Failed,
+            _ => Unspecified,
         }
     }
 }
@@ -54,7 +55,7 @@ impl ProposalStatus {
 pub struct ProposalsQueryParams {
     status: Option<ProposalStatus>,
     #[serde(flatten)]
-    pagination: PaginationData
+    pagination: PaginationData,
 }
 
 #[get("{chain}/proposals")]
@@ -62,16 +63,14 @@ pub async fn proposals(path: Path<String>, chains: Data<State>, query: Query<Pro
     let chain = path.into_inner();
 
     let chain = extract_chain(&chain, chains)?;
-    let data = chain.get_proposals_by_status(query.0.status.unwrap_or_else(|| ProposalStatus::Unspecified), query.0.pagination).await?;
+    let data = chain
+        .get_proposals_by_status(query.0.status.unwrap_or_else(|| ProposalStatus::Unspecified), query.0.pagination)
+        .await?;
     Ok(TNRAppSuccessResponse::new(data, None))
 }
 
 #[get("{chain}/proposal-deposits/{id}")]
-pub async fn proposal_deposits(
-    path: Path<(String, u64)>,
-    chains: Data<State>,
-    query: Query<PaginationData>
-) -> Result<impl Responder, TNRAppError> {
+pub async fn proposal_deposits(path: Path<(String, u64)>, chains: Data<State>, query: Query<PaginationData>) -> Result<impl Responder, TNRAppError> {
     let (chain, proposal_id) = path.into_inner();
 
     let chain = extract_chain(&chain, chains)?;

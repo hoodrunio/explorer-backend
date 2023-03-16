@@ -1,11 +1,8 @@
-use chrono::DateTime;
-use cosmrs::tendermint::proposal;
-use futures::TryFutureExt;
 use prost_wkt_types::Timestamp;
 use serde::{Deserialize, Serialize};
 use tonic::transport::Endpoint;
 
-use super::others::{DenomAmount, Pagination, PaginationConfig};
+use super::others::{Pagination, PaginationConfig};
 use crate::{
     chain::Chain,
     database::ListDbResult,
@@ -14,7 +11,7 @@ use crate::{
             base::query::v1beta1::{PageRequest, PageResponse},
             distribution::v1beta1::CommunityPoolSpendProposal,
             gov::v1::MsgExecLegacyContent,
-            gov::{v1::Deposit, v1beta1::TextProposal},
+            gov::v1beta1::TextProposal,
             params::v1beta1::ParameterChangeProposal,
             upgrade::v1beta1::SoftwareUpgradeProposal,
         },
@@ -148,7 +145,7 @@ impl From<PageResponse> for PaginationData {
 
 impl Chain {
     async fn get_proposals_v1(&self, status: &str, config: PaginationData) -> Result<ListDbResult<ProposalItem>, String> {
-        use crate::fetch::cosmos::gov::v1::{query_client::QueryClient, Proposal, QueryProposalsRequest, QueryProposalsResponse};
+        use crate::fetch::cosmos::gov::v1::{query_client::QueryClient, Proposal, QueryProposalsRequest};
         let config = config.clone();
         let endpoint = Endpoint::from_shared(self.config.grpc_url.clone().unwrap()).unwrap();
         let proposal_request = QueryProposalsRequest {
@@ -209,7 +206,7 @@ impl Chain {
         })
     }
     async fn get_proposals_v1beta1(&self, status: &str, config: PaginationData) -> Result<ListDbResult<ProposalItem>, String> {
-        use crate::fetch::cosmos::gov::v1beta1::{query_client::QueryClient, Proposal, QueryProposalsRequest, QueryProposalsResponse, TextProposal};
+        use crate::fetch::cosmos::gov::v1beta1::{query_client::QueryClient, Proposal, QueryProposalsRequest};
         let endpoint = Endpoint::from_shared(self.config.grpc_url.clone().unwrap()).unwrap();
         let proposal_request = QueryProposalsRequest {
             proposal_status: status.parse().unwrap(),
@@ -289,7 +286,7 @@ impl Chain {
     }
 
     async fn get_proposal_details_v1(&self, proposal_id: u64) -> Result<InternalProposal, String> {
-        use crate::fetch::cosmos::gov::v1::{query_client::QueryClient, QueryProposalRequest, QueryProposalResponse};
+        use crate::fetch::cosmos::gov::v1::{query_client::QueryClient, QueryProposalRequest};
         let endpoint = Endpoint::from_shared(self.config.grpc_url.clone().unwrap()).unwrap();
 
         let proposal_request = QueryProposalRequest { proposal_id };
@@ -312,7 +309,7 @@ impl Chain {
         let messages = proposal.messages.into_iter().map(|m| m.into()).collect();
         let internal_proposal = InternalProposal {
             id: proposal.id,
-            messages: messages,
+            messages,
             status: ProposalStatus::from_id(proposal.status),
             final_tally_result: tally_result,
             submit_time: proposal.submit_time,
@@ -330,7 +327,7 @@ impl Chain {
         Ok(internal_proposal)
     }
     async fn get_proposal_details_v1beta1(&self, proposal_id: u64) -> Result<InternalProposal, String> {
-        use crate::fetch::cosmos::gov::v1beta1::{query_client::QueryClient, Proposal, QueryProposalRequest, TallyResult};
+        use crate::fetch::cosmos::gov::v1beta1::{query_client::QueryClient, QueryProposalRequest};
         let endpoint = Endpoint::from_shared(self.config.grpc_url.clone().unwrap()).unwrap();
         let proposal_request = QueryProposalRequest { proposal_id };
 
@@ -399,7 +396,7 @@ impl Chain {
     }
 
     async fn proposal_deposits_v1(&self, proposal_id: u64, config: PaginationData) -> Result<ListDbResult<InternalProposalDeposit>, String> {
-        use crate::fetch::cosmos::gov::v1::{query_client::QueryClient, QueryDepositResponse, QueryDepositsRequest};
+        use crate::fetch::cosmos::gov::v1::{query_client::QueryClient, QueryDepositsRequest};
         let endpoint = Endpoint::from_shared(self.config.grpc_url.clone().unwrap()).unwrap();
 
         let deposits_request = QueryDepositsRequest {
@@ -432,7 +429,7 @@ impl Chain {
     }
 
     async fn proposal_deposits_v1beta1(&self, proposal_id: u64, config: PaginationData) -> Result<ListDbResult<InternalProposalDeposit>, String> {
-        use crate::fetch::cosmos::gov::v1::{query_client::QueryClient, QueryDepositsRequest, QueryDepositsResponse};
+        use crate::fetch::cosmos::gov::v1::{query_client::QueryClient, QueryDepositsRequest};
         let endpoint = Endpoint::from_shared(self.config.grpc_url.clone().unwrap()).unwrap();
 
         let deposit_request = QueryDepositsRequest {
@@ -483,7 +480,7 @@ impl Chain {
     }
 
     async fn proposal_deposit_v1(&self, proposal_id: u64, depositor: &str) -> Result<InternalProposalDeposit, String> {
-        use crate::fetch::cosmos::gov::v1::{query_client::QueryClient, QueryDepositRequest, QueryDepositResponse};
+        use crate::fetch::cosmos::gov::v1::{query_client::QueryClient, QueryDepositRequest};
         let endpoint = Endpoint::from_shared(self.config.grpc_url.clone().unwrap()).unwrap();
 
         let deposit_request = QueryDepositRequest {
@@ -510,7 +507,7 @@ impl Chain {
     }
 
     async fn proposal_deposit_v1beta1(&self, proposal_id: u64, depositor: &str) -> Result<InternalProposalDeposit, String> {
-        use crate::fetch::cosmos::gov::v1::{query_client::QueryClient, QueryDepositRequest, QueryDepositResponse};
+        use crate::fetch::cosmos::gov::v1::{query_client::QueryClient, QueryDepositRequest};
         let endpoint = Endpoint::from_shared(self.config.grpc_url.clone().unwrap()).unwrap();
         let deposit_request = QueryDepositRequest {
             proposal_id,
@@ -653,10 +650,6 @@ impl Chain {
         let proposal_vote = resp.vote.try_into()?;
 
         Ok(OutRestResponse::new(proposal_vote, 0))
-    }
-
-    fn from(content: prost_types::Any) -> Self {
-        todo!()
     }
 }
 
