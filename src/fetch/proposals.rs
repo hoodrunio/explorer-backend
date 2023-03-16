@@ -614,102 +614,138 @@ impl Chain {
         Ok(items)
     }
 
+    async fn proposal_votes_v1(&self, proposal_id: u64, config: PaginationData) -> Result<ListDbResult<InternalProposalVote>, String> {
+        use crate::fetch::cosmos::gov::v1::{query_client::QueryClient, QueryVotesRequest};
+        let endpoint = Endpoint::from_shared(self.config.grpc_url.clone().unwrap()).unwrap();
+        let votes_request = QueryVotesRequest {
+            proposal_id,
+            pagination: Some(config.into()),
+        };
+        let resp = QueryClient::connect(endpoint)
+            .await
+            .unwrap()
+            .votes(votes_request)
+            .await
+            .map_err(|e| format!("{}", e))?;
+
+        let votes_resp = resp.into_inner();
+        let votes = votes_resp.votes;
+
+        let internal_proposal_votes = votes
+            .iter()
+            .map(|v| {
+                let options = v
+                    .options
+                    .iter()
+                    .map(|o| ProposalOption {
+                        option: o.option,
+                        weight: o.weight.clone(),
+                    })
+                    .collect();
+
+                InternalProposalVote {
+                    proposal_id,
+                    voter: v.voter.clone(),
+                    option: String::default(),
+                    options,
+                    metadata: Some(v.metadata.clone()),
+                }
+            })
+            .collect();
+
+        Ok(ListDbResult {
+            data: internal_proposal_votes,
+            pagination: votes_resp.pagination.map(|p| p.into()).unwrap_or_default(),
+        })
+    }
+
+    async fn proposal_votes_v1beta1(&self, proposal_id: u64, config: PaginationData) -> Result<ListDbResult<InternalProposalVote>, String> {
+        use crate::fetch::cosmos::gov::v1beta1::{query_client::QueryClient, QueryVotesRequest};
+        let endpoint = Endpoint::from_shared(self.config.grpc_url.clone().unwrap()).unwrap();
+        let votes_request = QueryVotesRequest {
+            proposal_id,
+            pagination: Some(config.into()),
+        };
+        let resp = QueryClient::connect(endpoint)
+            .await
+            .unwrap()
+            .votes(votes_request)
+            .await
+            .map_err(|e| format!("{}", e))?;
+
+        let votes_resp = resp.into_inner();
+        let votes = votes_resp.votes;
+
+        let internal_proposal_votes = votes
+            .iter()
+            .map(|v| {
+                let options = v
+                    .options
+                    .iter()
+                    .map(|o| ProposalOption {
+                        option: o.option,
+                        weight: o.weight.clone(),
+                    })
+                    .collect();
+
+                InternalProposalVote {
+                    proposal_id,
+                    voter: v.voter.clone(),
+                    option: String::default(),
+                    options,
+                    metadata: None,
+                }
+            })
+            .collect();
+
+        Ok(ListDbResult {
+            data: internal_proposal_votes,
+            pagination: votes_resp.pagination.map(|p| p.into()).unwrap_or_default(),
+        })
+    }
     /// Returns the votes of given proposal.
-    pub async fn get_proposal_votes(&self, proposal_id: u64, config: PaginationConfig) -> Result<OutRestResponse<Vec<InternalProposalVote>>, String> {
-        let path = format!("/cosmos/gov/v1beta1/proposals/{proposal_id}/votes");
+    pub async fn get_proposal_votes(&self, proposal_id: u64, config: PaginationData) -> Result<ListDbResult<InternalProposalVote>, String> {
+        let items = if dbg!(self.config.sdk_version.minor) >= 46 {
+            self.proposal_votes_v1(proposal_id, config.clone()).await.ok()
+        } else {
+            None
+        };
 
-        let mut query = vec![];
+        let items = if let Some(items) = items {
+            items
+        } else {
+            self.proposal_votes_v1beta1(proposal_id, config)
+                .await
+                .map_err(|e| format!("Upstream error: {}", e))?
+        };
 
-        query.push(("pagination.reverse", format!("{}", config.is_reverse())));
-        query.push(("pagination.limit", format!("{}", config.get_limit())));
-        query.push(("pagination.count_total", "true".to_string()));
-        query.push(("pagination.offset", format!("{}", config.get_offset())));
-
-        let resp = self.rest_api_request::<ProposalVotesResp>(&path, &query).await?;
-
-        let mut proposal_votes = vec![];
-
-        for proposal_vote in resp.votes {
-            match proposal_vote.try_into() {
-                Ok(proposal_vote) => proposal_votes.push(proposal_vote),
-                Err(error) => tracing::error!("{error}"),
-            }
-        }
-
-        let pages = calc_pages(resp.pagination, config)?;
-
-        Ok(OutRestResponse::new(proposal_votes, pages))
+        Ok(items)
     }
 
     /// Returns the vote of given proposal by given voter.
-    pub async fn get_proposal_vote_by_voter(&self, proposal_id: u64, voter: &str) -> Result<OutRestResponse<InternalProposalVote>, String> {
-        let path = format!("/cosmos/gov/v1beta1/proposals/{proposal_id}/votes/{voter}");
-
-        let resp = self.rest_api_request::<ProposalVoteByVoterResp>(&path, &[]).await?;
-
-        let proposal_vote = resp.vote.try_into()?;
-
-        Ok(OutRestResponse::new(proposal_vote, 0))
+    pub async fn get_proposal_vote_by_voter(&self, proposal_id: u64, voter: &str) -> Result<InternalProposalVote, String> {
+        Err("Not implemented".to_string())
     }
-}
-
-#[derive(Deserialize, Serialize, Debug)]
-pub struct ProposalVoteByVoterResp {
-    /// Proposal vote.
-    pub vote: ProposalVote,
-}
-
-#[derive(Deserialize, Serialize, Debug)]
-pub struct ProposalVotesResp {
-    /// Array of proposal votes.
-    pub votes: Vec<ProposalVote>,
-    /// Pagination.
-    pub pagination: Pagination,
-}
-
-#[derive(Deserialize, Serialize, Debug)]
-pub struct ProposalVote {
-    /// Proposal ID. Eg: `"34"`
-    pub proposal_id: String,
-    /// Proposal voter. Eg: `""`
-    pub voter: String,
-    /// Proposal vote option. Eg: `"VOTE_OPTION_UNSPECIFIED"`
-    pub option: String,
-    /// Array of proposal options.
-    pub options: Vec<ProposalOption>,
 }
 
 #[derive(Deserialize, Serialize, Debug)]
 pub struct InternalProposalVote {
     /// Proposal ID. Eg: `34`
-    pub proposal_id: u32,
+    pub proposal_id: u64,
     /// Proposal voter. Eg: `""`
     pub voter: String,
     /// Proposal vote option. Eg: `"VOTE_OPTION_UNSPECIFIED"`
     pub option: String,
     /// Array of proposal options.
     pub options: Vec<ProposalOption>,
-}
-
-impl TryFrom<ProposalVote> for InternalProposalVote {
-    type Error = String;
-    fn try_from(value: ProposalVote) -> Result<Self, Self::Error> {
-        Ok(Self {
-            proposal_id: value
-                .proposal_id
-                .parse()
-                .map_err(|_| format!("Cannot parse proposal id, '{}'.", value.proposal_id))?,
-            voter: value.voter,
-            option: value.option,
-            options: value.options,
-        })
-    }
+    // metadata is any  arbitrary metadata to attached to the vote.
+    pub metadata: Option<String>,
 }
 
 #[derive(Deserialize, Serialize, Debug)]
 pub struct ProposalOption {
     /// Proposal vote option. Eg: `"VOTE_OPTION_UNSPECIFIED"`
-    pub option: String,
+    pub option: i32,
     /// Proposal vote option weight. Eg: `""`
     pub weight: String,
 }
@@ -751,14 +787,6 @@ pub struct InternalProposal {
     pub proposer: Option<String>,
     // Since: cosmos-sdk 0.48
     pub expedited: Option<bool>,
-}
-
-fn default_proposal_title() -> String {
-    String::from("Unknown proposal.")
-}
-
-fn default_proposal_description() -> String {
-    String::from("This proposal has no description.")
 }
 
 #[derive(Deserialize, Serialize, Debug)]
