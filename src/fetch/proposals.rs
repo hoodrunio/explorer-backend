@@ -425,7 +425,7 @@ impl Chain {
     }
 
     async fn proposal_deposits_v1beta1(&self, proposal_id: u64, config: PaginationData) -> Result<ListDbResult<InternalProposalDeposit>, String> {
-        use crate::fetch::cosmos::gov::v1::{query_client::QueryClient, QueryDepositsRequest};
+        use crate::fetch::cosmos::gov::v1beta1::{query_client::QueryClient, QueryDepositsRequest};
         let endpoint = Endpoint::from_shared(self.config.grpc_url.clone().unwrap()).unwrap();
 
         let deposit_request = QueryDepositsRequest {
@@ -503,7 +503,7 @@ impl Chain {
     }
 
     async fn proposal_deposit_v1beta1(&self, proposal_id: u64, depositor: &str) -> Result<InternalProposalDeposit, String> {
-        use crate::fetch::cosmos::gov::v1::{query_client::QueryClient, QueryDepositRequest};
+        use crate::fetch::cosmos::gov::v1beta1::{query_client::QueryClient, QueryDepositRequest};
         let endpoint = Endpoint::from_shared(self.config.grpc_url.clone().unwrap()).unwrap();
         let deposit_request = QueryDepositRequest {
             proposal_id,
