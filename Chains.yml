@@ -24,7 +24,7 @@ evmos:
   decimals: 18
   # version: 0.45
   jsonrpc_url: https://eth.bd.evmos.org:8545/
-  rpc_url: https://rpc.cosmos.directory/evmos
+  rpc_url: https://rpc-evmos.stakerun.com
   rest_url: https://rest.bd.evmos.org:1317
   wss_url: wss://rpc-evmos.ecostake.com/websocket
   archive_url: empty
@@ -39,8 +39,8 @@ osmosis:
   logo: https://assets.coingecko.com/coins/images/16724/large/osmo.png
   # decimals: 6
   # version: 0.45
-  rpc_url: https://rpc.cosmos.directory/osmosis
-  rest_url: https://rest.cosmos.directory/osmosis
+  rpc_url: https://osmosis-rpc.polkachu.com
+  rest_url: https://osmosis-api.polkachu.com
   wss_url: wss://rpc.osmosis.interbloc.org/websocket
   archive_url: empty
 
@@ -69,8 +69,8 @@ secret:
   logo: https://assets.coingecko.com/coins/images/20635/small/Asset_19.png
   # decimals: 6
   # version: 0.45
-  rpc_url: https://secret-4.api.trivium.network:26657/
-  rest_url: https://secretnetwork-lcd.stakely.io
+  rpc_url: https://secret-4.api.trivium.network:26657
+  rest_url: https://secret-4.api.trivium.network:1317
   wss_url: wss://scrt-rpc.agoranodes.com/websocket
   archive_url: empty
 
