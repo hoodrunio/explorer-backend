@@ -5,10 +5,19 @@ use actix_web::{
     Responder,
 };
 
-use crate::routes::{extract_chain, LastCountListsQueryParams, QueryParams, TNRAppError, TNRAppSuccessResponse};
+use crate::routes::{extract_chain, LastCountListsQueryParams, PaginationData, QueryParams, TNRAppError, TNRAppSuccessResponse};
 use crate::{fetch::others::PaginationConfig, state::State};
 
 // ======== Transaction Methods ========
+
+#[get("{chain}/txs")]
+pub async fn txs(path: Path<String>, chains: Data<State>, query: Query<PaginationData>) -> Result<impl Responder, TNRAppError> {
+    let chain = path.into_inner();
+
+    let chain = extract_chain(&chain, chains)?;
+    let data = chain.database.find_paginated_txs(None, query.into_inner()).await?;
+    Ok(TNRAppSuccessResponse::new(data.data, Some(data.pagination)))
+}
 
 #[get("{chain}/tx/{hash}")]
 pub async fn tx_by_hash(path: Path<(String, String)>, chains: Data<State>) -> Result<impl Responder, TNRAppError> {
@@ -59,9 +68,7 @@ pub async fn txs_of_recipient(path: Path<(String, String)>, chains: Data<State>,
     let config = PaginationConfig::new().limit(query.limit.unwrap_or(20)).page(query.page.unwrap_or(1));
 
     let chain = extract_chain(&chain, chains)?;
-    let data = chain
-        .get_txs_by_recipient(&recipient_addr, config)
-        .await?;
+    let data = chain.get_txs_by_recipient(&recipient_addr, config).await?;
     Ok(TNRAppSuccessResponse::new(data, None))
 }
 
