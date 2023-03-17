@@ -124,6 +124,25 @@ impl<T> TNRAppSuccessResponse<T> {
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct PaginationDataQueryParams {
+    pub cursor: Option<String>,
+    pub offset: Option<String>,
+    pub limit: Option<String>,
+    pub direction: Option<PaginationDirection>,
+}
+
+impl From<PaginationDataQueryParams> for PaginationData {
+    fn from(value: PaginationDataQueryParams) -> Self {
+        Self {
+            cursor: value.cursor,
+            offset: value.offset.map(|o| o.parse::<u64>().ok()).unwrap_or(None),
+            limit: value.limit.map(|o| o.parse::<u64>().ok()).unwrap_or(None),
+            direction: value.direction,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct PaginationData {
     pub cursor: Option<String>,
     pub offset: Option<u64>,
