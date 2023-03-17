@@ -1,5 +1,6 @@
 use prost_wkt_types::Timestamp;
 use serde::{Deserialize, Serialize};
+use std::str;
 use tonic::transport::Endpoint;
 
 use crate::{
@@ -115,7 +116,7 @@ impl From<prost_wkt_types::Any> for ProposalInfo {
 impl Into<PageRequest> for PaginationData {
     fn into(self) -> PageRequest {
         PageRequest {
-            key: self.cursor.unwrap_or_else(|| "".to_string()).as_bytes().to_vec(),
+            key: self.cursor.map(|b| base64::decode(b).unwrap_or_default().to_vec()).unwrap_or_default(),
             offset: self.offset.unwrap_or_else(|| 0),
             limit: self.limit.unwrap_or_else(|| 20),
             count_total: true,
@@ -127,7 +128,7 @@ impl Into<PageRequest> for PaginationData {
 impl From<PageResponse> for PaginationData {
     fn from(value: PageResponse) -> Self {
         let cursor = if !value.next_key.is_empty() {
-            Some(String::from_utf8(value.next_key).unwrap())
+            Some(base64::encode(value.next_key))
         } else {
             None
         };
@@ -150,13 +151,7 @@ impl Chain {
             proposal_status: status.parse().unwrap(),
             voter: "".to_string(),
             depositor: "".to_string(),
-            pagination: Some(PageRequest {
-                key: config.cursor.unwrap_or_else(|| "".to_string()).as_bytes().to_vec(),
-                offset: 0,
-                limit: config.limit.unwrap_or_else(|| 50),
-                count_total: false,
-                reverse: false,
-            }),
+            pagination: Some(config.into()),
         };
 
         let resp = QueryClient::connect(endpoint.clone())
@@ -191,16 +186,9 @@ impl Chain {
             };
         }
 
-        let limit = items.len() as u64;
-
         Ok(ListDbResult {
             data: items,
-            pagination: PaginationData {
-                cursor: proposals.pagination.map(|p| String::from_utf8(p.next_key).unwrap()),
-                offset: None,
-                limit: Some(limit),
-                direction: Some(PaginationDirection::Next),
-            },
+            pagination: proposals.pagination.map(|p| p.into()).unwrap_or_default(),
         })
     }
     async fn get_proposals_v1beta1(&self, status: &str, config: PaginationData) -> Result<ListDbResult<ProposalItem>, String> {
@@ -210,13 +198,7 @@ impl Chain {
             proposal_status: status.parse().unwrap(),
             voter: "".to_string(),
             depositor: "".to_string(),
-            pagination: Some(PageRequest {
-                key: config.cursor.unwrap_or_else(|| "".to_string()).as_bytes().to_vec(),
-                offset: 0,
-                limit: config.limit.unwrap_or_else(|| 50),
-                count_total: false,
-                reverse: false,
-            }),
+            pagination: Some(config.into()),
         };
 
         let resp = QueryClient::connect(endpoint)
@@ -251,16 +233,9 @@ impl Chain {
             };
         }
 
-        let limit = items.len() as u64;
-
         Ok(ListDbResult {
             data: items,
-            pagination: PaginationData {
-                cursor: proposals.pagination.map(|p| String::from_utf8(p.next_key).unwrap()),
-                offset: None,
-                limit: Some(limit),
-                direction: Some(PaginationDirection::Next),
-            },
+            pagination: proposals.pagination.map(|p| p.into()).unwrap_or_default(),
         })
     }
     /// Returns all the proposals in voting period.
