@@ -4,7 +4,7 @@ use actix_web::{
     Responder,
 };
 
-use crate::routes::PaginationData;
+use crate::routes::PaginationDataQueryParams;
 use crate::routes::{extract_chain, TNRAppError, TNRAppSuccessResponse};
 use crate::state::State;
 use serde::{Deserialize, Serialize};
@@ -53,7 +53,7 @@ impl ProposalStatus {
 pub struct ProposalsQueryParams {
     status: Option<ProposalStatus>,
     #[serde(flatten)]
-    pagination: PaginationData,
+    pagination: PaginationDataQueryParams,
 }
 
 #[get("{chain}/proposals")]
@@ -62,17 +62,21 @@ pub async fn proposals(path: Path<String>, chains: Data<State>, query: Query<Pro
 
     let chain = extract_chain(&chain, chains)?;
     let data = chain
-        .get_proposals_by_status(query.0.status.unwrap_or(ProposalStatus::Unspecified), query.0.pagination)
+        .get_proposals_by_status(query.0.status.unwrap_or(ProposalStatus::Unspecified), query.0.pagination.into())
         .await?;
     Ok(TNRAppSuccessResponse::from(data))
 }
 
 #[get("{chain}/proposal-deposits/{id}")]
-pub async fn proposal_deposits(path: Path<(String, u64)>, chains: Data<State>, query: Query<PaginationData>) -> Result<impl Responder, TNRAppError> {
+pub async fn proposal_deposits(
+    path: Path<(String, u64)>,
+    chains: Data<State>,
+    query: Query<ProposalsQueryParams>,
+) -> Result<impl Responder, TNRAppError> {
     let (chain, proposal_id) = path.into_inner();
 
     let chain = extract_chain(&chain, chains)?;
-    let data = chain.get_proposal_deposits(proposal_id, query.0).await?;
+    let data = chain.get_proposal_deposits(proposal_id, query.0.pagination.into()).await?;
     Ok(TNRAppSuccessResponse::from(data))
 }
 
@@ -95,11 +99,15 @@ pub async fn proposal_tally(path: Path<(String, u64)>, chains: Data<State>) -> R
 }
 
 #[get("{chain}/proposal-votes/{id}")]
-pub async fn proposal_votes(path: Path<(String, u64)>, chains: Data<State>, query: Query<PaginationData>) -> Result<impl Responder, TNRAppError> {
+pub async fn proposal_votes(
+    path: Path<(String, u64)>,
+    chains: Data<State>,
+    query: Query<ProposalsQueryParams>,
+) -> Result<impl Responder, TNRAppError> {
     let (chain, proposal_id) = path.into_inner();
 
     let chain = extract_chain(&chain, chains)?;
-    let data = chain.get_proposal_votes(proposal_id, query.0).await?;
+    let data = chain.get_proposal_votes(proposal_id, query.0.pagination.into()).await?;
     Ok(TNRAppSuccessResponse::from(data))
 }
 
