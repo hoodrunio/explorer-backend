@@ -142,10 +142,26 @@ impl From<PageResponse> for PaginationData {
     }
 }
 
+impl PaginationData {
+    fn from_grpc_pagin_resp(value: PageResponse, limit: Option<u64>) -> Self {
+        let cursor = if !value.next_key.is_empty() {
+            Some(base64::encode(value.next_key))
+        } else {
+            None
+        };
+        Self {
+            cursor,
+            offset: None,
+            limit,
+            direction: Some(PaginationDirection::Next),
+        }
+    }
+}
+
 impl Chain {
     async fn get_proposals_v1(&self, status: &str, config: PaginationData) -> Result<ListDbResult<ProposalItem>, String> {
         use crate::fetch::cosmos::gov::v1::{query_client::QueryClient, Proposal, QueryProposalsRequest};
-        let config = config.clone();
+        let limit = config.limit.clone();
         let endpoint = Endpoint::from_shared(self.config.grpc_url.clone().unwrap()).unwrap();
         let proposal_request = QueryProposalsRequest {
             proposal_status: status.parse().unwrap(),
@@ -188,11 +204,15 @@ impl Chain {
 
         Ok(ListDbResult {
             data: items,
-            pagination: proposals.pagination.map(|p| p.into()).unwrap_or_default(),
+            pagination: proposals
+                .pagination
+                .map(|p| PaginationData::from_grpc_pagin_resp(p, limit))
+                .unwrap_or_default(),
         })
     }
     async fn get_proposals_v1beta1(&self, status: &str, config: PaginationData) -> Result<ListDbResult<ProposalItem>, String> {
         use crate::fetch::cosmos::gov::v1beta1::{query_client::QueryClient, Proposal, QueryProposalsRequest};
+        let limit = config.limit.clone();
         let endpoint = Endpoint::from_shared(self.config.grpc_url.clone().unwrap()).unwrap();
         let proposal_request = QueryProposalsRequest {
             proposal_status: status.parse().unwrap(),
@@ -235,7 +255,10 @@ impl Chain {
 
         Ok(ListDbResult {
             data: items,
-            pagination: proposals.pagination.map(|p| p.into()).unwrap_or_default(),
+            pagination: proposals
+                .pagination
+                .map(|p| PaginationData::from_grpc_pagin_resp(p, limit))
+                .unwrap_or_default(),
         })
     }
     /// Returns all the proposals in voting period.
