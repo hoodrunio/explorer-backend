@@ -315,6 +315,26 @@ impl DatabaseTR {
         Ok(res)
     }
 
+    /// Finds a sorted txs list by given document.
+    /// # Usage
+    /// ```rs
+    /// let txs = database.find_paginated_txs().await;
+    /// ```
+    pub async fn find_paginated_txs(&self, query: Option<Document>, config: PaginationData) -> Result<ListDbResult<TransactionForDb>, String> {
+        let find_options = FindOptions::builder()
+            .sort(doc! { "time": - 1})
+            .limit(config.limit.map(|l| l as i64).unwrap_or_else(|| 20))
+            .build();
+
+        let collection = self.db().collection("transactions");
+        let results = PaginatedCursor::new(Some(find_options), config.cursor, None)
+            .find(&collection, query.as_ref())
+            .await
+            .map_err(|e| e.to_string())?;
+
+        Ok(ListDbResult::from(results))
+    }
+
     /// Finds a validator by given document.
     /// # Usage
     /// ```rs
