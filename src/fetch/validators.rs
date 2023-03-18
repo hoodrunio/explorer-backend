@@ -4,15 +4,15 @@ use mongodb::bson::doc;
 use serde::{Deserialize, Serialize};
 use tokio::join;
 
-use crate::routes::{ChainAmountItem};
+use crate::database::{ListDbResult, ValidatorForDb};
+use crate::fetch::transactions::{InternalTransactionContent, InternalTransactionContentKnowns};
+use crate::routes::ChainAmountItem;
+use crate::routes::{PaginationData, TNRAppError};
+use crate::utils::convert_consensus_pubkey_to_consensus_address;
 use crate::{
     chain::Chain,
     routes::{calc_pages, OutRestResponse},
 };
-use crate::database::{ListDbResult, ValidatorForDb};
-use crate::fetch::transactions::{InternalTransactionContent, InternalTransactionContentKnowns};
-use crate::routes::{PaginationData, TNRAppError};
-use crate::utils::convert_consensus_pubkey_to_consensus_address;
 
 use super::{
     others::{DenomAmount, Pagination, PaginationConfig},
@@ -862,7 +862,14 @@ impl InternalRedelegation {
                 Some(log) => match log.events.iter().find(|event| event.r#type == "redelegate") {
                     Some(event) => match event.attributes.iter().find(|attr| attr.key == "completion_time") {
                         Some(attr) => match DateTime::parse_from_rfc3339(&attr.value) {
-                            Ok(date_time) => date_time.timestamp_millis(),
+                            Ok(date_time) => {
+                                let ts = date_time.timestamp_millis();
+                                if ts < 0 {
+                                    0
+                                } else {
+                                    ts
+                                }
+                            }
                             _ => return Err(format!("Cannot parse datetime, {}.", attr.value)),
                         },
                         _ => {
