@@ -36,7 +36,7 @@ fn main() {
                 "gravity/v1/types.proto",
                 "quicksilver/interchainstaking/v1/proposals.proto",
             ],
-            &["proto"],
+            &["protos"],
         )
         .unwrap();
 
