@@ -34,21 +34,23 @@ use prost::Message;
 use prost_wkt::MessageSerde;
 
 #[derive(Deserialize, Serialize, Clone, Debug)]
-pub struct ProposalInfo(String, String, serde_json::Value);
+pub struct ProposalInfo {
+    pub title: String,
+    pub description: String,
+    pub type_url: String,
+    pub content: serde_json::Value
+}
 
 impl From<prost_wkt_types::Any> for ProposalInfo {
     fn from(content: prost_wkt_types::Any) -> ProposalInfo {
         let mut content = content;
-        let mut type_url = content.type_url.as_str();
 
-        if dbg!(type_url) == "/cosmos.gov.v1.MsgExecLegacyContent" {
+        if content.type_url.ends_with("cosmos.gov.v1.MsgExecLegacyContent") {
             let decoded = MsgExecLegacyContent::decode(content.value.as_ref()).unwrap();
             content = decoded.content.clone().unwrap();
-            type_url = decoded.type_url();
-
         }
 
-        let (title, description, content) = match dbg!(type_url) {
+        let (title, description, content_value) = match content.type_url.as_str() {
             "/cosmos.params.v1beta1.ParameterChangeProposal" => {
                 let value = ParameterChangeProposal::decode(content.value.as_ref()).unwrap();
                 let content = serde_json::to_value(&value).unwrap();
@@ -120,7 +122,7 @@ impl From<prost_wkt_types::Any> for ProposalInfo {
                 (String::from(""), String::from(""), serde_json::Value::Null)
             }
         };
-        dbg!(ProposalInfo(title, description, content))
+        ProposalInfo { title, description, type_url: content.type_url.clone(), content: content_value }
     }
 }
 
@@ -192,7 +194,7 @@ impl Chain {
         let mut items = Vec::with_capacity(proposals.proposals.len());
         for proposal in proposals.proposals {
             if let Some(content) = proposal.messages.get(0).cloned() {
-                let ProposalInfo(title, description, content) = content.into();
+                let ProposalInfo { title, description, type_url, content } = content.into();
                 let Proposal { id, submit_time, status, .. } = proposal;
                 let proposal_item = ProposalItem {
                     proposal_id: id,
@@ -200,6 +202,7 @@ impl Chain {
                     description,
                     time: submit_time.map(|t| t.seconds),
                     status,
+                    type_url,
                     content,
                 };
 
@@ -244,13 +247,14 @@ impl Chain {
                 ..
             } = proposal;
             if let Some(content) = proposal.content {
-                let ProposalInfo(title, description, content) = content.into();
+                let ProposalInfo{ title, description, type_url, content } = content.into();
                 let proposal_item = ProposalItem {
                     proposal_id,
                     title,
                     description,
                     time: submit_time.map(|t| t.seconds),
                     status,
+                    type_url,
                     content,
                 };
 
@@ -346,7 +350,7 @@ impl Chain {
 
         let (title, summary) = prop_info
             .clone()
-            .map_or_else(|| (String::from(""), String::from("")), |p| (p.0.clone(), p.1.clone()));
+            .map_or_else(|| (String::from(""), String::from("")), |p| (p.title.clone(), p.description.clone()));
         let mut messages = vec![];
         if let Some(p) = prop_info {
             messages.push(p);
@@ -896,6 +900,7 @@ pub struct ProposalItem {
     pub time: Option<i64>,
     /// Proposal status.
     pub status: i32,
+    pub type_url: String,
     // Content.
     pub content: serde_json::Value,
 }

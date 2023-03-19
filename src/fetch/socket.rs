@@ -145,6 +145,8 @@ impl Chain {
                                             .to_string(),
                                     };
 
+                                    // let vote_item =
+
                                     tx.send((self.config.name.clone(), WsEvent::NewTX(tx_item.clone()))).ok();
                                     let _ = self.database.add_transaction(tx_item.into()).await;
                                     // clone.store_new_tx(tx_item);
