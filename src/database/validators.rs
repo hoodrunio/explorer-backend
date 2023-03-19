@@ -11,6 +11,8 @@ pub struct Validator {
     pub change_24h: Option<u64>,
     pub hex_address: String,
     pub delegator_shares: f64,
+    pub voting_power: u64,
+    pub voting_power_ratio: f64,
     pub is_active: bool,
     pub uptime: f64,
     pub validator_commissions: ValidatorListValidatorCommission,

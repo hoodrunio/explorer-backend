@@ -1,8 +1,11 @@
 use std::collections::HashMap;
+use std::ops::{Div, Mul};
 
 use mongodb::bson::doc;
+use rust_decimal::prelude::{FromPrimitive, ToPrimitive};
 
 use crate::database::{ValidatorForDb, VotingPowerForDb};
+use crate::fetch::amount_util::TnrDecimal;
 use crate::fetch::validators::ValidatorStatus;
 use crate::utils::{convert_consensus_pubkey_to_consensus_address, convert_consensus_pubkey_to_hex_address, get_validator_logo};
 use crate::{chain::Chain, fetch::others::PaginationConfig};
@@ -15,25 +18,22 @@ impl Chain {
         let validators = resp.validators;
 
         for validator in validators {
-            let mut val_delegator_shares = 0.0;
-            match self.format_delegator_share(&validator.delegator_shares) {
-                Ok(delegator_shares) => {
-                    val_delegator_shares = delegator_shares;
-                    let voting_power_db = VotingPowerForDb {
-                        voting_power: delegator_shares,
-                        voting_power_percentage: (delegator_shares / (staking_pool.bonded as f64)) * 100.0,
-                        ..Default::default()
-                    }
-                    .init();
+            let val_delegator_shares = self.format_delegator_share(&validator.delegator_shares);
+            let bonded_staking_poll = TnrDecimal::from(staking_pool.bonded);
 
-                    self.database
-                        .upsert_voting_power_data(&validator.operator_address, voting_power_db)
-                        .await?;
-                }
-                Err(err) => {
-                    tracing::error!("{}", err)
-                }
+            let voting_power = val_delegator_shares.to_u64().unwrap_or(0);
+            let voting_power_percentage = val_delegator_shares.div(bonded_staking_poll).to_f64().unwrap_or(0.0);
+
+            let voting_power_db = VotingPowerForDb {
+                voting_power: val_delegator_shares.to_f64().unwrap_or(0.0),
+                voting_power_percentage,
+                ..Default::default()
             }
+            .init();
+
+            self.database
+                .upsert_voting_power_data(&validator.operator_address, voting_power_db)
+                .await?;
 
             let is_active = &validator.status == "BOND_STATUS_BONDED";
             let consensus_address =
@@ -68,7 +68,9 @@ impl Chain {
                 self_delegate_address: self
                     .convert_valoper_to_self_delegate_address(&validator.operator_address)
                     .ok_or_else(|| format!("Cannot parse self delegate address, {}.", validator.operator_address))?,
-                delegator_shares: val_delegator_shares,
+                delegator_shares: val_delegator_shares.to_f64().unwrap_or(0.0),
+                voting_power,
+                voting_power_ratio: voting_power_percentage,
                 validator_commissions: validator.commission,
                 cumulative_bonded_tokens: None,
                 voter_address,
