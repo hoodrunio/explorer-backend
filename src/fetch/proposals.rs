@@ -24,6 +24,7 @@ use crate::{
         osmosis::poolincentives::v1beta1::UpdatePoolIncentivesProposal,
         quicksilver::interchainstaking::v1::RegisterZoneProposal,
         umee::leverage::v1::MsgGovUpdateRegistry,
+        kyve::global::v1beta1::MsgUpdateParams as KyveMsgUpdateParams
     },
     routes::PaginationData,
     routes::ProposalStatus,
@@ -115,6 +116,11 @@ impl From<prost_wkt_types::Any> for ProposalInfo {
                 let value = RegisterZoneProposal::decode(content.value.as_ref()).unwrap();
                 let content = serde_json::to_value(&value).unwrap();
                 (value.title, value.description, content)
+            }
+            "/kyve.global.v1beta1.MsgUpdateParams" => {
+                let value = KyveMsgUpdateParams::decode(content.value.as_ref()).unwrap();
+                let content = serde_json::to_value(&value).unwrap();
+                ("".to_string(), "".to_string(), content)
             }
 
             other => {

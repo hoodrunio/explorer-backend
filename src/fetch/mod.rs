@@ -113,3 +113,11 @@ pub mod quicksilver {
         }
     }
 }
+
+pub mod kyve {
+    pub mod global {
+        pub mod v1beta1 {
+            tonic::include_proto!("kyve.global.v1beta1");
+        }
+    }
+}
