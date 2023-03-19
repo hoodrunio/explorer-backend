@@ -3,23 +3,29 @@ use serde::{Deserialize, Serialize};
 
 use crate::chain::Chain;
 use crate::database::{HeartbeatForDb, ListDbResult};
-use crate::fetch::others::PaginationConfig;
-use crate::routes::{HeartbeatsListResp, PaginationData, TNRAppError};
+use crate::routes::{PaginationData, TNRAppError};
 
 impl Chain {
-    pub async fn get_val_heartbeats(&self, operator_address: String, heartbeats_query: HeartbeatsQuery, config: PaginationData) -> Result<ListDbResult<HeartbeatForDb>, TNRAppError> {
+    pub async fn get_val_heartbeats(
+        &self,
+        operator_address: String,
+        heartbeats_query: HeartbeatsQuery,
+        config: PaginationData,
+    ) -> Result<ListDbResult<HeartbeatForDb>, TNRAppError> {
         let query = doc! {"operator_address": operator_address};
         let val_voter_address = match self.database.find_validator(query).await {
-            Ok(res) => {
-                match res.voter_address {
-                    Some(res) => { res }
-                    None => { return Err(TNRAppError::from(format!("Validator does not have voter address"))); }
+            Ok(res) => match res.voter_address {
+                Some(res) => res,
+                None => {
+                    return Err(TNRAppError::from("Validator does not have voter address".to_string()));
                 }
+            },
+            Err(e) => {
+                return Err(TNRAppError::from(e));
             }
-            Err(e) => { return Err(TNRAppError::from(e)); }
         };
 
-        let match_pipe = doc! {"$match":{"sender": val_voter_address}};
+        let match_pipe = doc! {"sender": val_voter_address};
 
         let heartbeats = self.database.find_paginated_heartbeats(Some(match_pipe), Some(config)).await?;
 
