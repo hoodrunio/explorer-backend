@@ -17,7 +17,7 @@ impl Chain {
             Ok(res) => match res.voter_address {
                 Some(res) => res,
                 None => {
-                    return Err(TNRAppError::from(format!("Validator does not have voter address")));
+                    return Err(TNRAppError::from("Validator does not have voter address".to_string()));
                 }
             },
             Err(e) => {
@@ -25,7 +25,7 @@ impl Chain {
             }
         };
 
-        let match_pipe = doc! {"$match":{"sender": val_voter_address}};
+        let match_pipe = doc! {"sender": val_voter_address};
 
         let heartbeats = self.database.find_paginated_heartbeats(Some(match_pipe), Some(config)).await?;
 

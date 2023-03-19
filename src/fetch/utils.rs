@@ -34,6 +34,20 @@ impl Chain {
         amount.checked_div(other).unwrap_or(TnrDecimal::ZERO)
     }
 
+    pub fn parse_string_amount(&self, string_amount: String) -> TnrDecimal {
+        let upper_decimal_constraint = 15;
+        let splitted = string_amount.split('.').collect::<Vec<&str>>();
+        let mut result = splitted[0].to_string();
+        if let Some(res) = splitted.get(1) {
+            let mut decimal_part = *res;
+            if res.len() > upper_decimal_constraint {
+                decimal_part = &res[0..upper_decimal_constraint];
+            };
+            result = format!("{result}.{decimal_part}");
+        }
+        TnrDecimal::from_str_exact(&result).unwrap_or(TnrDecimal::ZERO)
+    }
+
     /// Returns the amount parsed.
     /// # Usage
     /// ```rs
@@ -41,7 +55,7 @@ impl Chain {
     /// let amount = self.string_amount_parser("30437.0000").await;
     /// ```
     pub async fn string_amount_parser(&self, string_amount: String, ticker: Option<String>) -> Result<ChainAmountItem, String> {
-        let float_amount = TnrDecimal::from_str_exact(&string_amount).unwrap_or(TnrDecimal::ZERO);
+        let float_amount = self.parse_string_amount(string_amount);
 
         let ticker = match ticker {
             None => self.config.main_symbol.clone(),
@@ -98,15 +112,9 @@ impl Chain {
         bech32::encode(&self.config.base_prefix, bech32::decode(valoper_addr).ok()?.1, bech32::Variant::Bech32).ok()
     }
 
-    pub fn format_delegator_share(&self, validator_delegator_shares: &str) -> Result<f64, String> {
-        let formatted = validator_delegator_shares
-            .split_once('.')
-            .map(|(pri, _)| pri)
-            .unwrap_or(validator_delegator_shares)
-            .parse::<u128>()
-            .map_err(|_| format!("Cannot parse delegator shares, {}.", validator_delegator_shares))?;
-
-        Ok(self.calc_amount_u128_to_f64(formatted))
+    pub fn format_delegator_share(&self, validator_delegator_shares: &str) -> TnrDecimal {
+        let formatted = self.parse_string_amount(validator_delegator_shares.to_string());
+        self.calc_tnr_decimal_amount(formatted, None)
     }
 
     pub fn generate_heartbeat_id(&self, sender_address: String, height: u64) -> String {

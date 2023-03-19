@@ -586,11 +586,11 @@ impl DatabaseTR {
 
         let options = FindOptions::builder()
             .limit(config.limit.map(|l| l as i64).unwrap_or_else(|| 20))
-            .sort(doc! { "period_height": -1})
+            .sort(doc! { "_id": -1})
             .build();
 
         let results: FindResult<HeartbeatForDb> = PaginatedCursor::new(Some(options), config.cursor, config.direction.map(|d| d.into()))
-            .find(&self.db().collection("heartbeats"), None)
+            .find(&self.db().collection("heartbeats"), filter.as_ref())
             .await
             .map_err(|e| e.to_string())?;
 
