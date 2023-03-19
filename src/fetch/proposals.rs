@@ -31,13 +31,24 @@ use crate::{
 };
 
 use prost::Message;
+use prost_wkt::MessageSerde;
 
 #[derive(Deserialize, Serialize, Clone, Debug)]
 pub struct ProposalInfo(String, String, serde_json::Value);
 
 impl From<prost_wkt_types::Any> for ProposalInfo {
     fn from(content: prost_wkt_types::Any) -> ProposalInfo {
-        let (title, description, content) = match content.type_url.as_str() {
+        let mut content = content;
+        let mut type_url = content.type_url.as_str();
+
+        if dbg!(type_url) == "/cosmos.gov.v1.MsgExecLegacyContent" {
+            let decoded = MsgExecLegacyContent::decode(content.value.as_ref()).unwrap();
+            content = decoded.content.clone().unwrap();
+            type_url = decoded.type_url();
+
+        }
+
+        let (title, description, content) = match dbg!(type_url) {
             "/cosmos.params.v1beta1.ParameterChangeProposal" => {
                 let value = ParameterChangeProposal::decode(content.value.as_ref()).unwrap();
                 let content = serde_json::to_value(&value).unwrap();
@@ -109,7 +120,7 @@ impl From<prost_wkt_types::Any> for ProposalInfo {
                 (String::from(""), String::from(""), serde_json::Value::Null)
             }
         };
-        ProposalInfo(title, description, content)
+        dbg!(ProposalInfo(title, description, content))
     }
 }
 
@@ -181,13 +192,7 @@ impl Chain {
         let mut items = Vec::with_capacity(proposals.proposals.len());
         for proposal in proposals.proposals {
             if let Some(content) = proposal.messages.get(0).cloned() {
-                let content = if content.type_url == "/cosmos.gov.v1.MsgExecLegacyContent" {
-                    let legacy_content = MsgExecLegacyContent::decode(content.value.as_ref()).unwrap();
-                    legacy_content.content
-                } else {
-                    Some(content)
-                };
-                let ProposalInfo(title, description, content) = content.unwrap().into();
+                let ProposalInfo(title, description, content) = content.into();
                 let Proposal { id, submit_time, status, .. } = proposal;
                 let proposal_item = ProposalItem {
                     proposal_id: id,
