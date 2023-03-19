@@ -1,4 +1,5 @@
 use chrono::DateTime;
+use mongodb::bson::doc;
 use serde::{Deserialize, Serialize};
 use tokio::join;
 
@@ -172,6 +173,12 @@ pub struct DelagationsResp {
     pub delegation_responses: Vec<DelegationResponse>,
     /// Pagination.
     pub pagination: Pagination,
+}
+
+#[derive(Deserialize, Serialize, Debug)]
+pub struct SelfDelagationResp {
+    /// Array of delegation responses.
+    pub delegation_response: DelegationResponse,
 }
 
 #[derive(Deserialize, Serialize, Debug)]

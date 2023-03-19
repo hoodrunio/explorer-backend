@@ -54,6 +54,11 @@ impl Chain {
                 Err(_) => None,
             };
 
+            let self_delegation_amount: Option<f64> = match self.get_val_self_delegations(validator.operator_address.clone()).await {
+                Ok(res) => Some(res.amount.amount.to_f64().unwrap_or(0.0)),
+                Err(_) => None,
+            };
+
             let db_val = ValidatorForDb {
                 bonded_height: None, // Find way to fetch and store.
                 change_24h: None,    // Find way to fetch and store
@@ -65,6 +70,7 @@ impl Chain {
                 name: validator.description.moniker,
                 operator_address: validator.operator_address.clone(),
                 is_active,
+                self_delegation_amount,
                 self_delegate_address: self
                     .convert_valoper_to_self_delegate_address(&validator.operator_address)
                     .ok_or_else(|| format!("Cannot parse self delegate address, {}.", validator.operator_address))?,
