@@ -1,6 +1,9 @@
+use std::ops::{Div, Mul};
+
 use chrono::{DateTime, Duration, Utc};
 use futures::future::join_all;
 use mongodb::bson::doc;
+use rust_decimal::prelude::{FromPrimitive, ToPrimitive};
 use serde::{Deserialize, Serialize};
 use tokio::join;
 
@@ -14,6 +17,7 @@ use crate::{
     routes::{calc_pages, OutRestResponse},
 };
 
+use super::amount_util::TnrDecimal;
 use super::{
     others::{DenomAmount, Pagination, PaginationConfig},
     transactions::{Tx, TxResponse, TxsResp, TxsTransactionMessage, TxsTransactionMessageKnowns},
@@ -172,12 +176,10 @@ impl Chain {
 
         let validator_metadata = self.database.find_validator_by_operator_addr(&validator.operator_address.clone()).await?;
 
-        let delegator_shares = match self.format_delegator_share(&validator.delegator_shares) {
-            Ok(val) => val,
-            Err(err) => return Err(err),
-        };
+        let delegator_shares = self.format_delegator_share(&validator.delegator_shares);
+        let bonded_staking_poll_tnr = TnrDecimal::from_f64(bonded_tokens).unwrap_or_default();
+        let voting_power_percentage = delegator_shares.div(bonded_staking_poll_tnr).to_f64().unwrap_or(0.0);
 
-        let voting_power_percentage = (delegator_shares / bonded_tokens) * 100.0;
         let voting_power_change_24h = self
             .get_validator_voting_power_percentage_change(&validator.operator_address, Duration::hours(24), voting_power_percentage)
             .await
@@ -209,7 +211,7 @@ impl Chain {
             name: validator.description.moniker,
             website: validator.description.website,
             details: validator.description.details,
-            voting_power: delegator_shares as u64,
+            voting_power: delegator_shares.to_u64().unwrap_or(0),
             status,
             uptime,
             consensus_address,
@@ -671,10 +673,7 @@ impl ValidatorListResp {
         let mut validators = vec![];
 
         for (i, v) in other.data.iter().enumerate() {
-            let delegator_shares = v.delegator_shares;
             let uptime = v.uptime;
-            let voting_power = delegator_shares as u64;
-            let voting_power_ratio = (delegator_shares / bonded_token as f64) / 10000.0;
             let rank = i + 1;
             let cumulative_bonded_tokens = v.cumulative_bonded_tokens.unwrap_or(0.0);
             let cumulative_share = (cumulative_bonded_tokens / bonded_token as f64) / 10000.0;
@@ -690,8 +689,8 @@ impl ValidatorListResp {
                 moniker: v.name.clone(),
                 rank: rank as i16,
                 cumulative_share,
-                voting_power,
-                voting_power_ratio,
+                voting_power: v.voting_power,
+                voting_power_ratio: v.voting_power_ratio,
                 uptime,
                 logo_url: v.logo_url.clone(),
                 account_address: v.self_delegate_address.clone(),
