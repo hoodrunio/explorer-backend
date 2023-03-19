@@ -18,6 +18,7 @@ use crate::{
 };
 
 use super::amount_util::TnrDecimal;
+use super::delegations::SelfDelagationResp;
 use super::{
     others::{DenomAmount, Pagination, PaginationConfig},
     transactions::{Tx, TxResponse, TxsResp, TxsTransactionMessage, TxsTransactionMessageKnowns},
@@ -204,6 +205,7 @@ impl Chain {
                 .max_rate
                 .parse()
                 .map_err(|_| format!("Cannot parse maximum commission rate, '{}'.", validator.commission.commission_rates.rate))?,
+            self_delegation_amount: validator_metadata.self_delegation_amount.unwrap_or(0.0),
             self_delegate_address: self
                 .convert_valoper_to_self_delegate_address(&validator.operator_address)
                 .ok_or_else(|| format!("Cannot parse self delegate address, {}.", validator.operator_address))?,
@@ -502,6 +504,21 @@ impl Chain {
 
         Ok(result)
     }
+
+    //Self delegations of validator
+    pub async fn get_val_self_delegations(&self, operator_address: String) -> Result<InternalDelegation, String> {
+        let val = self.database.find_validator(doc! {"operator_address": operator_address.clone()}).await?;
+        let self_delegate_address = val.self_delegate_address;
+        let path = format!("/cosmos/staking/v1beta1/validators/{operator_address}/delegations/{self_delegate_address}");
+
+        let resp = self.rest_api_request::<SelfDelagationResp>(&path, &[]).await?;
+        let amount = self.string_amount_parser(resp.delegation_response.delegation.shares, None).await?;
+        let internal_delegation = InternalDelegation {
+            address: self_delegate_address,
+            amount,
+        };
+        Ok(internal_delegation)
+    }
 }
 
 #[derive(Deserialize, Serialize, Debug)]
@@ -563,8 +580,8 @@ pub struct ValidatorUnbondingEntry {
 
 #[derive(Deserialize, Serialize, Debug)]
 pub struct InternalDelegation {
-    address: String,
-    amount: ChainAmountItem,
+    pub address: String,
+    pub amount: ChainAmountItem,
 }
 
 #[derive(Deserialize, Serialize, Debug)]
@@ -785,6 +802,7 @@ pub struct InternalValidator {
     consensus_address: String,
     name: String,
     website: String,
+    self_delegation_amount: f64,
     self_delegate_address: String,
     details: String,
     voting_power_percentage: f64,
