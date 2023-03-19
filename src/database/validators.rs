@@ -18,6 +18,7 @@ pub struct Validator {
     pub validator_commissions: ValidatorListValidatorCommission,
     pub operator_address: String,
     pub consensus_address: String,
+    pub self_delegation_amount: Option<f64>,
     pub self_delegate_address: String,
 
     //Calculating on query.
