@@ -5,6 +5,7 @@ use crate::fetch::validators::ValidatorListValidatorCommission;
 
 #[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
 pub struct Validator {
+    pub rank: u64,
     pub name: String,
     pub logo_url: String,
     pub bonded_height: Option<u64>,
