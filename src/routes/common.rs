@@ -91,8 +91,8 @@ impl ChainAmountItem {
             .await
         {
             Ok(res) => res,
-            Err(_) => {
-                tracing::error!("Cannot build ChainAmountItem");
+            Err(e) => {
+                tracing::error!("Cannot build ChainAmountItem {}", e);
                 Self { amount, ticker }
             }
         }
