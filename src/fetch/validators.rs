@@ -669,7 +669,7 @@ pub struct ValidatorListResp(Vec<ValidatorListElement>);
 
 #[derive(Deserialize, Serialize, Debug)]
 pub struct ValidatorListElement {
-    pub rank: i16,
+    pub rank: u64,
     pub moniker: String,
     pub voting_power: u64,
     pub voting_power_ratio: f64,
@@ -689,9 +689,7 @@ impl ValidatorListResp {
         let bonded_token = staking_pool_resp.bonded;
         let mut validators = vec![];
 
-        for (i, v) in other.data.iter().enumerate() {
-            let uptime = v.uptime;
-            let rank = i + 1;
+        for v in other.data.iter() {
             let cumulative_bonded_tokens = v.cumulative_bonded_tokens.unwrap_or(0.0);
             let cumulative_share = (cumulative_bonded_tokens / bonded_token as f64) / 10000.0;
             let missed_29k = 0;
@@ -704,11 +702,11 @@ impl ValidatorListResp {
                 missed_29k,
                 validator_commissions: ValidatorListElementValidatorCommission::from_db(v.validator_commissions.clone()),
                 moniker: v.name.clone(),
-                rank: rank as i16,
+                rank: v.rank,
                 cumulative_share,
                 voting_power: v.voting_power,
                 voting_power_ratio: v.voting_power_ratio,
-                uptime,
+                uptime: v.uptime,
                 logo_url: v.logo_url.clone(),
                 account_address: v.self_delegate_address.clone(),
                 operator_address: v.operator_address.clone(),
