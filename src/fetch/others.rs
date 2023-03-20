@@ -193,7 +193,7 @@ pub struct StakingPool {
     pub bonded_tokens: String,
 }
 
-#[derive(Deserialize, Serialize, Debug)]
+#[derive(Deserialize, Serialize, Debug, Clone, Copy)]
 pub struct InternalStakingPool {
     /// Tokens unbonded. Eg: `15241580330282`
     pub unbonded: u64,
