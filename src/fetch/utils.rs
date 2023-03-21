@@ -34,15 +34,27 @@ impl Chain {
         amount.checked_div(other).unwrap_or(TnrDecimal::ZERO)
     }
 
+    /// Returns [`TnrDecimal`] numbers which can provide huge numbers calculations from strings.
+    /// # Usage
+    ///
+    /// Beaware that this function will return `0` if the string is not parsable.
+    /// Upper total digit count constraint is 28.
+    /// Upper decimal digit count constraint is 9.
     pub fn parse_string_amount(&self, string_amount: String) -> TnrDecimal {
-        let upper_decimal_constraint = 15;
+        let upper_decimal_constraint = 9;
+        let upper_total_digit_count_constraint = 28;
         let splitted = string_amount.split('.').collect::<Vec<&str>>();
         let mut result = splitted[0].to_string();
         if let Some(res) = splitted.get(1) {
             let mut decimal_part = *res;
-            if res.len() > upper_decimal_constraint {
-                decimal_part = &res[0..upper_decimal_constraint];
+            if decimal_part.len() > upper_decimal_constraint {
+                decimal_part = &decimal_part[0..upper_decimal_constraint];
             };
+
+            //If left side digit count plus decimal part digit counts exceed 28, then we need to trim the decimal part.
+            if result.len() + decimal_part.len() > upper_total_digit_count_constraint {
+                decimal_part = &decimal_part[0..(upper_total_digit_count_constraint - result.len())];
+            }
             result = format!("{result}.{decimal_part}");
         }
         TnrDecimal::from_str_exact(&result).unwrap_or(TnrDecimal::ZERO)
