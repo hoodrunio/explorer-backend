@@ -24,7 +24,6 @@ impl Chain {
 
         for validator in validators {
             jobs.push(async move { self.to_job_validator(validator, staking_pool).await });
-            // self.database.upsert_validator(job_val.into()).await?;
         }
 
         let resp = join_all(jobs).await;
