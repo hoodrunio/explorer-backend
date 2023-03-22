@@ -5,6 +5,7 @@ mod database_tr;
 mod evm;
 mod heartbeats;
 mod params;
+mod proposals;
 mod transactions;
 mod validators;
 
@@ -24,5 +25,6 @@ pub use params::SlashingParams as SlashingParamsForDb;
 pub use params::StakingParams as StakingParamsForDb;
 pub use params::TokenMarketPriceHistories as TokenMarketPriceHistoriesForDb;
 pub use params::VotingPower as VotingPowerForDb;
+pub use proposals::{ProposalVote as ProposalVoteForDb, ProposalVoteOption as ProposalVoteOptionForDb};
 pub use transactions::Transaction as TransactionForDb;
 pub use validators::Validator as ValidatorForDb;
