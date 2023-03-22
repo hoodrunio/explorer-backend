@@ -15,6 +15,7 @@ use crate::database::{
 use crate::fetch::evm::{EvmSupportedChains, PollStatus};
 use crate::routes::PaginationData;
 
+use super::ProposalVoteForDb;
 use super::{chains::Chain, params::Params, validators::Validator};
 
 // Testnetrun explorer database.
@@ -132,6 +133,15 @@ impl DatabaseTR {
         self.db().collection("heartbeats")
     }
 
+    /// Returns the proposal votes collection.
+    /// # Usage
+    /// ```rs
+    /// let collection = database.propsals_votes_collection();
+    /// ```
+    fn propsals_votes_collection(&self) -> Collection<ProposalVoteForDb> {
+        self.db().collection("propsals_votes")
+    }
+
     /// Returns the market price history collection.
     /// # Usage
     /// ```rs
@@ -217,6 +227,18 @@ impl DatabaseTR {
         match self.transactions_collection().insert_one(transaction, None).await {
             Ok(_) => Ok(()),
             Err(_) => Err("Cannot save the transaction.".into()),
+        }
+    }
+
+    /// Adds new propsal vote to the propsals votes collection of the database.
+    /// # Usage
+    /// ```rs
+    /// database.add_propsal_vote(vote).await;
+    /// ```
+    pub async fn add_propsal_vote(&self, proposal_vote: ProposalVoteForDb) -> Result<(), String> {
+        match self.propsals_votes_collection().insert_one(proposal_vote, None).await {
+            Ok(_) => Ok(()),
+            Err(_) => Err("Cannot save proposal vote.".into()),
         }
     }
 
