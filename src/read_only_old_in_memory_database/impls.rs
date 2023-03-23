@@ -14,7 +14,7 @@ impl Chain {
         ) {
             // Update inflation data.
             if let Ok(mut inflation) = chain.inner.data.inflation.lock() {
-                *inflation = inflation_resp.value;
+                *inflation = inflation_resp;
             };
 
             // Update params data.

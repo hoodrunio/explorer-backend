@@ -117,7 +117,7 @@ impl Chain {
                     let bonded_tokens_amount = staking_pool.bonded;
                     let bonded_token_ratio = (bonded_tokens_amount as f64) / (1000000000.0);
                     let inflation = match self.get_inflation_rate().await {
-                        Ok(res) => res.value,
+                        Ok(res) => res,
                         Err(error) => return Err(error),
                     };
                     let community_tax = chain_params.distribution.community_tax;
