@@ -92,6 +92,28 @@ impl Chain {
 
                     Ok(apr)
                 }
+                "quicksilver" => {
+                    let (epoch_prevision_res, staking_pool_res, mint_params_res) =
+                        join!(self.get_epoch_provision(), self.get_staking_pool(), self.get_mint_params());
+                    let epoch_prevision_number = epoch_prevision_res?;
+                    let bonded_tokens = staking_pool_res?.value.bonded;
+                    let mint_params = mint_params_res?;
+                    let staking_rewards_factor = mint_params
+                        .params
+                        .distribution_proportions
+                        .staking
+                        .parse::<f64>()
+                        .map_err(|_| "Failed to parse staking rewards factor".to_string())?;
+
+                    let epoch_prevision = self
+                        .calc_tnr_decimal_amount(TnrDecimal::from_f64(epoch_prevision_number).unwrap_or_default(), None)
+                        .to_f64()
+                        .ok_or_else(|| "Failed to parse total supply".to_string())?;
+
+                    let annual_provision = epoch_prevision * 365.0;
+                    let apr = annual_provision * staking_rewards_factor / bonded_tokens as f64;
+                    Ok(apr)
+                }
                 chain_name => Err(format!("APR for {chain_name} is not implemented.")),
             }
         } else {
@@ -117,28 +139,6 @@ impl Chain {
                     let community_tax = chain_params.distribution.community_tax;
 
                     Ok((inflation * (1.0 - community_tax)) / bonded_token_ratio)
-                }
-                "quicksilver" => {
-                    let (epoch_prevision_res, staking_pool_res, mint_params_res) =
-                        join!(self.get_epoch_provision(), self.get_staking_pool(), self.get_mint_params());
-                    let epoch_prevision_number = epoch_prevision_res?;
-                    let bonded_tokens = staking_pool_res?.value.bonded;
-                    let mint_params = mint_params_res?;
-                    let staking_rewards_factor = mint_params
-                        .params
-                        .distribution_proportions
-                        .staking
-                        .parse::<f64>()
-                        .map_err(|_| "Failed to parse staking rewards factor".to_string())?;
-
-                    let epoch_prevision = self
-                        .calc_tnr_decimal_amount(TnrDecimal::from_f64(epoch_prevision_number).unwrap_or_default(), None)
-                        .to_f64()
-                        .ok_or_else(|| "Failed to parse total supply".to_string())?;
-
-                    let annual_provision = epoch_prevision * 365.0;
-                    let apr = annual_provision * staking_rewards_factor / bonded_tokens as f64;
-                    Ok(apr)
                 }
                 _ => {
                     let community_tax = match self.get_params_all().await {
