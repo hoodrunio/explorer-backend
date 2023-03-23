@@ -21,7 +21,7 @@ impl Chain {
         let mut market_cap = 0.0;
         let mut price = 0.0;
 
-        let inflation_rate = inflation_rate.map(|res| res.value).unwrap_or(0.0);
+        let inflation_rate = inflation_rate.unwrap_or(0.0);
         let apr = apr.unwrap_or(0.0);
 
         let mut total_unbonded = 0.0;
