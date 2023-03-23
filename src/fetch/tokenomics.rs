@@ -133,9 +133,9 @@ impl Chain {
                 .map(|res| res.inflation_rate.parse::<f64>().unwrap_or(default_return_value) / 100.0)
         } else if chain_name == "quicksilver" {
             let (epoch_provision_res, total_supply_res) = join!(self.get_epoch_provision(), self.get_supply_by_denom(&self.config.main_denom));
-            let epoch_provision_string = epoch_provision_res?;
+            let epoch_provision_number = epoch_provision_res?;
             let epoch_provision = self
-                .calc_tnr_decimal_amount(TnrDecimal::from_f64(epoch_provision_string).unwrap_or_default(), None)
+                .calc_tnr_decimal_amount(TnrDecimal::from_f64(epoch_provision_number).unwrap_or_default(), None)
                 .to_f64()
                 .ok_or_else(|| "Failed to parse total supply".to_string())?;
 
