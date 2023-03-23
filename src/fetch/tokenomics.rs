@@ -1,6 +1,9 @@
+use rust_decimal::prelude::{FromPrimitive, ToPrimitive};
 use serde::{Deserialize, Serialize};
+use tokio::join;
 
 use super::{
+    amount_util::TnrDecimal,
     apr::{EpochProvisionResponse, EvmosInflationEpochProvisionResponse},
     others::{DenomAmount, Pagination, PaginationConfig},
 };
@@ -120,16 +123,31 @@ impl Chain {
         Ok(OutRestResponse::new(InternalBalance { amount }, 0))
     }
     /// Returns the minting inflation rate of native coin of the chain.
-    pub async fn get_inflation_rate(&self) -> Result<OutRestResponse<f64>, String> {
+    pub async fn get_inflation_rate(&self) -> Result<f64, String> {
         let default_return_value = 0.0;
-        let mut inflation = if self.config.name == "evmos" {
+        let chain_name = self.config.name.as_str();
+
+        let mut inflation = if ["evmos", "echelon"].contains(&chain_name) {
             self.rest_api_request::<MintingInflationRateResp>("/evmos/inflation/v1/inflation_rate", &[])
                 .await
-                .map(|res| res.inflation_rate.parse::<f64>().unwrap_or(0.0) / 100.0)
-        } else if self.config.name == "echelon" {
-            self.rest_api_request::<MintingInflationRateResp>("/echelon/inflation/v1/inflation_rate", &[])
-                .await
                 .map(|res| res.inflation_rate.parse::<f64>().unwrap_or(default_return_value) / 100.0)
+        } else if chain_name == "quicksilver" {
+            let (epoch_provision_res, total_supply_res) = join!(self.get_epoch_provision(), self.get_supply_by_denom(&self.config.main_denom));
+            let epoch_provision_string = epoch_provision_res?;
+            let epoch_provision = self
+                .calc_tnr_decimal_amount(TnrDecimal::from_f64(epoch_provision_string).unwrap_or_default(), None)
+                .to_f64()
+                .ok_or_else(|| "Failed to parse total supply".to_string())?;
+
+            let annual_provision = epoch_provision * 365.0;
+
+            let total_supply = total_supply_res?
+                .value
+                .amount
+                .to_f64()
+                .ok_or_else(|| "Failed to parse total supply".to_string())?;
+
+            Ok(annual_provision / total_supply)
         } else {
             self.rest_api_request::<MintingInflationResp>("/cosmos/mint/v1beta1/inflation", &[])
                 .await
@@ -157,7 +175,7 @@ impl Chain {
             inflation = external_chain_inflation + (inflation * 2.0);
         }
 
-        Ok(OutRestResponse::new(inflation, 0))
+        Ok(inflation)
     }
 
     //Returns epoch provision
