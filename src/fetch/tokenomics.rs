@@ -200,6 +200,15 @@ impl Chain {
 
         Ok(epoch_provision)
     }
+
+    pub async fn get_mint_params(&self) -> Result<MintParamsResponse, String> {
+        let chain_name = self.config.name.clone();
+        let mint_params = self
+            .rest_api_request::<MintParamsResponse>(&format!("/{chain_name}/mint/v1beta1/params"), &[])
+            .await?;
+
+        Ok(mint_params)
+    }
 }
 
 #[derive(Deserialize, Serialize, Debug)]
@@ -279,4 +288,49 @@ pub struct Balance {
 #[derive(Deserialize, Serialize, Debug)]
 pub struct InternalBalance {
     pub amount: ChainAmountItem,
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct MintParamsResponse {
+    #[serde(rename = "params")]
+    pub params: Params,
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct Params {
+    #[serde(rename = "mint_denom")]
+    pub mint_denom: String,
+
+    #[serde(rename = "genesis_epoch_provisions")]
+    pub genesis_epoch_provisions: String,
+
+    #[serde(rename = "epoch_identifier")]
+    pub epoch_identifier: String,
+
+    #[serde(rename = "reduction_period_in_epochs")]
+    pub reduction_period_in_epochs: String,
+
+    #[serde(rename = "reduction_factor")]
+    pub reduction_factor: String,
+
+    #[serde(rename = "distribution_proportions")]
+    pub distribution_proportions: DistributionProportions,
+
+    #[serde(rename = "minting_rewards_distribution_start_epoch")]
+    pub minting_rewards_distribution_start_epoch: String,
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct DistributionProportions {
+    #[serde(rename = "staking")]
+    pub staking: String,
+
+    #[serde(rename = "pool_incentives")]
+    pub pool_incentives: String,
+
+    #[serde(rename = "participation_rewards")]
+    pub participation_rewards: String,
+
+    #[serde(rename = "community_pool")]
+    pub community_pool: String,
 }
