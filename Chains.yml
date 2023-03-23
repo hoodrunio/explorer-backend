@@ -79,7 +79,7 @@ secret:
 
 quicksilver:
   name: quicksilver
-  epoch: false
+  epoch: true
   gecko: quicksilver
   symbol: QCK
   denom: uqck
