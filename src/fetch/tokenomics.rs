@@ -131,7 +131,7 @@ impl Chain {
             self.rest_api_request::<MintingInflationRateResp>("/evmos/inflation/v1/inflation_rate", &[])
                 .await
                 .map(|res| res.inflation_rate.parse::<f64>().unwrap_or(default_return_value) / 100.0)
-        } else if chain_name == "quicksilver" {
+        } else if ["quicksilver", "osmosis"].contains(&chain_name) {
             let (epoch_provision_res, total_supply_res) = join!(self.get_epoch_provision(), self.get_supply_by_denom(&self.config.main_denom));
             let epoch_provision_number = epoch_provision_res?;
             let epoch_provision = self
