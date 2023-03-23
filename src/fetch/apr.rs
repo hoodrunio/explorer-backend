@@ -1,7 +1,9 @@
 use reqwest::Method;
+use rust_decimal::prelude::{FromPrimitive, ToPrimitive};
 use serde::{Deserialize, Serialize};
+use tokio::join;
 
-use crate::chain::Chain;
+use crate::{chain::Chain, fetch::amount_util::TnrDecimal};
 
 impl Chain {
     /// Returns the APR rate of the chain.
@@ -14,22 +16,7 @@ impl Chain {
         if self.config.epoch {
             match self.config.name.as_str() {
                 "osmosis" => {
-                    let epoch_provisions_response = match self
-                        .external_rest_api_req::<OsmosisEpochProvisionResponse>(
-                            &self.client,
-                            Method::GET,
-                            "https://lcd.osmosis-1.bronbro.io/osmosis/mint/v1beta1/epoch_provisions",
-                            &[],
-                        )
-                        .await
-                    {
-                        Ok(parsed_response) => parsed_response,
-                        Err(error) => return Err(error),
-                    };
-                    let epoch_provisions = match epoch_provisions_response.epoch_provisions.parse::<f64>() {
-                        Ok(value) => value,
-                        Err(_) => return Err("FLOAT_PARSING_ERROR".to_string()),
-                    };
+                    let epoch_provisions = self.get_epoch_provision().await?;
 
                     let osmosis_staking_pool_tokens_response = match self
                         .external_rest_api_req::<OsmosisStakingPoolTokensResponse>(
@@ -81,23 +68,7 @@ impl Chain {
                         Err(_) => return Err("FLOAT_PARSING_ERROR".to_string()),
                     };
 
-                    let evmos_inflation_epoch_prevision_response = match self
-                        .external_rest_api_req::<EvmosInflationEpochProvisionResponse>(
-                            &self.client,
-                            Method::GET,
-                            "https://lcd.evmos-9001-2.bronbro.io/evmos/inflation/v1/epoch_mint_provision",
-                            &[],
-                        )
-                        .await
-                    {
-                        Ok(parsed_response) => parsed_response,
-                        Err(error) => return Err(error),
-                    };
-
-                    let epoch_provisions = match evmos_inflation_epoch_prevision_response.epoch_mint_provision.amount.parse::<f64>() {
-                        Ok(value) => value / evmos_decimal,
-                        Err(_) => return Err("FLOAT_PARSING_ERROR".to_string()),
-                    };
+                    let epoch_provisions = self.get_epoch_provision().await.map(|res| res / evmos_decimal)?;
 
                     let evmos_staking_pool_response = match self
                         .external_rest_api_req::<EvmosStakingPoolResponse>(
@@ -140,12 +111,34 @@ impl Chain {
                     let bonded_tokens_amount = staking_pool.bonded;
                     let bonded_token_ratio = (bonded_tokens_amount as f64) / (1000000000.0);
                     let inflation = match self.get_inflation_rate().await {
-                        Ok(res) => res.value,
+                        Ok(res) => res,
                         Err(error) => return Err(error),
                     };
                     let community_tax = chain_params.distribution.community_tax;
 
                     Ok((inflation * (1.0 - community_tax)) / bonded_token_ratio)
+                }
+                "quicksilver" => {
+                    let (epoch_prevision_res, staking_pool_res, mint_params_res) =
+                        join!(self.get_epoch_provision(), self.get_staking_pool(), self.get_mint_params());
+                    let epoch_prevision_number = epoch_prevision_res?;
+                    let bonded_tokens = staking_pool_res?.value.bonded;
+                    let mint_params = mint_params_res?;
+                    let staking_rewards_factor = mint_params
+                        .params
+                        .distribution_proportions
+                        .staking
+                        .parse::<f64>()
+                        .map_err(|_| "Failed to parse staking rewards factor".to_string())?;
+
+                    let epoch_prevision = self
+                        .calc_tnr_decimal_amount(TnrDecimal::from_f64(epoch_prevision_number).unwrap_or_default(), None)
+                        .to_f64()
+                        .ok_or_else(|| "Failed to parse total supply".to_string())?;
+
+                    let annual_provision = epoch_prevision * 365.0;
+                    let apr = annual_provision * staking_rewards_factor / bonded_tokens as f64;
+                    Ok(apr)
                 }
                 _ => {
                     let community_tax = match self.get_params_all().await {
@@ -220,7 +213,7 @@ pub struct OsmosisStakingPoolTokens {
 }
 
 #[derive(Deserialize, Serialize, Debug, PartialEq)]
-pub struct OsmosisEpochProvisionResponse {
+pub struct EpochProvisionResponse {
     pub epoch_provisions: String,
 }
 

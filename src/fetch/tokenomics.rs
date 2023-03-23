@@ -1,6 +1,12 @@
+use rust_decimal::prelude::{FromPrimitive, ToPrimitive};
 use serde::{Deserialize, Serialize};
+use tokio::join;
 
-use super::others::{DenomAmount, Pagination, PaginationConfig};
+use super::{
+    amount_util::TnrDecimal,
+    apr::{EpochProvisionResponse, EvmosInflationEpochProvisionResponse},
+    others::{DenomAmount, Pagination, PaginationConfig},
+};
 use crate::{
     chain::Chain,
     routes::{calc_pages, ChainAmountItem, OutRestResponse},
@@ -117,16 +123,31 @@ impl Chain {
         Ok(OutRestResponse::new(InternalBalance { amount }, 0))
     }
     /// Returns the minting inflation rate of native coin of the chain.
-    pub async fn get_inflation_rate(&self) -> Result<OutRestResponse<f64>, String> {
+    pub async fn get_inflation_rate(&self) -> Result<f64, String> {
         let default_return_value = 0.0;
-        let mut inflation = if self.config.name == "evmos" {
+        let chain_name = self.config.name.as_str();
+
+        let mut inflation = if ["evmos", "echelon"].contains(&chain_name) {
             self.rest_api_request::<MintingInflationRateResp>("/evmos/inflation/v1/inflation_rate", &[])
                 .await
-                .map(|res| res.inflation_rate.parse::<f64>().unwrap_or(0.0) / 100.0)
-        } else if self.config.name == "echelon" {
-            self.rest_api_request::<MintingInflationRateResp>("/echelon/inflation/v1/inflation_rate", &[])
-                .await
                 .map(|res| res.inflation_rate.parse::<f64>().unwrap_or(default_return_value) / 100.0)
+        } else if chain_name == "quicksilver" {
+            let (epoch_provision_res, total_supply_res) = join!(self.get_epoch_provision(), self.get_supply_by_denom(&self.config.main_denom));
+            let epoch_provision_number = epoch_provision_res?;
+            let epoch_provision = self
+                .calc_tnr_decimal_amount(TnrDecimal::from_f64(epoch_provision_number).unwrap_or_default(), None)
+                .to_f64()
+                .ok_or_else(|| "Failed to parse total supply".to_string())?;
+
+            let annual_provision = epoch_provision * 365.0;
+
+            let total_supply = total_supply_res?
+                .value
+                .amount
+                .to_f64()
+                .ok_or_else(|| "Failed to parse total supply".to_string())?;
+
+            Ok(annual_provision / total_supply)
         } else {
             self.rest_api_request::<MintingInflationResp>("/cosmos/mint/v1beta1/inflation", &[])
                 .await
@@ -154,7 +175,39 @@ impl Chain {
             inflation = external_chain_inflation + (inflation * 2.0);
         }
 
-        Ok(OutRestResponse::new(inflation, 0))
+        Ok(inflation)
+    }
+
+    //Returns epoch provision
+    pub async fn get_epoch_provision(&self) -> Result<f64, String> {
+        let default_return_value = 0.0;
+        let chain_name = self.config.name.clone();
+        let epoch_provision = match chain_name.as_str() {
+            "evmos" => self
+                .rest_api_request::<EvmosInflationEpochProvisionResponse>("/evmos/inflation/v1/epoch_mint_provision", &[])
+                .await?
+                .epoch_mint_provision
+                .amount
+                .parse::<f64>()
+                .unwrap_or(default_return_value),
+            _ => self
+                .rest_api_request::<EpochProvisionResponse>(&format!("/{chain_name}/mint/v1beta1/epoch_provisions"), &[])
+                .await?
+                .epoch_provisions
+                .parse::<f64>()
+                .map_err(|e| e.to_string())?,
+        };
+
+        Ok(epoch_provision)
+    }
+
+    pub async fn get_mint_params(&self) -> Result<MintParamsResponse, String> {
+        let chain_name = self.config.name.clone();
+        let mint_params = self
+            .rest_api_request::<MintParamsResponse>(&format!("/{chain_name}/mint/v1beta1/params"), &[])
+            .await?;
+
+        Ok(mint_params)
     }
 }
 
@@ -235,4 +288,49 @@ pub struct Balance {
 #[derive(Deserialize, Serialize, Debug)]
 pub struct InternalBalance {
     pub amount: ChainAmountItem,
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct MintParamsResponse {
+    #[serde(rename = "params")]
+    pub params: Params,
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct Params {
+    #[serde(rename = "mint_denom")]
+    pub mint_denom: String,
+
+    #[serde(rename = "genesis_epoch_provisions")]
+    pub genesis_epoch_provisions: String,
+
+    #[serde(rename = "epoch_identifier")]
+    pub epoch_identifier: String,
+
+    #[serde(rename = "reduction_period_in_epochs")]
+    pub reduction_period_in_epochs: String,
+
+    #[serde(rename = "reduction_factor")]
+    pub reduction_factor: String,
+
+    #[serde(rename = "distribution_proportions")]
+    pub distribution_proportions: DistributionProportions,
+
+    #[serde(rename = "minting_rewards_distribution_start_epoch")]
+    pub minting_rewards_distribution_start_epoch: String,
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct DistributionProportions {
+    #[serde(rename = "staking")]
+    pub staking: String,
+
+    #[serde(rename = "pool_incentives")]
+    pub pool_incentives: String,
+
+    #[serde(rename = "participation_rewards")]
+    pub participation_rewards: String,
+
+    #[serde(rename = "community_pool")]
+    pub community_pool: String,
 }
