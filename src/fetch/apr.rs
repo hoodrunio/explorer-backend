@@ -1,3 +1,4 @@
+use futures::join;
 use reqwest::Method;
 use serde::{Deserialize, Serialize};
 
@@ -14,22 +15,7 @@ impl Chain {
         if self.config.epoch {
             match self.config.name.as_str() {
                 "osmosis" => {
-                    let epoch_provisions_response = match self
-                        .external_rest_api_req::<OsmosisEpochProvisionResponse>(
-                            &self.client,
-                            Method::GET,
-                            "https://lcd.osmosis-1.bronbro.io/osmosis/mint/v1beta1/epoch_provisions",
-                            &[],
-                        )
-                        .await
-                    {
-                        Ok(parsed_response) => parsed_response,
-                        Err(error) => return Err(error),
-                    };
-                    let epoch_provisions = match epoch_provisions_response.epoch_provisions.parse::<f64>() {
-                        Ok(value) => value,
-                        Err(_) => return Err("FLOAT_PARSING_ERROR".to_string()),
-                    };
+                    let epoch_provisions = self.get_epoch_provision().await?;
 
                     let osmosis_staking_pool_tokens_response = match self
                         .external_rest_api_req::<OsmosisStakingPoolTokensResponse>(
@@ -81,23 +67,7 @@ impl Chain {
                         Err(_) => return Err("FLOAT_PARSING_ERROR".to_string()),
                     };
 
-                    let evmos_inflation_epoch_prevision_response = match self
-                        .external_rest_api_req::<EvmosInflationEpochProvisionResponse>(
-                            &self.client,
-                            Method::GET,
-                            "https://lcd.evmos-9001-2.bronbro.io/evmos/inflation/v1/epoch_mint_provision",
-                            &[],
-                        )
-                        .await
-                    {
-                        Ok(parsed_response) => parsed_response,
-                        Err(error) => return Err(error),
-                    };
-
-                    let epoch_provisions = match evmos_inflation_epoch_prevision_response.epoch_mint_provision.amount.parse::<f64>() {
-                        Ok(value) => value / evmos_decimal,
-                        Err(_) => return Err("FLOAT_PARSING_ERROR".to_string()),
-                    };
+                    let epoch_provisions = self.get_epoch_provision().await.map(|res| res / evmos_decimal)?;
 
                     let evmos_staking_pool_response = match self
                         .external_rest_api_req::<EvmosStakingPoolResponse>(
@@ -121,6 +91,13 @@ impl Chain {
 
                     Ok(apr)
                 }
+                // "quicksilver"=>{
+                //     let token_supply = match self.get_token_supply().await {
+                //         Ok(res) => res.value,
+                //         Err(error) => return Err(error),
+                //     };
+                //     let
+                // },
                 chain_name => Err(format!("APR for {chain_name} is not implemented.")),
             }
         } else {
@@ -220,7 +197,7 @@ pub struct OsmosisStakingPoolTokens {
 }
 
 #[derive(Deserialize, Serialize, Debug, PartialEq)]
-pub struct OsmosisEpochProvisionResponse {
+pub struct EpochProvisionResponse {
     pub epoch_provisions: String,
 }
 
