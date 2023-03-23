@@ -135,7 +135,7 @@ impl Chain {
         query.push(("pagination.count_total", "true".to_string()));
         query.push(("pagination.offset", format!("{}", config.get_offset())));
 
-        let order_by_black_list = vec!["evmos", "umee", "kyve"];
+        let order_by_black_list = vec!["evmos", "umee", "kyve", "quicksilver"];
 
         if !order_by_black_list.contains(&self.config.name.as_str()) {
             query.push(("order_by", "ORDER_BY_DESC".to_string()));
