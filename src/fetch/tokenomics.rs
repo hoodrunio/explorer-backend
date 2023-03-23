@@ -1,6 +1,9 @@
 use serde::{Deserialize, Serialize};
 
-use super::others::{DenomAmount, Pagination, PaginationConfig};
+use super::{
+    apr::{EpochProvisionResponse, EvmosInflationEpochProvisionResponse},
+    others::{DenomAmount, Pagination, PaginationConfig},
+};
 use crate::{
     chain::Chain,
     routes::{calc_pages, ChainAmountItem, OutRestResponse},
@@ -155,6 +158,29 @@ impl Chain {
         }
 
         Ok(OutRestResponse::new(inflation, 0))
+    }
+
+    //Returns epoch provision
+    pub async fn get_epoch_provision(&self) -> Result<f64, String> {
+        let default_return_value = 0.0;
+        let chain_name = self.config.name.clone();
+        let epoch_provision = match chain_name.as_str() {
+            "evmos" => self
+                .rest_api_request::<EvmosInflationEpochProvisionResponse>("/evmos/inflation/v1/epoch_mint_provision", &[])
+                .await?
+                .epoch_mint_provision
+                .amount
+                .parse::<f64>()
+                .unwrap_or(default_return_value),
+            _ => self
+                .rest_api_request::<EpochProvisionResponse>(&format!("/{chain_name}/mint/v1beta1/epoch_provisions"), &[])
+                .await?
+                .epoch_provisions
+                .parse::<f64>()
+                .map_err(|e| e.to_string())?,
+        };
+
+        Ok(epoch_provision)
     }
 }
 
