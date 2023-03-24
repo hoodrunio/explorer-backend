@@ -1,10 +1,11 @@
 use std::fmt;
 
+use futures::future::join_all;
 use mongodb::bson::doc;
 use serde::{Deserialize, Serialize};
 
 use crate::chain::Chain;
-use crate::database::{EvmPollForDb, EvmPollParticipantForDb};
+use crate::database::{EvmPollForDb, EvmPollParticipantForDb, ValidatorForDb};
 use crate::fetch::socket::EvmPollVote;
 use crate::routes::TNRAppError;
 
@@ -19,7 +20,7 @@ impl Chain {
         let query = doc! {"poll_id": poll_id};
         let res = self.database.find_evm_poll(query).await?;
 
-        Ok(res.into())
+        Ok(EvmPollRespElement::new(self, res).await?)
     }
 }
 
@@ -34,24 +35,35 @@ pub struct EvmPollRespElement {
     pub timestamp: u64,
     pub deposit_address: String,
     pub vote_count_info: EvmPollVoteCountInfoElement,
-    pub participants: Vec<EvmPollParticipantForDb>,
+    pub participants: Vec<EvmPollParticipantRespElement>,
 }
 
-impl From<EvmPollForDb> for EvmPollRespElement {
-    fn from(value: EvmPollForDb) -> Self {
+impl EvmPollRespElement {
+    pub async fn new(chain: &Chain, value: EvmPollForDb) -> Result<Self, String> {
         let mut vote_count_info = EvmPollVoteCountInfoElement::default();
         value
             .participants
             .iter()
             .for_each(|participant| vote_count_info.increment_count(&participant.vote));
 
-        Self {
+        let mut val_query_jobs = vec![];
+        for participant_from_db in value.participants.iter() {
+            val_query_jobs.push(async move {
+                let doc = doc! {"operator_address": participant_from_db.operator_address.clone()};
+                let val_res = chain.database.find_validator(doc).await;
+                let operator_info: EvmPollOperatorInfo = val_res.map(|val| val.into()).unwrap_or_default();
+                EvmPollParticipantRespElement::new(participant_from_db.clone(), operator_info)
+            });
+        }
+
+        let participants = join_all(val_query_jobs).await.into_iter().collect();
+
+        Ok(Self {
             deposit_address: value.evm_deposit_address.clone(),
             event: value.action.clone(),
             status: value.status.to_string(),
             height: value.tx_height,
             id: value.poll_id.clone(),
-            participants: value.participants.clone(),
             sender_chain: value.chain_name.clone(),
             tx_id: value.evm_tx_id,
             timestamp: value.timestamp,
