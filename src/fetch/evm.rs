@@ -196,7 +196,7 @@ pub struct EvmVoteRespElement {
     pub voter_address: String,
 }
 
-#[derive(Deserialize, Serialize, Debug)]
+#[derive(Deserialize, Serialize, Debug, Default)]
 pub struct EvmPollVoteCountInfoElement {
     pub yes: u32,
     pub no: u32,
@@ -210,11 +210,5 @@ impl EvmPollVoteCountInfoElement {
             EvmPollVote::No => self.no += 1,
             EvmPollVote::UnSubmit => self.unsubmit += 1,
         }
-    }
-}
-
-impl Default for EvmPollVoteCountInfoElement {
-    fn default() -> Self {
-        Self { yes: 0, no: 0, unsubmit: 0 }
     }
 }
