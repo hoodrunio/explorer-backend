@@ -76,6 +76,15 @@ impl Default for EvmPollOperatorInfo {
         }
     }
 }
+
+impl From<ValidatorForDb> for EvmPollOperatorInfo {
+    fn from(value: ValidatorForDb) -> Self {
+        Self {
+            operator_address: value.operator_address,
+            name: value.name,
+            logo_url: value.logo_url,
+            voting_power: value.voting_power,
+            voting_power_percent: value.voting_power_ratio,
         }
     }
 }
