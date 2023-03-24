@@ -56,6 +56,26 @@ impl From<EvmPollForDb> for EvmPollRespElement {
             tx_id: value.evm_tx_id,
             timestamp: value.timestamp,
             vote_count_info,
+#[derive(Deserialize, Serialize, Debug, Clone)]
+pub struct EvmPollOperatorInfo {
+    pub operator_address: String,
+    pub name: String,
+    pub logo_url: String,
+    pub voting_power: u64,
+    pub voting_power_percent: f64,
+}
+
+impl Default for EvmPollOperatorInfo {
+    fn default() -> Self {
+        Self {
+            operator_address: "".to_string(),
+            name: "".to_string(),
+            logo_url: "".to_string(),
+            voting_power: 0,
+            voting_power_percent: 0.0,
+        }
+    }
+}
         }
     }
 }
