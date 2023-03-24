@@ -56,6 +56,40 @@ impl From<EvmPollForDb> for EvmPollRespElement {
             tx_id: value.evm_tx_id,
             timestamp: value.timestamp,
             vote_count_info,
+            participants,
+        })
+    }
+}
+
+#[derive(Deserialize, Serialize, Debug, Clone)]
+pub struct EvmPollParticipantRespElement {
+    pub confirmation: bool,
+    pub poll_id: String,
+    pub vote: EvmPollVote,
+    pub chain_name: String,
+    pub time: u64,
+    pub tx_height: u64,
+    pub tx_hash: String,
+    pub voter_address: String,
+    pub operator_info: EvmPollOperatorInfo,
+}
+
+impl EvmPollParticipantRespElement {
+    pub fn new(participant: EvmPollParticipantForDb, operator_info: EvmPollOperatorInfo) -> Self {
+        Self {
+            confirmation: participant.confirmation,
+            poll_id: participant.poll_id,
+            vote: participant.vote,
+            chain_name: participant.chain_name,
+            time: participant.time,
+            tx_height: participant.tx_height,
+            tx_hash: participant.tx_hash,
+            voter_address: participant.voter_address,
+            operator_info,
+        }
+    }
+}
+
 #[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct EvmPollOperatorInfo {
     pub operator_address: String,
