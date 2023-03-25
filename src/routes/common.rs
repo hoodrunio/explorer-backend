@@ -97,4 +97,8 @@ impl ChainAmountItem {
             }
         }
     }
+
+    pub fn sync_with_ticker(amount: TnrDecimal, ticker: String) -> Self {
+        Self { amount, ticker }
+    }
 }
