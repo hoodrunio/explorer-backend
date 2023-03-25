@@ -4,7 +4,6 @@ use tokio::join;
 
 use super::{
     amount_util::TnrDecimal,
-    apr::{EpochProvisionResponse, EvmosInflationEpochProvisionResponse},
     others::{DenomAmount, Pagination, PaginationConfig},
 };
 use crate::{
@@ -333,4 +332,20 @@ pub struct DistributionProportions {
 
     #[serde(rename = "community_pool")]
     pub community_pool: String,
+}
+
+#[derive(Deserialize, Serialize, Debug, PartialEq)]
+pub struct EpochProvisionResponse {
+    pub epoch_provisions: String,
+}
+
+#[derive(Deserialize, Serialize, Debug, PartialEq)]
+pub struct EvmosInflationEpochProvisionResponse {
+    pub epoch_mint_provision: EvmosInflationEpochProvision,
+}
+
+#[derive(Deserialize, Serialize, Debug, PartialEq)]
+pub struct EvmosInflationEpochProvision {
+    pub denom: String,
+    pub amount: String,
 }
