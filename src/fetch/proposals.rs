@@ -184,11 +184,15 @@ impl Chain {
         use crate::fetch::cosmos::gov::v1::{query_client::QueryClient, Proposal, QueryProposalsRequest};
         let limit = config.limit;
         let endpoint = Endpoint::from_shared(self.config.grpc_url.clone().unwrap()).unwrap();
+        let pagination = PageRequest {
+            reverse: true,
+            ..config.into()
+        };
         let proposal_request = QueryProposalsRequest {
             proposal_status: status.parse().unwrap(),
             voter: "".to_string(),
             depositor: "".to_string(),
-            pagination: Some(config.into()),
+            pagination: Some(pagination),
         };
 
         let resp = QueryClient::connect(endpoint.clone())
@@ -235,11 +239,15 @@ impl Chain {
         use crate::fetch::cosmos::gov::v1beta1::{query_client::QueryClient, Proposal, QueryProposalsRequest};
         let limit = config.limit;
         let endpoint = Endpoint::from_shared(self.config.grpc_url.clone().unwrap()).unwrap();
+        let pagination = PageRequest {
+            reverse: true,
+            ..config.into()
+        };
         let proposal_request = QueryProposalsRequest {
             proposal_status: status.parse().unwrap(),
             voter: "".to_string(),
             depositor: "".to_string(),
-            pagination: Some(config.into()),
+            pagination: Some(pagination),
         };
 
         let resp = QueryClient::connect(endpoint)
