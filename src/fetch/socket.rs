@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use chrono::DateTime;
+use chrono::{DateTime, Utc};
 use futures::future::join_all;
 use futures::{SinkExt, StreamExt};
 use mongodb::bson::doc;
@@ -11,7 +11,9 @@ use tokio::try_join;
 use tokio_tungstenite::{connect_async, tungstenite::Message};
 
 use crate::chain::Chain;
-use crate::database::{BlockForDb, EvmPollForDb, EvmPollParticipantForDb, HeartbeatForDb, HeartbeatRawForDb};
+use crate::database::{
+    BlockForDb, EvmPollForDb, EvmPollParticipantForDb, HeartbeatForDb, HeartbeatRawForDb, ProposalVoteForDb, ProposalVoteOptionForDb,
+};
 use crate::events::WsEvent;
 use crate::fetch::blocks::{Block, CosmosEvent, ResultBeginBlock, ResultEndBlock};
 use crate::fetch::evm::PollStatus;
@@ -26,6 +28,8 @@ use super::{blocks::BlockHeader, transactions::TransactionItem};
 const SUBSCRIBE_BLOCK: &str = r#"{ "jsonrpc": "2.0", "method": "subscribe", "params": ["tm.event='NewBlock'"], "id": 0 }"#;
 // const SUBSCRIBE_HEADER: &str = r#"{ "jsonrpc": "2.0", "method": "subscribe", "params": ["tm.event='NewBlockHeader'"], "id": 1 }"#;
 const SUBSCRIBE_TX: &str = r#"{ "jsonrpc": "2.0", "method": "subscribe", "params": ["tm.event='Tx'"], "id": 2 }"#;
+const SUBSCRIBE_PROPOSAL_VOTE_TX: &str =
+    r#"{ "jsonrpc": "2.0", "method": "subscribe", "params": ["tm.event='Tx' AND message.action CONTAINS 'MsgVote'"], "id": 2 }"#;
 
 const AXELAR_SUB_CONFIRM_DEPOSIT_TX: &str = r#"{
     "jsonrpc": "2.0",
@@ -145,11 +149,8 @@ impl Chain {
                                             .to_string(),
                                     };
 
-                                    // let vote_item =
-
                                     tx.send((self.config.name.clone(), WsEvent::NewTX(tx_item.clone()))).ok();
                                     let _ = self.database.add_transaction(tx_item.into()).await;
-                                    // clone.store_new_tx(tx_item);
                                 }
                                 SocketResult::NonEmpty(SocketResultNonEmpty::Block { data }) => {
                                     tracing::info!("wss: new block on {}", clone.config.name);
@@ -213,6 +214,70 @@ impl Chain {
         }
     }
 
+    pub async fn sub_proposal_events(&self) -> Result<(), String> {
+        let clone = self.clone();
+        let url = &clone.config.wss_url;
+        // Connect to the `wss://` URL.
+        let (ws_stream, _) = connect_async(url).await.map_err(|e| format!("Failed to connect to {url}: {e}"))?;
+        let (mut write, mut read) = ws_stream.split();
+
+        write
+            .send(SUBSCRIBE_PROPOSAL_VOTE_TX.into())
+            .await
+            .map_err(|e| format!("Can't subscribe to blocks for {}: {e}", clone.config.name))?;
+
+        loop {
+            tokio::select! {
+                    Some(msg)= read.next()=>{
+                        if let Ok(Message::Text(msg)) = msg {
+                            match serde_json::from_str::<SocketMessage>(&msg) {
+                                Ok(msg) => match msg.result {
+                                    SocketResult::NonEmpty(SocketResultNonEmpty::ProposalVoteTx{events})=>{
+                                        let proposal_id =  events.proposal_id[0].clone();
+                                        let proposal_vote_option = match serde_json::from_str::<ProposalVoteOption>(events.vote_option[0].replace(r#"\"#,"").as_str()) {
+                                            Ok(option) => option,
+                                            Err(e) => {
+                                                tracing::error!("Error parsing vote option: {e} proposal id {proposal_id}");
+                                                continue;
+                                            }
+                                        };
+
+                                        let voter = match events.voter.get(0) {
+                                            Some(voter) => String::from(voter),
+                                            None => {
+                                                tracing::error!("Error parsing voter proposal id {proposal_id}");
+                                                continue;
+                                            }
+                                        };
+
+                                        let proposal_vote_option_db = ProposalVoteOptionForDb {option:proposal_vote_option.option, weight: proposal_vote_option.weight.parse::<f32>().unwrap_or(0.0)};
+
+                                        let proposal_vote = ProposalVoteForDb {
+                                            proposal_id,
+                                            voter,
+                                            option: proposal_vote_option_db,
+                                            tx_hash: events.tx_hash[0].clone(),
+                                            timestamp:Utc::now().timestamp_millis(),
+                                        };
+
+                                        let _ = self.database.add_propsal_vote(proposal_vote).await;
+                                    },
+                                    SocketResult::Empty {} => {
+                                        tracing::info!("Websocket empty response for {}", clone.config.name);
+                                        continue;
+                                    }
+                                    _ => ()
+                                }
+                                Err(error) => {
+                                    tracing::info!("Websocket JSON parse error for {}: {error}", clone.config.name);
+                                    continue;
+                                }
+                            }
+                        }
+                }
+            }
+        }
+    }
     pub async fn sub_axelar_events(axelar: Chain, tx: Sender<(String, WsEvent)>) -> Result<(), String> {
         let poll = axelar.sub_for_axelar_evm_polls(tx.clone());
         let vote = axelar.sub_for_axelar_evm_poll_votes(tx.clone());
@@ -641,6 +706,8 @@ pub enum SocketResultNonEmpty {
     Header { data: NewBlockHeaderData },
     #[serde(rename = "tm.event='NewBlock'")]
     Block { data: NewBlockData },
+    #[serde(rename = "tm.event='Tx' AND message.action CONTAINS 'MsgVote'")]
+    ProposalVoteTx { events: ProposalVoteEvents },
     #[serde(
         rename = "tm.event='Tx' AND message.action='ConfirmERC20Deposit' AND axelar.evm.v1beta1.ConfirmDepositStarted.participants CONTAINS 'participants'"
     )]
@@ -830,6 +897,25 @@ pub struct ConfirmKeyTransferStartedEvents {
     pub tx_id: [String; 1],
     #[serde(rename = "message.action")]
     pub message_action: [String; 1],
+}
+
+#[derive(Deserialize, Debug, Clone)]
+pub struct ProposalVoteEvents {
+    //Comes as string json with possible backslash
+    #[serde(rename = "proposal_vote.option")]
+    pub vote_option: [String; 1],
+    #[serde(rename = "message.sender")]
+    pub voter: Vec<String>,
+    #[serde(rename = "proposal_vote.proposal_id")]
+    pub proposal_id: [String; 1],
+    #[serde(rename = "tx.hash")]
+    pub tx_hash: [String; 1],
+}
+
+#[derive(Deserialize, Debug, Clone)]
+pub struct ProposalVoteOption {
+    pub weight: String,
+    pub option: u8,
 }
 
 impl SocketResultNonEmpty {
