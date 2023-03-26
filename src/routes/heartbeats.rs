@@ -9,8 +9,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::database::{HeartbeatForDb, ListDbResult};
 use crate::fetch::heartbeats::{HeartbeatsListElement, HeartbeatsListRawElement, HeartbeatsQuery};
-use crate::fetch::others::PaginationConfig;
-use crate::routes::{extract_chain, PaginationData, QueryParams, TNRAppError, TNRAppSuccessResponse};
+use crate::routes::{extract_chain, PaginationData, TNRAppError, TNRAppSuccessResponse};
 use crate::state::State;
 
 // ====== Heart Beats Methods ======

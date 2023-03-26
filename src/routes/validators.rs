@@ -6,9 +6,14 @@ use actix_web::{
 use mongodb::bson::doc;
 use serde::Deserialize;
 
-use crate::fetch::validators::{ValidatorListResp, ValidatorRedelegationQuery};
 use crate::routes::{extract_chain, PaginationData, TNRAppError, TNRAppSuccessResponse};
-use crate::{fetch::others::PaginationConfig, state::State};
+use crate::{
+    fetch::{
+        others::PaginationConfig,
+        validators::{ValidatorListResp, ValidatorRedelegationQuery},
+    },
+    state::State,
+};
 
 use super::QueryParams;
 
@@ -93,7 +98,6 @@ pub async fn validator_rewards(path: Path<(String, String)>, chains: Data<State>
 #[get("{chain}/validators-bonded")]
 pub async fn validators_bonded(path: Path<String>, chains: Data<State>, query: Query<PaginationData>) -> Result<impl Responder, TNRAppError> {
     let chain = path.into_inner();
-
     let chain = extract_chain(&chain, chains)?;
     let validator_db_resp = chain
         .database
@@ -109,7 +113,6 @@ pub async fn validators_bonded(path: Path<String>, chains: Data<State>, query: Q
 #[get("{chain}/validators-unbonded")]
 pub async fn validators_unbonded(path: Path<String>, chains: Data<State>, query: Query<PaginationData>) -> Result<impl Responder, TNRAppError> {
     let chain = path.into_inner();
-
     let chain = extract_chain(&chain, chains)?;
     let validator_db_resp = chain
         .database

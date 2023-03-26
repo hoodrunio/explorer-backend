@@ -1,84 +1,83 @@
 use actix_web::{
     get,
-    Responder,
     web::{Data, Path, Query},
+    Responder,
 };
 
-use crate::{
-    fetch::others::PaginationConfig,
-    state::State,
-};
-use crate::fetch::socket::EvmPollVote::No;
+use crate::routes::PaginationDataQueryParams;
 use crate::routes::{extract_chain, TNRAppError, TNRAppSuccessResponse};
-
-use super::QueryParams;
+use crate::state::State;
+use serde::{Deserialize, Serialize};
 
 // ======== 'axelar' Propsals Methods ========
 
-#[get("{chain}/proposals-passed")]
-pub async fn proposals_passed(path: Path<String>, chains: Data<State>, query: Query<QueryParams>) -> Result<impl Responder, TNRAppError> {
-    let chain = path.into_inner();
-
-    let config = PaginationConfig::new().limit(6).page(query.page.unwrap_or(1)).reverse();
-
-    let chain = extract_chain(&chain, chains)?;
-    let data = chain.get_proposals_passed(config).await?;
-    Ok(TNRAppSuccessResponse::new(data, None))
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(rename_all = "snake_case")]
+pub enum ProposalStatus {
+    Unspecified,
+    DepositPeriod,
+    VotingPeriod,
+    Passed,
+    Rejected,
+    Failed,
 }
 
-#[get("{chain}/proposals-voting")]
-pub async fn proposals_voting(path: Path<String>, chains: Data<State>, query: Query<QueryParams>) -> Result<impl Responder, TNRAppError> {
-    let chain = path.into_inner();
+impl ProposalStatus {
+    pub fn get_id(&self) -> u8 {
+        use ProposalStatus::*;
+        match self {
+            Unspecified => 0,
+            DepositPeriod => 1,
+            VotingPeriod => 2,
+            Passed => 3,
+            Rejected => 4,
+            Failed => 5,
+        }
+    }
 
-    let config = PaginationConfig::new().limit(6).page(query.page.unwrap_or(1)).reverse();
-
-    let chain = extract_chain(&chain, chains)?;
-    let data = chain.get_proposals_in_voting_period(config).await?;
-    Ok(TNRAppSuccessResponse::new(data, None))
+    pub fn from_id(id: i32) -> Self {
+        use ProposalStatus::*;
+        match id {
+            0 => Unspecified,
+            1 => DepositPeriod,
+            2 => VotingPeriod,
+            3 => Passed,
+            4 => Rejected,
+            5 => Failed,
+            _ => Unspecified,
+        }
+    }
 }
 
-#[get("{chain}/proposals-failed")]
-pub async fn proposals_failed(path: Path<String>, chains: Data<State>, query: Query<QueryParams>) -> Result<impl Responder, TNRAppError> {
-    let chain = path.into_inner();
-
-    let config = PaginationConfig::new().limit(6).page(query.page.unwrap_or(1)).reverse();
-
-    let chain = extract_chain(&chain, chains)?;
-    let data = chain.get_proposals_failed(config).await?;
-    Ok(TNRAppSuccessResponse::new(data, None))
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct ProposalsQueryParams {
+    status: Option<ProposalStatus>,
+    #[serde(flatten)]
+    pagination: PaginationDataQueryParams,
 }
 
-#[get("{chain}/proposals-rejected")]
-pub async fn proposals_rejected(path: Path<String>, chains: Data<State>, query: Query<QueryParams>) -> Result<impl Responder, TNRAppError> {
+#[get("{chain}/proposals")]
+pub async fn proposals(path: Path<String>, chains: Data<State>, query: Query<ProposalsQueryParams>) -> Result<impl Responder, TNRAppError> {
     let chain = path.into_inner();
 
-    let config = PaginationConfig::new().limit(6).page(query.page.unwrap_or(1)).reverse();
-
     let chain = extract_chain(&chain, chains)?;
-    let data = chain.get_proposals_rejected(config).await?;
-    Ok(TNRAppSuccessResponse::new(data, None))
-}
-
-#[get("{chain}/proposals-unspecified")]
-pub async fn proposals_unspecified(path: Path<String>, chains: Data<State>, query: Query<QueryParams>) -> Result<impl Responder, TNRAppError> {
-    let chain = path.into_inner();
-
-    let config = PaginationConfig::new().limit(6).page(query.page.unwrap_or(1)).reverse();
-
-    let chain = extract_chain(&chain, chains)?;
-    let data = chain.get_proposals_unspecified(config).await?;
-    Ok(TNRAppSuccessResponse::new(data, None))
+    let data = chain
+        .get_proposals_by_status(query.0.status.unwrap_or(ProposalStatus::Unspecified), query.0.pagination.into())
+        .await?;
+    Ok(TNRAppSuccessResponse::from(data))
 }
 
 #[get("{chain}/proposal-deposits/{id}")]
-pub async fn proposal_deposits(path: Path<(String, u64)>, chains: Data<State>, query: Query<QueryParams>) -> Result<impl Responder, TNRAppError> {
+pub async fn proposal_deposits(
+    path: Path<(String, u64)>,
+    chains: Data<State>,
+    query: Query<ProposalsQueryParams>,
+) -> Result<impl Responder, TNRAppError> {
     let (chain, proposal_id) = path.into_inner();
 
-    let config = PaginationConfig::new().limit(6).page(query.page.unwrap_or(1));
-
     let chain = extract_chain(&chain, chains)?;
-    let data = chain.get_proposal_deposits(proposal_id, config).await?;
-    Ok(TNRAppSuccessResponse::new(data, None))
+    let data = chain.get_proposal_deposits(proposal_id, query.0.pagination.into()).await?;
+    Ok(TNRAppSuccessResponse::from(data))
 }
 
 #[get("{chain}/proposal-details/{id}")]
@@ -100,14 +99,16 @@ pub async fn proposal_tally(path: Path<(String, u64)>, chains: Data<State>) -> R
 }
 
 #[get("{chain}/proposal-votes/{id}")]
-pub async fn proposal_votes(path: Path<(String, u64)>, chains: Data<State>, query: Query<QueryParams>) -> Result<impl Responder, TNRAppError> {
+pub async fn proposal_votes(
+    path: Path<(String, u64)>,
+    chains: Data<State>,
+    query: Query<ProposalsQueryParams>,
+) -> Result<impl Responder, TNRAppError> {
     let (chain, proposal_id) = path.into_inner();
 
-    let config = PaginationConfig::new().limit(6).page(query.page.unwrap_or(1));
-
     let chain = extract_chain(&chain, chains)?;
-    let data = chain.get_proposal_votes(proposal_id, config).await?;
-    Ok(TNRAppSuccessResponse::new(data, None))
+    let data = chain.get_proposal_votes(proposal_id, query.0.pagination.into()).await?;
+    Ok(TNRAppSuccessResponse::from(data))
 }
 
 #[get("{chain}/proposal-vote/{id}/{voter_address}")]

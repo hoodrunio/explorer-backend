@@ -236,16 +236,16 @@ pub enum PublicKeyKnown {
 }
 
 /// The configuration to be used while making REST API requests.
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Serialize, Deserialize)]
 pub struct PaginationConfig {
     /// It is set to true if results are to be returned in the descending order.
-    reverse: bool,
+    pub reverse: bool,
     /// It is the number of result to not to be returned in the result page
-    offset: u32,
+    pub offset: u32,
     /// It is the total number of results to be returned in the result page
-    limit: u16,
+    pub limit: u16,
     /// It is the current page count which will include with target result
-    page: u8,
+    pub page: u8,
 }
 
 impl PaginationConfig {

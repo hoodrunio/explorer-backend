@@ -68,11 +68,19 @@ impl State {
     pub async fn subscribe_to_events(&self, tx: Sender<(String, WsEvent)>) {
         self.chains.clone().into_iter().for_each(|(name, chain)| {
             let tx = tx.clone();
-
+            let chain_clone = chain.clone();
+            let name_clone = name.clone();
             tokio::spawn(async move {
                 match chain.subscribe_to_events(tx).await {
                     Ok(_) => tracing::info!("Stopped listening events for {name}"),
                     Err(e) => tracing::error!("Failed listening events for {name}: {e}"),
+                }
+            });
+
+            tokio::spawn(async move {
+                match chain_clone.sub_proposal_events().await {
+                    Ok(_) => tracing::info!("Stopped listening proposal ws events for {name_clone}"),
+                    Err(e) => tracing::error!("Failed listening proposal ws events for {name_clone}: {e}"),
                 }
             });
         });

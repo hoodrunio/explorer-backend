@@ -11,6 +11,7 @@ axelar:
   rpc_url: https://rpc-axelar.stakerun.com
   rest_url: https://lcd-axelar.stakerun.com
   wss_url: wss://rpc-axelar.stakerun.com/websocket
+  grpc_url: https://grpc-axelar.stakerun.com:9090
   archive_url: https://axelararchive-lcd.quickapi.com
 
 evmos:
@@ -26,6 +27,7 @@ evmos:
   jsonrpc_url: https://eth.bd.evmos.org:8545/
   rpc_url: https://rpc-evmos.stakerun.com
   rest_url: https://rest.bd.evmos.org:1317
+  grpc_url: https://evmos-grpc.polkachu.com:13490
   wss_url: wss://rpc-evmos.ecostake.com/websocket
   archive_url: empty
 
@@ -54,8 +56,9 @@ umee:
   logo: https://assets.coingecko.com/coins/images/20635/small/Asset_19.png
   # decimals: 6
   # version: 0.46
-  rpc_url: https://rpc-umee.huginn.tech
-  rest_url: https://api.umee.huginn.tech
+  rpc_url: https://umee-rpc.polkachu.com
+  rest_url: https://umee-api.polkachu.com
+  grpc_url: https://umee-grpc.polkachu.com:13690
   wss_url: wss://rpc-umee.huginn.tech/websocket
   archive_url: empty
 
@@ -86,5 +89,22 @@ quicksilver:
   # version: 0.45
   rpc_url: https://quicksilver-rpc.theamsolutions.info
   rest_url: https://quicksilver-mainnet-api.itrocket.net
+  grpc_url: https://quicksilver-grpc.polkachu.com:11190
   wss_url: wss://rpc-quicksilver-ia.cosmosia.notional.ventures/websocket
+  archive_url: empty
+
+kyve:
+  name: kyve
+  epoch: false
+  gecko: kyve
+  symbol: KYVE
+  denom: ukyve
+  # prefix: secret
+  logo: https://assets.coingecko.com/coins/images/26229/small/78351592.png
+  # decimals: 6
+  # version: 0.45
+  rpc_url: https://rpc-eu-1.kyve.network
+  rest_url: https://kyve.api.yeksin.net
+  wss_url: wss://rpc-eu-1.kyve.network/websocket
+  grpc_url: http://144.76.236.90:9090
   archive_url: empty

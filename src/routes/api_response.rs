@@ -1,4 +1,3 @@
-use crate::database::ListDbResult;
 use actix_web::body::BoxBody;
 use actix_web::http::header::ContentType;
 use actix_web::http::StatusCode;
@@ -120,6 +119,25 @@ impl<T> TNRAppSuccessResponse<T> {
                 direction: Some(direction.unwrap_or_default()),
                 ..Default::default()
             }),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct PaginationDataQueryParams {
+    pub cursor: Option<String>,
+    pub offset: Option<String>,
+    pub limit: Option<String>,
+    pub direction: Option<PaginationDirection>,
+}
+
+impl From<PaginationDataQueryParams> for PaginationData {
+    fn from(value: PaginationDataQueryParams) -> Self {
+        Self {
+            cursor: value.cursor,
+            offset: value.offset.map(|o| o.parse::<u64>().ok()).unwrap_or(None),
+            limit: value.limit.map(|o| o.parse::<u64>().ok()).unwrap_or(None),
+            direction: value.direction,
         }
     }
 }

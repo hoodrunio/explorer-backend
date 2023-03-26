@@ -162,3 +162,13 @@ Go to [`src/fetch`](https://github.com/testnetrunn/explorer-backend/tree/main/sr
  ```
  
  > If the method is not chain agnostic, you use a logic like `if self.inner.name == "evmos"` there.
+
+# Fetching proto 
+buf export buf.build/cosmos/cosmos-sdk --output proto
+buf export buf.build/cosmos/ibc --output proto
+buf export buf.build/evmos/evmos --output proto
+buf export buf.build/osmosis-labs/osmosis --output proto
+buf export buf.build/umee-network/umee --output proto (complicated not published to buf registry)
+buf export buf.build/Gravity-Bridge/Gravity-Bridge --output proto (complicated not publish and non conforming directory structure)
+
+lastly export cosmos-sdk to override purposes
