@@ -119,11 +119,11 @@ impl From<prost_wkt_types::Any> for ProposalInfo {
             }
             "/kyve.global.v1beta1.MsgUpdateParams" => {
                 let value = KyveMsgUpdateParams::decode(content.value.as_ref()).unwrap();
-                let content = serde_json::to_value(&value).unwrap();
+                let content = serde_json::to_value(value).unwrap();
                 ("".to_string(), "".to_string(), content)
             }
 
-            other => (String::from(""), String::from(""), serde_json::Value::Null),
+            _other => (String::from(""), String::from(""), serde_json::Value::Null),
         };
         ProposalInfo {
             title,
