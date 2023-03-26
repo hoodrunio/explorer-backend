@@ -46,6 +46,14 @@ sudo apt-get update
 sudo apt-get install -y mongodb-org
 sudo systemctl start mongod
 ```
+
+- Install sub-modules
+```bash
+
+cd $HOME/explorer-backend
+git submodule init
+git submodule update
+```
 - Run the project by typing this in terminal
 ```
 cargo run --release
