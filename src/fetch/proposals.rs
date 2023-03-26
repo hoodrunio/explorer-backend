@@ -48,7 +48,7 @@ impl From<prost_wkt_types::Any> for ProposalInfo {
 
         if content.type_url.ends_with("cosmos.gov.v1.MsgExecLegacyContent") {
             let decoded = MsgExecLegacyContent::decode(content.value.as_ref()).unwrap();
-            content = decoded.content.clone().unwrap();
+            content = decoded.content.unwrap();
         }
 
         let (title, description, content_value) = match content.type_url.as_str() {
@@ -131,7 +131,7 @@ impl From<prost_wkt_types::Any> for ProposalInfo {
         ProposalInfo {
             title,
             description,
-            type_url: content.type_url.clone(),
+            type_url: content.type_url,
             content: content_value,
         }
     }
@@ -185,7 +185,7 @@ impl PaginationData {
 impl Chain {
     async fn get_proposals_v1(&self, status: &str, config: PaginationData) -> Result<ListDbResult<ProposalItem>, String> {
         use crate::fetch::cosmos::gov::v1::{query_client::QueryClient, Proposal, QueryProposalsRequest};
-        let limit = config.limit.clone();
+        let limit = config.limit;
         let endpoint = Endpoint::from_shared(self.config.grpc_url.clone().unwrap()).unwrap();
         let proposal_request = QueryProposalsRequest {
             proposal_status: status.parse().unwrap(),
@@ -236,7 +236,7 @@ impl Chain {
     }
     async fn get_proposals_v1beta1(&self, status: &str, config: PaginationData) -> Result<ListDbResult<ProposalItem>, String> {
         use crate::fetch::cosmos::gov::v1beta1::{query_client::QueryClient, Proposal, QueryProposalsRequest};
-        let limit = config.limit.clone();
+        let limit = config.limit;
         let endpoint = Endpoint::from_shared(self.config.grpc_url.clone().unwrap()).unwrap();
         let proposal_request = QueryProposalsRequest {
             proposal_status: status.parse().unwrap(),
