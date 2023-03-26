@@ -123,10 +123,7 @@ impl From<prost_wkt_types::Any> for ProposalInfo {
                 ("".to_string(), "".to_string(), content)
             }
 
-            other => {
-                dbg!(other);
-                (String::from(""), String::from(""), serde_json::Value::Null)
-            }
+            other => (String::from(""), String::from(""), serde_json::Value::Null),
         };
         ProposalInfo {
             title,
@@ -294,7 +291,7 @@ impl Chain {
     /// Returns all the proposals in voting period.
     pub async fn get_proposals_by_status(&self, status: ProposalStatus, config: PaginationData) -> Result<ListDbResult<ProposalItem>, String> {
         let status_id = status.get_id().to_string();
-        let items = if dbg!(self.config.sdk_version.minor) >= 46 {
+        let items = if self.config.sdk_version.minor >= 46 {
             self.get_proposals_v1(&status_id, config.clone()).await.ok()
         } else {
             None
@@ -410,7 +407,7 @@ impl Chain {
     }
     /// Returns the details of given proposal.
     pub async fn get_proposal_details(&self, proposal_id: u64) -> Result<InternalProposal, String> {
-        let items = if dbg!(self.config.sdk_version.minor) >= 46 {
+        let items = if self.config.sdk_version.minor >= 46 {
             self.get_proposal_details_v1(proposal_id).await.ok()
         } else {
             None
@@ -496,7 +493,7 @@ impl Chain {
     }
     /// Returns the deposits of given proposal.
     pub async fn get_proposal_deposits(&self, proposal_id: u64, config: PaginationData) -> Result<ListDbResult<InternalProposalDeposit>, String> {
-        let items = if dbg!(self.config.sdk_version.minor) >= 46 {
+        let items = if self.config.sdk_version.minor >= 46 {
             self.proposal_deposits_v1(proposal_id, config.clone()).await.ok()
         } else {
             None
@@ -573,7 +570,7 @@ impl Chain {
     }
     /// Returns the deposit of given proposal by given depositor.
     pub async fn get_proposal_deposit_by_depositor(&self, proposal_id: u64, depositor: &str) -> Result<InternalProposalDeposit, String> {
-        let items = if dbg!(self.config.sdk_version.minor) >= 46 {
+        let items = if self.config.sdk_version.minor >= 46 {
             self.proposal_deposit_v1(proposal_id, depositor).await.ok()
         } else {
             None
@@ -640,7 +637,7 @@ impl Chain {
 
     /// Returns the tally of given proposal.
     pub async fn get_proposal_tally(&self, proposal_id: u64) -> Result<InternalProposalFinalTallyResult, String> {
-        let items = if dbg!(self.config.sdk_version.minor) >= 46 {
+        let items = if self.config.sdk_version.minor >= 46 {
             self.proposal_tally_v1(proposal_id).await.ok()
         } else {
             None
@@ -748,7 +745,7 @@ impl Chain {
     }
     /// Returns the votes of given proposal.
     pub async fn get_proposal_votes(&self, proposal_id: u64, config: PaginationData) -> Result<ListDbResult<InternalProposalVote>, String> {
-        let items = if dbg!(self.config.sdk_version.minor) >= 46 {
+        let items = if self.config.sdk_version.minor >= 46 {
             self.proposal_votes_v1(proposal_id, config.clone()).await.ok()
         } else {
             None
@@ -835,7 +832,7 @@ impl Chain {
     }
     /// Returns the vote of given proposal by given voter.
     pub async fn get_proposal_vote_by_voter(&self, proposal_id: u64, voter: &str) -> Result<InternalProposalVote, String> {
-        let items = if dbg!(self.config.sdk_version.minor) >= 46 {
+        let items = if self.config.sdk_version.minor >= 46 {
             self.proposal_vote_by_voter_v1(proposal_id, voter).await.ok()
         } else {
             None
