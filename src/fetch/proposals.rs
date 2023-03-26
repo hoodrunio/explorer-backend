@@ -1,3 +1,4 @@
+use futures::future::join_all;
 use prost_wkt_types::Timestamp;
 use serde::{Deserialize, Serialize};
 use std::str;
@@ -21,10 +22,10 @@ use crate::{
         },
         gravity::v1::IbcMetadataProposal,
         ibc::core::client::v1::ClientUpdateProposal,
+        kyve::global::v1beta1::MsgUpdateParams as KyveMsgUpdateParams,
         osmosis::poolincentives::v1beta1::UpdatePoolIncentivesProposal,
         quicksilver::interchainstaking::v1::RegisterZoneProposal,
         umee::leverage::v1::MsgGovUpdateRegistry,
-        kyve::global::v1beta1::MsgUpdateParams as KyveMsgUpdateParams
     },
     routes::PaginationData,
     routes::ProposalStatus,
@@ -32,14 +33,13 @@ use crate::{
 };
 
 use prost::Message;
-use prost_wkt::MessageSerde;
 
 #[derive(Deserialize, Serialize, Clone, Debug)]
 pub struct ProposalInfo {
     pub title: String,
     pub description: String,
     pub type_url: String,
-    pub content: serde_json::Value
+    pub content: serde_json::Value,
 }
 
 impl From<prost_wkt_types::Any> for ProposalInfo {
@@ -128,7 +128,12 @@ impl From<prost_wkt_types::Any> for ProposalInfo {
                 (String::from(""), String::from(""), serde_json::Value::Null)
             }
         };
-        ProposalInfo { title, description, type_url: content.type_url.clone(), content: content_value }
+        ProposalInfo {
+            title,
+            description,
+            type_url: content.type_url.clone(),
+            content: content_value,
+        }
     }
 }
 
@@ -200,7 +205,12 @@ impl Chain {
         let mut items = Vec::with_capacity(proposals.proposals.len());
         for proposal in proposals.proposals {
             if let Some(content) = proposal.messages.get(0).cloned() {
-                let ProposalInfo { title, description, type_url, content } = content.into();
+                let ProposalInfo {
+                    title,
+                    description,
+                    type_url,
+                    content,
+                } = content.into();
                 let Proposal { id, submit_time, status, .. } = proposal;
                 let proposal_item = ProposalItem {
                     proposal_id: id,
@@ -253,7 +263,12 @@ impl Chain {
                 ..
             } = proposal;
             if let Some(content) = proposal.content {
-                let ProposalInfo{ title, description, type_url, content } = content.into();
+                let ProposalInfo {
+                    title,
+                    description,
+                    type_url,
+                    content,
+                } = content.into();
                 let proposal_item = ProposalItem {
                     proposal_id,
                     title,
@@ -318,6 +333,9 @@ impl Chain {
             no_with_veto_count: t.no_with_veto_count,
         });
         let messages = proposal.messages.into_iter().map(|m| m.into()).collect();
+        let total_deposit_string_amount = proposal.total_deposit.iter().map(|d| d.amount.clone()).collect();
+        let total_deposit = self.string_amount_parser(total_deposit_string_amount, None).await.unwrap_or_default();
+
         let internal_proposal = InternalProposal {
             id: proposal.id,
             messages,
@@ -325,7 +343,7 @@ impl Chain {
             final_tally_result: tally_result,
             submit_time: proposal.submit_time,
             deposit_end_time: proposal.deposit_end_time,
-            total_deposit: ChainAmountItem::default(),
+            total_deposit,
             voting_start_time: proposal.voting_start_time,
             voting_end_time: proposal.voting_end_time,
             metadata: Some(proposal.metadata),
@@ -356,7 +374,7 @@ impl Chain {
 
         let (title, summary) = prop_info
             .clone()
-            .map_or_else(|| (String::from(""), String::from("")), |p| (p.title.clone(), p.description.clone()));
+            .map_or_else(|| (String::from(""), String::from("")), |p| (p.title.clone(), p.description));
         let mut messages = vec![];
         if let Some(p) = prop_info {
             messages.push(p);
@@ -368,6 +386,9 @@ impl Chain {
             no_with_veto_count: t.no_with_veto,
         });
 
+        let total_deposit_string_amount = proposal.total_deposit.iter().map(|d| d.amount.clone()).collect();
+        let total_deposit = self.string_amount_parser(total_deposit_string_amount, None).await.unwrap_or_default();
+
         let internal_proposal = InternalProposal {
             id: proposal_id,
             messages,
@@ -375,7 +396,7 @@ impl Chain {
             final_tally_result,
             submit_time: proposal.submit_time,
             deposit_end_time: proposal.deposit_end_time,
-            total_deposit: ChainAmountItem::default(),
+            total_deposit,
             voting_start_time: proposal.voting_start_time,
             voting_end_time: proposal.voting_end_time,
             title,
@@ -423,15 +444,16 @@ impl Chain {
             .map_err(|e| format!("{}", e))?;
         let deposits = resp.into_inner();
 
-        let internal_deposits = deposits
-            .deposits
-            .iter()
-            .map(|d| InternalProposalDeposit {
+        let internal_deposits = join_all(deposits.deposits.iter().map(|d| async move {
+            let string_amount = d.amount.iter().map(|d| d.amount.clone()).collect();
+            let amount = self.string_amount_parser(string_amount, None).await.unwrap_or_default();
+
+            InternalProposalDeposit {
                 depositor: d.depositor.clone(),
-                //TODO map with amount denom utils
-                amount: 0.0,
-            })
-            .collect();
+                amount,
+            }
+        }))
+        .await;
 
         Ok(ListDbResult {
             data: internal_deposits,
@@ -456,15 +478,16 @@ impl Chain {
             .map_err(|e| format!("{}", e))?;
 
         let deposits = resp.into_inner();
-        let internal_deposits = deposits
-            .deposits
-            .iter()
-            .map(|d| InternalProposalDeposit {
+        let internal_deposits = join_all(deposits.deposits.iter().map(|d| async move {
+            let string_amount = d.amount.iter().map(|d| d.amount.clone()).collect();
+            let amount = self.string_amount_parser(string_amount, None).await.unwrap_or_default();
+
+            InternalProposalDeposit {
                 depositor: d.depositor.clone(),
-                //TODO map with amount denom utils
-                amount: 0.0,
-            })
-            .collect();
+                amount,
+            }
+        }))
+        .await;
 
         Ok(ListDbResult {
             data: internal_deposits,
@@ -507,11 +530,15 @@ impl Chain {
             .map_err(|e| format!("{}", e))?;
 
         let deposit = client.into_inner();
+        let deposit = deposit.deposit.ok_or_else(|| String::from("Deposit not found"))?;
+
+        let string_amount = deposit.amount.iter().map(|d| d.amount.clone()).collect();
+        let amount = self.string_amount_parser(string_amount, None).await.unwrap_or_default();
 
         let internal_deposit = InternalProposalDeposit {
             depositor: depositor.to_string(),
             // TODO
-            amount: 0.0,
+            amount,
         };
 
         Ok(internal_deposit)
@@ -530,11 +557,16 @@ impl Chain {
             .deposit(deposit_request)
             .await
             .map_err(|e| format!("{}", e))?;
+
         let deposit = client.into_inner();
+        let deposit = deposit.deposit.ok_or_else(|| String::from("Deposit not found"))?;
+
+        let string_amount = deposit.amount.iter().map(|d| d.amount.clone()).collect();
+        let amount = self.string_amount_parser(string_amount, None).await.unwrap_or_default();
 
         let internal_deposit = InternalProposalDeposit {
             depositor: depositor.to_string(),
-            amount: 0.0,
+            amount,
         };
 
         Ok(internal_deposit)
@@ -848,7 +880,7 @@ pub struct InternalProposalDeposit {
     /// Proposal depositor. Eg: `""`
     pub depositor: String,
     /// Amount deposited.
-    pub amount: f64,
+    pub amount: ChainAmountItem,
 }
 
 #[derive(Deserialize, Serialize, Debug)]
