@@ -4,7 +4,7 @@ axelar:
   gecko: axelar
   symbol: AXL
   denom: uaxl
-  # prefix: axelar
+  prefix: axelar
   logo: https://assets.coingecko.com/coins/images/24489/large/tsYr25vB_400x400.jpg
   # decimals: 6
   # version: 0.45
@@ -20,7 +20,7 @@ evmos:
   gecko: evmos
   symbol: EVMOS
   denom: aevmos
-  # prefix: evmos
+  prefix: evmos
   logo: https://assets.coingecko.com/coins/images/24023/large/evmos.png
   decimals: 18
   # version: 0.45
@@ -52,7 +52,7 @@ umee:
   gecko: umee
   symbol: UMEE
   denom: uumee
-  # prefix: umee
+  prefix: umee
   logo: https://assets.coingecko.com/coins/images/20635/small/Asset_19.png
   # decimals: 6
   # version: 0.46
@@ -68,7 +68,7 @@ secret:
   gecko: secret
   symbol: SCRT
   denom: usecret
-  # prefix: secret
+  prefix: secret
   logo: https://assets.coingecko.com/coins/images/20635/small/Asset_19.png
   # decimals: 6
   # version: 0.45
@@ -99,7 +99,7 @@ kyve:
   gecko: kyve
   symbol: KYVE
   denom: ukyve
-  # prefix: secret
+  prefix: secret
   logo: https://assets.coingecko.com/coins/images/26229/small/78351592.png
   # decimals: 6
   # version: 0.45
