@@ -331,12 +331,27 @@ impl Chain {
 
         let proposal_resp = client.into_inner();
         let proposal = proposal_resp.proposal.ok_or_else(|| String::from("No proposal content"))?;
-        let tally_result = proposal.final_tally_result.map(|t| InternalProposalFinalTallyResult {
-            yes_count: t.yes_count,
-            abstain_count: t.abstain_count,
-            no_count: t.no_count,
-            no_with_veto_count: t.no_with_veto_count,
-        });
+        let tally_result = match proposal.final_tally_result {
+            Some(t) => {
+                let yes_amount = self.string_amount_parser(t.yes_count.clone(), None).await.unwrap_or_default();
+                let abstain_amount = self.string_amount_parser(t.abstain_count.clone(), None).await.unwrap_or_default();
+                let no_amount = self.string_amount_parser(t.no_count.clone(), None).await.unwrap_or_default();
+                let no_with_veto_amount = self.string_amount_parser(t.no_with_veto_count.clone(), None).await.unwrap_or_default();
+
+                Some(InternalProposalFinalTallyResult {
+                    yes_count: t.yes_count,
+                    yes_amount,
+                    abstain_count: t.abstain_count,
+                    abstain_amount,
+                    no_count: t.no_count,
+                    no_amount,
+                    no_with_veto_count: t.no_with_veto_count,
+                    no_with_veto_amount,
+                })
+            }
+            None => None,
+        };
+
         let messages = proposal.messages.into_iter().map(|m| m.into()).collect();
         let total_deposit_string_amount = proposal.total_deposit.iter().map(|d| d.amount.clone()).collect();
         let total_deposit = self.string_amount_parser(total_deposit_string_amount, None).await.unwrap_or_default();
@@ -384,12 +399,27 @@ impl Chain {
         if let Some(p) = prop_info {
             messages.push(p);
         }
-        let final_tally_result = proposal.final_tally_result.map(|t| InternalProposalFinalTallyResult {
-            yes_count: t.yes,
-            abstain_count: t.abstain,
-            no_count: t.no,
-            no_with_veto_count: t.no_with_veto,
-        });
+
+        let final_tally_result = match proposal.final_tally_result {
+            Some(t) => {
+                let yes_amount = self.string_amount_parser(t.yes.clone(), None).await.unwrap_or_default();
+                let abstain_amount = self.string_amount_parser(t.abstain.clone(), None).await.unwrap_or_default();
+                let no_amount = self.string_amount_parser(t.no.clone(), None).await.unwrap_or_default();
+                let no_with_veto_amount = self.string_amount_parser(t.no_with_veto.clone(), None).await.unwrap_or_default();
+
+                Some(InternalProposalFinalTallyResult {
+                    yes_count: t.yes,
+                    yes_amount,
+                    abstain_count: t.abstain,
+                    abstain_amount,
+                    no_count: t.no,
+                    no_amount,
+                    no_with_veto_count: t.no_with_veto,
+                    no_with_veto_amount,
+                })
+            }
+            None => None,
+        };
 
         let total_deposit_string_amount = proposal.total_deposit.iter().map(|d| d.amount.clone()).collect();
         let total_deposit = self.string_amount_parser(total_deposit_string_amount, None).await.unwrap_or_default();
@@ -609,11 +639,23 @@ impl Chain {
         let tally_resp = resp.into_inner();
         let tally = tally_resp.tally.ok_or_else(|| String::from("Tally not found"))?;
 
+        let yes_amount = self.string_amount_parser(tally.yes_count.clone(), None).await.unwrap_or_default();
+        let abstain_amount = self.string_amount_parser(tally.abstain_count.clone(), None).await.unwrap_or_default();
+        let no_amount = self.string_amount_parser(tally.no_count.clone(), None).await.unwrap_or_default();
+        let no_with_veto_amount = self
+            .string_amount_parser(tally.no_with_veto_count.clone(), None)
+            .await
+            .unwrap_or_default();
+
         let internal_pro_final_tally_result = InternalProposalFinalTallyResult {
             yes_count: tally.yes_count,
+            yes_amount,
             abstain_count: tally.abstain_count,
+            abstain_amount,
             no_count: tally.no_count,
+            no_amount,
             no_with_veto_count: tally.no_with_veto_count,
+            no_with_veto_amount,
         };
 
         Ok(internal_pro_final_tally_result)
@@ -633,11 +675,20 @@ impl Chain {
         let tally_resp = resp.into_inner();
         let tally = tally_resp.tally.ok_or_else(|| String::from("Tally not found"))?;
 
+        let yes_amount = self.string_amount_parser(tally.yes.clone(), None).await.unwrap_or_default();
+        let abstain_amount = self.string_amount_parser(tally.abstain.clone(), None).await.unwrap_or_default();
+        let no_amount = self.string_amount_parser(tally.no.clone(), None).await.unwrap_or_default();
+        let no_with_veto_amount = self.string_amount_parser(tally.no_with_veto.clone(), None).await.unwrap_or_default();
+
         let internal_pro_final_tally_result = InternalProposalFinalTallyResult {
             yes_count: tally.yes,
+            yes_amount,
             abstain_count: tally.abstain,
+            abstain_amount,
             no_count: tally.no,
+            no_amount,
             no_with_veto_count: tally.no_with_veto,
+            no_with_veto_amount,
         };
 
         Ok(internal_pro_final_tally_result)
@@ -923,12 +974,16 @@ pub struct InternalProposal {
 pub struct InternalProposalFinalTallyResult {
     /// Number of `yes` votes. Eg: `"50"`
     pub yes_count: String,
+    pub yes_amount: ChainAmountItem,
     /// Number of `abstain` votes. Eg: `"35"`
     pub abstain_count: String,
+    pub abstain_amount: ChainAmountItem,
     /// Number of `no` votes. Eg: `"12"`
     pub no_count: String,
+    pub no_amount: ChainAmountItem,
     /// Number of `no with veto` votes.  Eg: `"7"`
     pub no_with_veto_count: String,
+    pub no_with_veto_amount: ChainAmountItem,
 }
 
 #[derive(Serialize, Debug)]
