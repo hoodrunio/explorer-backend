@@ -11,10 +11,12 @@ use crate::state::State;
 // ======== Chains Methods ========
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
-struct Chain {
+struct ChainResponseItem {
     name: String,
     logo: String,
     main_denom: String,
+    main_symbol: String,
+    acc_address_prefix: String,
 }
 
 #[get("chains")]
@@ -23,12 +25,14 @@ pub async fn chains(state: Data<State>) -> Result<impl Responder, TNRAppError> {
         .get_chains()
         .clone()
         .into_iter()
-        .map(|(name, chain)| Chain {
+        .map(|(name, chain)| ChainResponseItem {
             name,
             logo: chain.config.logo,
             main_denom: chain.config.main_denom,
+            main_symbol: chain.config.main_symbol,
+            acc_address_prefix: chain.config.base_prefix,
         })
-        .collect::<Vec<Chain>>();
+        .collect::<Vec<ChainResponseItem>>();
 
     Ok(TNRAppSuccessResponse::new(chains, None))
 }
