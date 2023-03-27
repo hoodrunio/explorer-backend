@@ -1,6 +1,7 @@
 use base64::decode as decode_from_base64;
 use base64::decode as from_base_64;
 use bech32::ToBase32;
+use chrono::DateTime;
 use hex::encode as to_hex;
 use reqwest::Client;
 use serde::Deserialize;
@@ -130,4 +131,10 @@ impl Base64Convert for String {
             Err(_) => default_res,
         }
     }
+}
+
+pub fn ts_to_ms(ts: &String) -> Result<i64, String> {
+    let date_time = DateTime::parse_from_rfc3339(ts).map_err(|_| format!("Cannot parse timestamp, '{}'.", ts))?;
+
+    Ok(date_time.timestamp_millis())
 }
