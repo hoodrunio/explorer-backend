@@ -1,5 +1,5 @@
-use futures::{future::join_all, join};
-use prost_wkt_types::Timestamp;
+use crate::utils::ts_to_ms;
+use futures::future::join_all;
 use serde::{Deserialize, Serialize};
 use std::str;
 use tonic::transport::Endpoint;
@@ -184,11 +184,15 @@ impl Chain {
         use crate::fetch::cosmos::gov::v1::{query_client::QueryClient, Proposal, QueryProposalsRequest};
         let limit = config.limit;
         let endpoint = Endpoint::from_shared(self.config.grpc_url.clone().unwrap()).unwrap();
+        let pagination = PageRequest {
+            reverse: true,
+            ..config.into()
+        };
         let proposal_request = QueryProposalsRequest {
             proposal_status: status.parse().unwrap(),
             voter: "".to_string(),
             depositor: "".to_string(),
-            pagination: Some(config.into()),
+            pagination: Some(pagination),
         };
 
         let resp = QueryClient::connect(endpoint.clone())
@@ -235,11 +239,15 @@ impl Chain {
         use crate::fetch::cosmos::gov::v1beta1::{query_client::QueryClient, Proposal, QueryProposalsRequest};
         let limit = config.limit;
         let endpoint = Endpoint::from_shared(self.config.grpc_url.clone().unwrap()).unwrap();
+        let pagination = PageRequest {
+            reverse: true,
+            ..config.into()
+        };
         let proposal_request = QueryProposalsRequest {
             proposal_status: status.parse().unwrap(),
             voter: "".to_string(),
             depositor: "".to_string(),
-            pagination: Some(config.into()),
+            pagination: Some(pagination),
         };
 
         let resp = QueryClient::connect(endpoint)
@@ -353,11 +361,11 @@ impl Chain {
             messages,
             status: ProposalStatus::from_id(proposal.status),
             final_tally_result: tally_result,
-            submit_time: proposal.submit_time,
-            deposit_end_time: proposal.deposit_end_time,
             total_deposit,
-            voting_start_time: proposal.voting_start_time,
-            voting_end_time: proposal.voting_end_time,
+            submit_time: proposal.submit_time.map(|ts| ts_to_ms(&ts.to_string()).unwrap_or_default()),
+            deposit_end_time: proposal.deposit_end_time.map(|ts| ts_to_ms(&ts.to_string()).unwrap_or_default()),
+            voting_start_time: proposal.voting_start_time.map(|ts| ts_to_ms(&ts.to_string()).unwrap_or_default()),
+            voting_end_time: proposal.voting_end_time.map(|ts| ts_to_ms(&ts.to_string()).unwrap_or_default()),
             metadata: Some(proposal.metadata),
             title: proposal.title,
             summary: proposal.summary,
@@ -421,11 +429,11 @@ impl Chain {
             messages,
             status: ProposalStatus::from_id(proposal.status),
             final_tally_result,
-            submit_time: proposal.submit_time,
-            deposit_end_time: proposal.deposit_end_time,
+            submit_time: proposal.submit_time.map(|ts| ts_to_ms(&ts.to_string()).unwrap_or_default()),
+            deposit_end_time: proposal.deposit_end_time.map(|ts| ts_to_ms(&ts.to_string()).unwrap_or_default()),
             total_deposit,
-            voting_start_time: proposal.voting_start_time,
-            voting_end_time: proposal.voting_end_time,
+            voting_start_time: proposal.voting_start_time.map(|ts| ts_to_ms(&ts.to_string()).unwrap_or_default()),
+            voting_end_time: proposal.voting_end_time.map(|ts| ts_to_ms(&ts.to_string()).unwrap_or_default()),
             title,
             summary,
             metadata: None,
@@ -942,15 +950,15 @@ pub struct InternalProposal {
     /// Proposal final tally result.
     pub final_tally_result: Option<InternalProposalFinalTallyResult>,
     /// Proposal submit timestamp in milliseconds.
-    pub submit_time: Option<Timestamp>,
+    pub submit_time: Option<i64>,
     /// Proposal deposit deadline timestamp in milliseconds.
-    pub deposit_end_time: Option<Timestamp>,
+    pub deposit_end_time: Option<i64>,
     /// Proposal total deposit in the native coin of the chain..
     pub total_deposit: ChainAmountItem,
     /// Proposal voting start timestamp in milliseconds.
-    pub voting_start_time: Option<Timestamp>,
+    pub voting_start_time: Option<i64>,
     /// Proposal voting start timestamp in milliseconds.
-    pub voting_end_time: Option<Timestamp>,
+    pub voting_end_time: Option<i64>,
 
     pub metadata: Option<String>,
     // Since: cosmos-sdk 0.47

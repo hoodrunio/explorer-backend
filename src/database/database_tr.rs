@@ -139,7 +139,7 @@ impl DatabaseTR {
     /// let collection = database.propsals_votes_collection();
     /// ```
     fn propsals_votes_collection(&self) -> Collection<ProposalVoteForDb> {
-        self.db().collection("propsals_votes")
+        self.db().collection("proposals_votes")
     }
 
     /// Returns the market price history collection.
