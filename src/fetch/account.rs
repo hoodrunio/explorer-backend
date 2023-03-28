@@ -1,10 +1,17 @@
+use cosmrs::vesting::{BaseVestingAccount, ContinuousVestingAccount, DelayedVestingAccount, PeriodicVestingAccount, PermanentLockedAccount};
 use mongodb::bson::doc;
 use serde::{Deserialize, Serialize};
 use tokio::join;
+use tonic::transport::Endpoint;
 
-use crate::{chain::Chain, routes::ChainAmountItem};
+use crate::{
+    chain::Chain,
+    fetch::cosmos::auth::v1beta1::{query_client::QueryClient, QueryAccountRequest},
+    routes::ChainAmountItem,
+};
 
 use super::{amount_util::TnrDecimal, others::PaginationConfig};
+use prost::Message;
 
 impl Chain {
     pub async fn get_account_info(&self, account_address: &String) -> Result<AccountInfo, String> {
@@ -17,6 +24,8 @@ impl Chain {
             self.get_delegations_unbonding(account_address, default_pagination_config),
             self.database.find_validator(doc! {"self_delegate_address": account_address})
         );
+
+        self.get_account_vesting_info(account_address.to_string()).await?;
 
         let main_token_balance = account_balance_resp?.value.amount;
 
@@ -76,6 +85,22 @@ impl Chain {
             total_amount: ChainAmountItem::sync_with_ticker(total_amount, main_symbol.clone()),
         })
     }
+    pub async fn get_account_vesting_info(&self, account_address: String) -> Result<(), String> {
+        let endpoint = Endpoint::from_shared(self.config.grpc_url.clone().unwrap()).unwrap();
+        let account_request = QueryAccountRequest { address: account_address };
+
+        let resp = QueryClient::connect(endpoint)
+            .await
+            .unwrap()
+            .account(account_request)
+            .await
+            .map_err(|e| format!("{}", e))?;
+
+        let account_resp = resp.into_inner();
+        let account = account_resp.account.ok_or_else(|| "account not found".to_string())?;
+        dbg!(account);
+        Ok(())
+    }
 }
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
@@ -92,4 +117,56 @@ pub struct NativeTokenBalanceInfo {
     pub staking_reward: ChainAmountItem,
     pub delegatable_vesting: ChainAmountItem,
     pub validator_comission: Option<ChainAmountItem>,
+}
+
+#[derive(Deserialize, Serialize, Debug, Clone)]
+pub struct InternalVestingAccount {
+    pub original_vesting: ChainAmountItem,
+    pub delegated_free: ChainAmountItem,
+    pub delegated_vesting: ChainAmountItem,
+    pub end_time: u64,
+    pub start_time: u64,
+    pub vesting_periods: Vec<InternalPeriod>,
+}
+
+// impl InternalVestingAccount {
+//     pub async fn from_grpc(chain: &Chain, account: prost_wkt_types::Any) -> Result<Self, String> {
+
+//         let (original_vesting
+// ,delegated_free
+// ,delegated_vesting
+// ,end_time
+// ,start_time
+// ,vesting_periods) = match account.type_url.as_str() {
+//             "/cosmos.vesting.v1beta1.PeriodicVestingAccount" => {
+//                 let account = PeriodicVestingAccount::decode(account.value.as_slice()).map_err(|e| format!("{}", e))?;
+//                 (None,None,None,None,None,None)},
+//             "/cosmos.vesting.v1beta1.PermanentLockedAccount" => {
+//                 let account = PermanentLockedAccount::decode(account.value.as_slice()).map_err(|e| format!("{}", e))?;
+//                 (None,None,None,None,None,None)},
+//             "/cosmos.vesting.v1beta1.DelayedVestingAccount" => {
+//                 let account = DelayedVestingAccount::decode(account.value.as_slice()).map_err(|e| format!("{}", e))?;
+//                 (None,None,None,None,None,None)},
+//             "/cosmos.vesting.v1beta1.ContinuousVestingAccount" => {
+//                 let account = ContinuousVestingAccount::decode(account.value.as_slice()).map_err(|e| format!("{}", e))?;
+//                 (None,None,None,None,None,None)},
+//             "/cosmos.vesting.v1beta1.BaseVestingAccount" => {
+//                 let account = BaseVestingAccount::decode(account.value.as_slice()).map_err(|e| format!("{}", e))?;
+//                 (None,None,None,None,None,None)},
+//         }
+//         Ok(Self {
+//             original_vesting: (),
+//             delegated_free: (),
+//             delegated_vesting: (),
+//             end_time: (),
+//             start_time: (),
+//             vesting_periods: (),
+//         })
+//     }
+// }
+
+#[derive(Deserialize, Serialize, Debug, Clone)]
+pub struct InternalPeriod {
+    pub end_time: u64,
+    pub amount: ChainAmountItem,
 }
