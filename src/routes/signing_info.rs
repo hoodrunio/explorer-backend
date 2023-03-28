@@ -1,11 +1,11 @@
 use actix_web::{
     get,
-    Responder,
     web::{Data, Path},
+    Responder,
 };
 
-use crate::state::State;
 use crate::routes::{extract_chain, TNRAppError, TNRAppSuccessResponse};
+use crate::state::State;
 
 // ======== Signing Information Methods ========
 

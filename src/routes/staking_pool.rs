@@ -1,12 +1,12 @@
 use actix_web::{
     get,
-    Responder,
     web::{Data, Path},
+    Responder,
 };
 use serde::Serialize;
 
-use crate::state::State;
 use crate::routes::{extract_chain, TNRAppError, TNRAppSuccessResponse};
+use crate::state::State;
 
 // ======== Staking Pool Methods ========
 

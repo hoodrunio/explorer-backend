@@ -21,4 +21,3 @@ pub struct HeartbeatRaw {
     pub sender: String,
     pub key_ids: Vec<String>,
 }
-

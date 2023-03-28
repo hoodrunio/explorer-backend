@@ -35,7 +35,7 @@ fn main() {
                 "umee/leverage/v1/tx.proto",
                 "gravity/v1/types.proto",
                 "quicksilver/interchainstaking/v1/proposals.proto",
-                "kyve/global/v1beta1/tx.proto"
+                "kyve/global/v1beta1/tx.proto",
             ],
             &["protos"],
         )
