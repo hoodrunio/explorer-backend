@@ -44,7 +44,7 @@ impl Chain {
         let mut validator_comission = None;
         if let Ok(validator) = find_val_db_resp {
             if let Ok(comission_resp) = self.get_validator_commission(&validator.operator_address).await {
-                if let Some(comission) = comission_resp.commission.commission.get(0) {
+                if let Some(comission) = comission_resp.commission.commission.iter().find(|c| c.denom == self.config.main_denom) {
                     let amount = self.string_amount_parser(comission.amount.clone(), Some(comission.denom.clone())).await?;
                     validator_comission = Some(amount);
                 };
