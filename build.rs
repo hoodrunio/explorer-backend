@@ -22,6 +22,10 @@ fn main() {
                 "cosmos/gov/v1/query.proto",
                 "cosmos/gov/v1/gov.proto",
                 "cosmos/gov/v1/tx.proto",
+                "cosmos/auth/v1beta1/auth.proto",
+                "cosmos/auth/v1beta1/genesis.proto",
+                "cosmos/auth/v1beta1/query.proto",
+                "cosmos/auth/v1beta1/tx.proto",
                 "cosmos/bank/v1beta1/bank.proto",
                 "cosmos/base/query/v1beta1/pagination.proto",
                 "cosmos/base/v1beta1/coin.proto",
@@ -35,7 +39,7 @@ fn main() {
                 "umee/leverage/v1/tx.proto",
                 "gravity/v1/types.proto",
                 "quicksilver/interchainstaking/v1/proposals.proto",
-                "kyve/global/v1beta1/tx.proto"
+                "kyve/global/v1beta1/tx.proto",
             ],
             &["protos"],
         )
