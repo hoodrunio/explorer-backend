@@ -1,4 +1,4 @@
-use std::ops::{Div, Mul};
+use std::ops::Div;
 
 use chrono::{DateTime, Duration, Utc};
 use futures::future::join_all;

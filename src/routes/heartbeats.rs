@@ -2,7 +2,6 @@ use actix_web::web::Query;
 use actix_web::{
     get,
     web::{Data, Json, Path},
-    Responder,
 };
 use mongodb::bson::doc;
 use serde::{Deserialize, Serialize};

@@ -1,9 +1,9 @@
 use std::collections::HashMap;
-use std::ops::{Div, Mul};
+use std::ops::Div;
 
 use futures::future::join_all;
 use mongodb::bson::doc;
-use rust_decimal::prelude::{FromPrimitive, ToPrimitive};
+use rust_decimal::prelude::ToPrimitive;
 use serde::{Deserialize, Serialize};
 
 use crate::database::{ValidatorForDb, VotingPowerForDb};

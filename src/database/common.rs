@@ -46,7 +46,7 @@ impl<T> From<ListDbResult<T>> for TNRAppSuccessResponse<Vec<T>> {
 }
 
 impl<T> ListDbResult<T> {
-    pub fn new(data: Vec<T>, page_info: PageInfo, total: u64) -> Self {
+    pub fn new(data: Vec<T>, page_info: PageInfo, _total: u64) -> Self {
         Self {
             data,
             pagination: page_info.into(),
