@@ -37,6 +37,12 @@ pub mod cosmos {
             tonic::include_proto!("cosmos.bank.v1beta1");
         }
     }
+
+    pub mod vesting {
+        pub mod v1beta1 {
+            tonic::include_proto!("cosmos.vesting.v1beta1");
+        }
+    }
     pub mod upgrade {
         pub mod v1beta1 {
             tonic::include_proto!("cosmos.upgrade.v1beta1");
