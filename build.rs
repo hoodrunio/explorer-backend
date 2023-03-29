@@ -26,6 +26,8 @@ fn main() {
                 "cosmos/auth/v1beta1/genesis.proto",
                 "cosmos/auth/v1beta1/query.proto",
                 "cosmos/auth/v1beta1/tx.proto",
+                "cosmos/vesting/v1beta1/vesting.proto",
+                "cosmos/vesting/v1beta1/tx.proto",
                 "cosmos/bank/v1beta1/bank.proto",
                 "cosmos/base/query/v1beta1/pagination.proto",
                 "cosmos/base/v1beta1/coin.proto",
