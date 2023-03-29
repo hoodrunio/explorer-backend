@@ -9,7 +9,7 @@ impl Chain {
     pub async fn get_val_heartbeats(
         &self,
         operator_address: String,
-        heartbeats_query: HeartbeatsQuery,
+        _heartbeats_query: HeartbeatsQuery,
         config: PaginationData,
     ) -> Result<ListDbResult<HeartbeatForDb>, TNRAppError> {
         let query = doc! {"operator_address": operator_address};

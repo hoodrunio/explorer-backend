@@ -94,7 +94,7 @@ impl Chain {
                 },
                 Err(error) => Err(format!("Cannot parse JSON.\nURL requested: {full_path}\nError Message:\n{error}")),
             },
-            Err(_) => Err(format!("Cannot make a request to `{full_path}`.")),
+            Err(e) => Err(format!("Cannot make a request to `{full_path}`.{}", e)),
         }
     }
 

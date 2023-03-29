@@ -97,30 +97,6 @@ impl<T> TNRAppSuccessResponse<T> {
     pub fn new(data: T, pagination: Option<PaginationData>) -> Self {
         Self { data, pagination }
     }
-
-    pub fn cursor(data: T, cursor: Option<String>, limit: u64, direction: Option<PaginationDirection>) -> Self {
-        Self {
-            data,
-            pagination: Some(PaginationData {
-                cursor,
-                limit: Some(limit),
-                direction: Some(direction.unwrap_or_default()),
-                ..Default::default()
-            }),
-        }
-    }
-
-    pub fn offset(data: T, offset: u64, limit: u64, direction: Option<PaginationDirection>) -> Self {
-        Self {
-            data,
-            pagination: Some(PaginationData {
-                offset: Some(offset),
-                limit: Some(limit),
-                direction: Some(direction.unwrap_or_default()),
-                ..Default::default()
-            }),
-        }
-    }
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
