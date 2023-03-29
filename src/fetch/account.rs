@@ -170,3 +170,19 @@ pub struct InternalPeriod {
     pub end_time: u64,
     pub amount: ChainAmountItem,
 }
+
+trait ChainAmountSum {
+    fn sum(&self) -> ChainAmountItem;
+}
+
+impl ChainAmountSum for Vec<ChainAmountItem> {
+    fn sum(&self) -> ChainAmountItem {
+        self.iter().fold(ChainAmountItem::default(), |mut acc, x| {
+            if let Some(total) = acc.amount.checked_add(x.amount) {
+                acc.amount = total;
+                acc.ticker = x.ticker.clone();
+            }
+            acc
+        })
+    }
+}
