@@ -104,6 +104,7 @@ pub async fn start_web_server() -> std::io::Result<()> {
             .service(routes::supply)
             .service(routes::account)
             .service(routes::account_balances)
+            .service(routes::account_vesting)
             .service(routes::txs)
             .service(routes::tx_by_hash)
             .service(routes::txs_by_height)

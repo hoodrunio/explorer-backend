@@ -27,9 +27,20 @@ pub mod ibc {
     }
 }
 pub mod cosmos {
+    pub mod auth {
+        pub mod v1beta1 {
+            tonic::include_proto!("cosmos.auth.v1beta1");
+        }
+    }
     pub mod bank {
         pub mod v1beta1 {
             tonic::include_proto!("cosmos.bank.v1beta1");
+        }
+    }
+
+    pub mod vesting {
+        pub mod v1beta1 {
+            tonic::include_proto!("cosmos.vesting.v1beta1");
         }
     }
     pub mod upgrade {

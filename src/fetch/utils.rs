@@ -1,3 +1,4 @@
+use futures::future::join_all;
 use rust_decimal::prelude::FromPrimitive;
 use sha2::{Digest, Sha256};
 
@@ -7,6 +8,7 @@ use crate::routes::ChainAmountItem;
 use hex::encode as to_hex;
 
 use super::amount_util::TnrDecimal;
+use super::cosmos::base::v1beta1::Coin;
 
 impl Chain {
     pub fn calc_amount_u128_to_u64(&self, amount: u128) -> u64 {
@@ -131,5 +133,14 @@ impl Chain {
 
     pub fn generate_heartbeat_id(&self, sender_address: String, height: u64) -> String {
         format!("{}_{}", sender_address, height)
+    }
+
+    pub async fn parse_grpc_coins(&self, coins: Vec<Coin>) -> Vec<ChainAmountItem> {
+        join_all(coins.iter().map(|c| async move {
+            self.string_amount_parser(c.amount.clone(), Some(c.denom.clone()))
+                .await
+                .unwrap_or_default()
+        }))
+        .await
     }
 }
