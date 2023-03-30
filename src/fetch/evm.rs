@@ -41,13 +41,25 @@ pub struct EvmPollRespElement {
 impl EvmPollRespElement {
     pub async fn new(chain: &Chain, value: EvmPollForDb) -> Result<Self, String> {
         let mut vote_count_info = EvmPollVoteCountInfoElement::default();
-        value
-            .participants
+
+        let participants = chain
+            .database
+            .find_paginated_evm_poll_participants(
+                Some(doc! {"poll_id":value.poll_id.clone()}),
+                PaginationData {
+                    limit: Some(10000),
+                    ..Default::default()
+                },
+            )
+            .await?
+            .data;
+
+        participants
             .iter()
             .for_each(|participant| vote_count_info.increment_count(&participant.vote));
 
         let mut val_query_jobs = vec![];
-        for participant_from_db in value.participants.iter() {
+        for participant_from_db in participants.iter() {
             val_query_jobs.push(async move {
                 let doc = doc! {"operator_address": participant_from_db.operator_address.clone()};
                 let val_res = chain.database.find_validator(doc).await;
