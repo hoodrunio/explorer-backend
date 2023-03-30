@@ -6,7 +6,6 @@ use actix_web::{
 };
 use mongodb::bson::doc;
 
-use crate::fetch::evm::EvmVotesListResp;
 use crate::routes::{extract_chain, PaginationData, TNRAppError, TNRAppSuccessResponse};
 use crate::state::State;
 
@@ -22,8 +21,8 @@ pub async fn evm_polls(path: Path<String>, chains: Data<State>, query: Query<Pag
         return Err(TNRAppError::from(format!("Evm polls not supported for {}", &chain.config.name)));
     };
 
-    let evm_polls_from_db = chain.database.find_paginated_evm_polls(None, query.into_inner()).await?;
-    Ok(TNRAppSuccessResponse::new(evm_polls_from_db.data, Some(evm_polls_from_db.pagination)))
+    let data = chain.get_evm_polls(None, query.into_inner()).await?;
+    Ok(TNRAppSuccessResponse::from(data))
 }
 
 #[get("{chain}/evm/poll/{poll_id}")]
@@ -54,18 +53,12 @@ pub async fn evm_validator_votes(
         return Err(TNRAppError::from(format!("Evm votes not supported for {}", &chain.config.name)));
     };
 
-    let evm_polls_db_result = chain
+    let data = chain
         .database
-        .find_paginated_evm_polls(
-            Some(doc! {"$match":{"participants":{"$elemMatch":{"operator_address":operator_address.clone()}}}}),
-            query.into_inner(),
-        )
+        .find_paginated_evm_poll_participants(Some(doc! {"operator_address":operator_address.clone()}), query.into_inner())
         .await?;
 
-    let data = EvmVotesListResp::from_db_list(evm_polls_db_result.data, operator_address);
-    let pagination = evm_polls_db_result.pagination;
-
-    Ok(TNRAppSuccessResponse::new(data, Some(pagination)))
+    Ok(TNRAppSuccessResponse::from(data))
 }
 
 #[get("{chain}/evm/validator/supported_chains/{operator_address}")]
