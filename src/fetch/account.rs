@@ -12,7 +12,10 @@ use crate::{
     routes::ChainAmountItem,
 };
 
-use super::{amount_util::TnrDecimal, others::PaginationConfig};
+use super::{
+    amount_util::TnrDecimal,
+    others::{Pagination, PaginationConfig},
+};
 use prost::Message;
 
 impl Chain {
@@ -85,6 +88,40 @@ impl Chain {
             total_amount: ChainAmountItem::sync_with_ticker(total_amount, main_symbol.clone()),
         })
     }
+
+    pub async fn get_account_balances(&self, account_address: &String, config: PaginationConfig) -> Result<Vec<ChainAmountItem>, String> {
+        let path = format!("/cosmos/bank/v1beta1/balances/{account_address}");
+        let mut query = vec![];
+
+        query.push(("pagination.reverse", format!("{}", config.is_reverse())));
+        query.push(("pagination.limit", format!("{}", 1000)));
+        query.push(("pagination.count_total", "true".to_string()));
+        query.push(("pagination.offset", format!("{}", config.get_offset())));
+
+        let resp = self.rest_api_request::<AccountBalances>(&path, &[]).await?;
+
+        let mut balances: Vec<ChainAmountItem> = vec![];
+
+        for balance in resp.balances {
+            let amount = self.string_amount_parser(balance.amount, Some(balance.denom)).await?;
+            balances.push(amount);
+        }
+
+        Ok(balances)
+    }
+
+    pub async fn get_account_balance_by_denom(&self, account_address: &String, denom: &String) -> Result<ChainAmountItem, String> {
+        // let query = vec![("denom", format!("{}", denom))];
+
+        let path = format!("/cosmos/bank/v1beta1/balances/{account_address}/by_denom?denom={denom}");
+
+        let resp = self.rest_api_request::<AccountDenomBalance>(&path, &[]).await?;
+
+        let amount = self.string_amount_parser(resp.balance.amount, Some(resp.balance.denom)).await?;
+
+        Ok(amount)
+    }
+
     pub async fn get_account_vesting_info(&self, account_address: String) -> Result<InternalVestingAccount, String> {
         let endpoint = Endpoint::from_shared(self.config.grpc_url.clone().unwrap()).unwrap();
         let account_request = QueryAccountRequest { address: account_address };
@@ -242,4 +279,21 @@ impl ChainAmountSum for Vec<ChainAmountItem> {
             acc
         })
     }
+}
+
+#[derive(Deserialize, Serialize, Debug)]
+pub struct AccountBalances {
+    pub balances: Vec<Balance>,
+    pub pagination: Pagination,
+}
+
+#[derive(Deserialize, Serialize, Debug)]
+pub struct AccountDenomBalance {
+    pub balance: Balance,
+}
+
+#[derive(Deserialize, Serialize, Debug)]
+pub struct Balance {
+    pub denom: String,
+    pub amount: String,
 }
