@@ -1128,12 +1128,6 @@ struct EvmPollItemEventParams {
 
 impl From<EvmPollItem> for EvmPollForDb {
     fn from(value: EvmPollItem) -> Self {
-        let participants: Vec<EvmPollParticipantForDb> = value
-            .participants_operator_address
-            .into_iter()
-            .map(|address| EvmPollParticipantForDb::from_info(address, value.poll_id.clone(), value.chain_name.clone()))
-            .collect();
-
         EvmPollForDb {
             timestamp: value.time,
             tx_height: value.tx_height,
@@ -1143,7 +1137,6 @@ impl From<EvmPollItem> for EvmPollForDb {
             evm_tx_id: value.evm_tx_id.clone(),
             chain_name: value.chain_name.clone(),
             evm_deposit_address: value.evm_deposit_address,
-            participants,
         }
     }
 }
