@@ -189,48 +189,6 @@ impl fmt::Display for PollStatus {
     }
 }
 
-#[derive(Deserialize, Serialize, Debug)]
-pub struct EvmVotesListResp(Vec<EvmVoteRespElement>);
-
-impl EvmVotesListResp {
-    pub fn from_db_list(list_from_db: Vec<EvmPollForDb>, operator_address: String) -> Self {
-        let mut votes: Vec<EvmVoteRespElement> = vec![];
-
-        for evm_poll in list_from_db.iter() {
-            if let Some(evm_vote) = evm_poll
-                .participants
-                .iter()
-                .find(|participant| participant.operator_address == operator_address)
-            {
-                votes.push(EvmVoteRespElement {
-                    operator_address: evm_vote.operator_address.clone(),
-                    poll_id: evm_vote.poll_id.clone(),
-                    chain_name: evm_vote.chain_name.clone(),
-                    vote: evm_vote.vote.clone(),
-                    time: evm_vote.time,
-                    tx_height: evm_vote.tx_height,
-                    tx_hash: evm_vote.tx_hash.clone(),
-                    voter_address: evm_vote.voter_address.clone(),
-                });
-            };
-        }
-
-        Self(votes)
-    }
-}
-
-#[derive(Deserialize, Serialize, Debug)]
-pub struct EvmVoteRespElement {
-    pub operator_address: String,
-    pub poll_id: String,
-    pub chain_name: String,
-    pub vote: EvmPollVote,
-    pub time: u64,
-    pub tx_height: u64,
-    pub tx_hash: String,
-    pub voter_address: String,
-}
-
 #[derive(Deserialize, Serialize, Debug, Default)]
 pub struct EvmPollVoteCountInfoElement {
     pub yes: u32,
