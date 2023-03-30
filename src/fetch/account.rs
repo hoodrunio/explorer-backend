@@ -30,7 +30,7 @@ impl Chain {
             self.database.find_validator(doc! {"self_delegate_address": account_address})
         );
 
-        let main_token_balance = account_balance_resp?.value.amount;
+        let main_token_balance = account_balance_resp?;
 
         let total_delegate_amount = delegation_resp?.value.iter().fold(TnrDecimal::ZERO, |mut acc, x| {
             if let Some(total) = acc.checked_add(x.amount.amount) {
@@ -39,7 +39,7 @@ impl Chain {
             acc
         });
 
-        let total_staking_rewards_amount = delegetor_rewards_resp?.value.rewards.iter().fold(TnrDecimal::ZERO, |mut acc, x| {
+        let total_staking_rewards_amount = delegetor_rewards_resp?.rewards.iter().fold(TnrDecimal::ZERO, |mut acc, x| {
             if let Some(total) = acc.checked_add(x.reward.amount) {
                 acc = total;
             }

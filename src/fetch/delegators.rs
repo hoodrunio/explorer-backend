@@ -1,31 +1,37 @@
 use serde::{Deserialize, Serialize};
 
-use crate::routes::ChainAmountItem;
-use crate::{chain::Chain, routes::OutRestResponse};
-
+use super::cosmos::{
+    base::v1beta1::Coin,
+    distribution::v1beta1::{query_client::QueryClient, QueryDelegationTotalRewardsRequest},
+};
 use super::others::DenomAmount;
+use crate::chain::Chain;
+use crate::routes::ChainAmountItem;
+use tonic::transport::Endpoint;
 
 impl Chain {
     /// Returns the withdraw address by given delegator address.
-    pub async fn get_delegator_withdraw_address(&self, delegator_addr: &str) -> Result<OutRestResponse<String>, String> {
+    pub async fn get_delegator_withdraw_address(&self, delegator_addr: &str) -> Result<String, String> {
         let path = format!("/cosmos/distribution/v1beta1/delegators/{delegator_addr}/withdraw_address");
 
         let resp = self.rest_api_request::<WithdrawAddressResp>(&path, &[]).await?;
 
         let withdraw_address = resp.withdraw_address;
 
-        Ok(OutRestResponse::new(withdraw_address, 0))
+        Ok(withdraw_address)
     }
 
     /// Returns the rewards of given delegator address.
-    pub async fn get_delegator_rewards(&self, delegator_addr: &str) -> Result<OutRestResponse<InternalDelegatorRewards>, String> {
+    pub async fn get_delegator_rewards(&self, delegator_addr: &str) -> Result<InternalDelegatorRewards, String> {
         let path = format!("/cosmos/distribution/v1beta1/delegators/{delegator_addr}/rewards");
 
         let resp = self.rest_api_request::<DelegatorRewardsResp>(&path, &[]).await?;
 
         let delegator_rewards = InternalDelegatorRewards::new(resp, self).await?;
 
-        Ok(OutRestResponse::new(delegator_rewards, 0))
+        Ok(delegator_rewards)
+    }
+
     }
 }
 
