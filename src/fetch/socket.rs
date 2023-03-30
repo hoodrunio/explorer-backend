@@ -1148,6 +1148,23 @@ impl From<EvmPollItem> for EvmPollForDb {
     }
 }
 
+impl EvmPollItem {
+    pub async fn upsert_participants(&self, db: &DatabaseTR) -> Result<(), String> {
+        let participants: Vec<EvmPollParticipantForDb> = self
+            .participants_operator_address
+            .iter()
+            .map(|address| EvmPollParticipantForDb::from_info(address.clone(), self.poll_id.clone(), self.chain_name.clone()))
+            .collect();
+
+        let mut db_jobs = vec![];
+        for participant in participants {
+            db_jobs.push(async move { db.upsert_evm_poll_participant(participant).await });
+        }
+        join_all(db_jobs).await;
+        Ok(())
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
 pub enum EvmPollVote {
     UnSubmit,
