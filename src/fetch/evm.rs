@@ -1,13 +1,13 @@
 use std::fmt;
 
 use futures::future::join_all;
-use mongodb::bson::doc;
+use mongodb::bson::{doc, Document};
 use serde::{Deserialize, Serialize};
 
 use crate::chain::Chain;
-use crate::database::{EvmPollForDb, EvmPollParticipantForDb, ValidatorForDb};
+use crate::database::{EvmPollForDb, EvmPollParticipantForDb, ListDbResult, ValidatorForDb};
 use crate::fetch::socket::EvmPollVote;
-use crate::routes::TNRAppError;
+use crate::routes::{PaginationData, TNRAppError};
 
 impl Chain {
     pub async fn get_supported_chains(&self, operator_address: &String) -> Result<EvmSupportedChains, TNRAppError> {
@@ -22,17 +22,40 @@ impl Chain {
 
         Ok(EvmPollRespElement::new(self, res).await?)
     }
+
+    pub async fn get_evm_polls(&self, query: Option<Document>, config: PaginationData) -> Result<ListDbResult<EvmPollRespElement>, TNRAppError> {
+        let evm_polls_from_db = self.database.find_paginated_evm_polls(query, config).await?;
+
+        let elements_jobs_resp = join_all(
+            evm_polls_from_db
+                .data
+                .iter()
+                .map(|poll| async move { EvmPollRespElement::new(self, poll.clone()).await }),
+        )
+        .await;
+
+        let mut evm_poll_elements: Vec<EvmPollRespElement> = vec![];
+
+        for res in elements_jobs_resp {
+            evm_poll_elements.push(res?);
+        }
+
+        Ok(ListDbResult {
+            data: evm_poll_elements,
+            pagination: evm_polls_from_db.pagination,
+        })
+    }
 }
 
 #[derive(Deserialize, Serialize, Debug)]
 pub struct EvmPollRespElement {
-    pub id: String,
-    pub tx_id: String,
-    pub sender_chain: String,
-    pub event: String,
-    pub status: String,
-    pub height: u64,
     pub timestamp: u64,
+    pub height: u64,
+    pub id: String,
+    pub sender_chain: String,
+    pub status: String,
+    pub event: String,
+    pub tx_id: String,
     pub deposit_address: String,
     pub vote_count_info: EvmPollVoteCountInfoElement,
     pub participants: Vec<EvmPollParticipantRespElement>,
