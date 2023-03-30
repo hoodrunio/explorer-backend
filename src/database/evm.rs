@@ -12,7 +12,6 @@ pub struct EvmPoll {
     pub action: String,
     pub evm_tx_id: String,
     pub evm_deposit_address: String,
-    pub participants: Vec<EvmPollParticipant>,
 }
 
 #[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
