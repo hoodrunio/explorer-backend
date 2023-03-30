@@ -12,7 +12,7 @@ use tokio_tungstenite::{connect_async, tungstenite::Message};
 
 use crate::chain::Chain;
 use crate::database::{
-    BlockForDb, EvmPollForDb, EvmPollParticipantForDb, HeartbeatForDb, HeartbeatRawForDb, ProposalVoteForDb, ProposalVoteOptionForDb,
+    BlockForDb, DatabaseTR, EvmPollForDb, EvmPollParticipantForDb, HeartbeatForDb, HeartbeatRawForDb, ProposalVoteForDb, ProposalVoteOptionForDb,
 };
 use crate::events::WsEvent;
 use crate::fetch::blocks::{Block, CosmosEvent, ResultBeginBlock, ResultEndBlock};
@@ -362,8 +362,10 @@ impl Chain {
                                             continue;
                                         }
                                     };
+                                    let _ = evm_poll_item.upsert_participants(&self.database).await;
+
                                     let evm_poll: EvmPollForDb = evm_poll_item.clone().into();
-                                    if let Err(e) = tx.send((self.config.name.clone(), WsEvent::NewEvmPoll(evm_poll.clone()))) {
+                                    if let Err(e) = tx.send((chain_name.clone(), WsEvent::NewEvmPoll(evm_poll.clone()))) {
                                         tracing::error!("Error dispatching evm poll event: {e}");
                                     }
                                     match self.database.upsert_evm_poll(evm_poll).await {
@@ -474,7 +476,7 @@ impl Chain {
                                                         if let Ok(validator) = validator {
                                                             let voter_address = validator.voter_address.unwrap_or(String::from(sender));
                                                             let evm_poll_participant = EvmPollParticipantForDb {
-                                                                operator_address: validator.operator_address,
+                                                                operator_address: validator.operator_address.clone(),
                                                                 tx_hash: tx_hash.to_string(),
                                                                 poll_id: poll_id.clone(),
                                                                 chain_name: String::from(chain),
@@ -490,11 +492,11 @@ impl Chain {
                                                             )) {
                                                                 tracing::error!("Error dispatching Evm Poll Update event: {e}");
                                                             }
-                                                            match self.database.update_evm_poll_participant(poll_id, &evm_poll_participant).await {
+                                                            match self.database.upsert_evm_poll_participant(evm_poll_participant).await {
                                                                 Ok(_) => {
                                                                     tracing::info!(
                                                                         "Successfully updated evm poll participant {} for which poll id is {}",
-                                                                        &evm_poll_participant.operator_address,
+                                                                        &validator.operator_address,
                                                                         &poll_id
                                                                     );
                                                                 }
