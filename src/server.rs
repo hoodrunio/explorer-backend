@@ -35,6 +35,7 @@ pub async fn start_web_server() -> std::io::Result<()> {
 
     let tx_clone = tx.clone();
     tokio::spawn(async move {
+        let tx_clone = tx_clone.clone();
         state_clone.subscribe_to_events(tx_clone).await;
     });
 
@@ -42,18 +43,23 @@ pub async fn start_web_server() -> std::io::Result<()> {
 
     let tx_clone = tx.clone();
     tokio::spawn(async move {
-        if let Err(e) = run_ws(tx_clone, chains).await {
-            tracing::error!("Error spawning the websocket task {e}");
-        };
+            if let Err(e) = run_ws(tx_clone, chains).await {
+                tracing::error!("Error spawning the websocket task {e}");
+            };
     });
 
     if let Ok(axelar) = state.get("axelar") {
         let tx_clone = tx.clone();
         tokio::spawn(async move {
-            match Chain::sub_axelar_events(axelar, tx_clone).await {
-                Ok(_) => {}
-                Err(e) => tracing::info!("Error axelar evm polls flow {}", e),
-            };
+            loop {
+                let tx_clone = tx_clone.clone();
+                let axelar_clone = axelar.clone();
+                match Chain::sub_axelar_events(axelar_clone, tx_clone).await {
+                    Ok(_) => {}
+                    Err(e) => tracing::info!("Error axelar evm polls flow {}", e),
+                };
+                tokio::time::sleep(tokio::time::Duration::from_secs(10)).await;
+            }
         });
     };
 
