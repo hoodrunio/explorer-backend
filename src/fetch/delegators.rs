@@ -1,13 +1,7 @@
-use serde::{Deserialize, Serialize};
-
-use super::cosmos::{
-    base::v1beta1::Coin,
-    distribution::v1beta1::{query_client::QueryClient, QueryDelegationTotalRewardsRequest},
-};
 use super::others::DenomAmount;
 use crate::chain::Chain;
 use crate::routes::ChainAmountItem;
-use tonic::transport::Endpoint;
+use serde::{Deserialize, Serialize};
 
 impl Chain {
     /// Returns the withdraw address by given delegator address.
@@ -30,8 +24,6 @@ impl Chain {
         let delegator_rewards = InternalDelegatorRewards::new(resp, self).await?;
 
         Ok(delegator_rewards)
-    }
-
     }
 }
 
