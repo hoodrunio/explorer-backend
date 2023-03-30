@@ -1,7 +1,7 @@
-use crate::state::State;
+use crate::{fetch::others::PaginationConfig, routes::QueryParams, state::State};
 use actix_web::{
     get,
-    web::{Data, Path},
+    web::{Data, Path, Query},
     Responder,
 };
 
@@ -23,5 +23,15 @@ pub async fn account_vesting(path: Path<(String, String)>, chains: Data<State>) 
     let (chain, account_address) = path.into_inner();
     let chain = extract_chain(&chain, chains)?;
     let data = chain.get_account_vesting_info(account_address).await?;
+    Ok(TNRAppSuccessResponse::new(data, None))
+}
+
+#[get("{chain}/balances/{account_address}")]
+pub async fn account_balances(path: Path<(String, String)>, chains: Data<State>, query: Query<QueryParams>) -> Result<impl Responder, TNRAppError> {
+    let (chain, account_address) = path.into_inner();
+    let config = PaginationConfig::new().limit(1000).page(query.page.unwrap_or(1));
+    let chain = extract_chain(&chain, chains)?;
+
+    let data = chain.get_account_balances(&account_address, config).await?;
     Ok(TNRAppSuccessResponse::new(data, None))
 }

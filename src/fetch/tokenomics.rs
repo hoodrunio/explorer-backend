@@ -82,45 +82,6 @@ impl Chain {
 
         Ok(resp.maintainers)
     }
-
-    pub async fn get_account_balances(
-        &self,
-        account_address: &String,
-        config: PaginationConfig,
-    ) -> Result<OutRestResponse<Vec<InternalBalance>>, String> {
-        let path = format!("/cosmos/bank/v1beta1/balances/{account_address}");
-        let mut query = vec![];
-
-        query.push(("pagination.reverse", format!("{}", config.is_reverse())));
-        query.push(("pagination.limit", format!("{}", config.get_limit())));
-        query.push(("pagination.count_total", "true".to_string()));
-        query.push(("pagination.offset", format!("{}", config.get_offset())));
-
-        let resp = self.rest_api_request::<AccountBalances>(&path, &[]).await?;
-
-        let mut balances: Vec<InternalBalance> = vec![];
-
-        let pages = calc_pages(resp.pagination, config)?;
-
-        for balance in resp.balances {
-            let amount = self.string_amount_parser(balance.amount, Some(balance.denom)).await?;
-            balances.push(InternalBalance { amount });
-        }
-
-        Ok(OutRestResponse::new(balances, pages))
-    }
-
-    pub async fn get_account_balance_by_denom(&self, account_address: &String, denom: &String) -> Result<OutRestResponse<InternalBalance>, String> {
-        // let query = vec![("denom", format!("{}", denom))];
-
-        let path = format!("/cosmos/bank/v1beta1/balances/{account_address}/by_denom?denom={denom}");
-
-        let resp = self.rest_api_request::<AccountDenomBalance>(&path, &[]).await?;
-
-        let amount = self.string_amount_parser(resp.balance.amount, Some(resp.balance.denom)).await?;
-
-        Ok(OutRestResponse::new(InternalBalance { amount }, 0))
-    }
     /// Returns the minting inflation rate of native coin of the chain.
     pub async fn get_inflation_rate(&self) -> Result<f64, String> {
         let default_return_value = 0.0;
@@ -265,28 +226,6 @@ pub struct AxelarSupportedEvmChainsResponse {
 #[derive(Deserialize, Serialize, Debug, PartialEq)]
 pub struct AxelarEvmChainMaintainersResponse {
     maintainers: Vec<String>,
-}
-
-#[derive(Deserialize, Serialize, Debug)]
-pub struct AccountBalances {
-    pub balances: Vec<Balance>,
-    pub pagination: Pagination,
-}
-
-#[derive(Deserialize, Serialize, Debug)]
-pub struct AccountDenomBalance {
-    pub balance: Balance,
-}
-
-#[derive(Deserialize, Serialize, Debug)]
-pub struct Balance {
-    pub denom: String,
-    pub amount: String,
-}
-
-#[derive(Deserialize, Serialize, Debug)]
-pub struct InternalBalance {
-    pub amount: ChainAmountItem,
 }
 
 #[derive(Serialize, Deserialize)]
