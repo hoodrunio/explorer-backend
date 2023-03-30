@@ -12,7 +12,7 @@ use tokio_tungstenite::{connect_async, tungstenite::Message};
 
 use crate::chain::Chain;
 use crate::database::{
-    BlockForDb, EvmPollForDb, EvmPollParticipantForDb, HeartbeatForDb, HeartbeatRawForDb, ProposalVoteForDb, ProposalVoteOptionForDb,
+    BlockForDb, DatabaseTR, EvmPollForDb, EvmPollParticipantForDb, HeartbeatForDb, HeartbeatRawForDb, ProposalVoteForDb, ProposalVoteOptionForDb,
 };
 use crate::events::WsEvent;
 use crate::fetch::blocks::{Block, CosmosEvent, ResultBeginBlock, ResultEndBlock};
@@ -199,7 +199,7 @@ impl Chain {
                     Err(error) => tracing::info!("Websocket JSON parse error for {}: {error}", clone.config.name),
                 }
             } else if let Err(e) = msg {
-                return Err(format!("Websocket error for {}: {}", clone.config.name,e));
+                return Err(format!("Websocket error for {}: {}", clone.config.name, e));
             }
         }
 
@@ -224,13 +224,14 @@ impl Chain {
                     Ok(msg) => match msg.result {
                         SocketResult::NonEmpty(SocketResultNonEmpty::ProposalVoteTx { events }) => {
                             let proposal_id = events.proposal_id[0].clone();
-                            let proposal_vote_option = match serde_json::from_str::<ProposalVoteOption>(events.vote_option[0].replace(r#"\"#, "").as_str()) {
-                                Ok(option) => option,
-                                Err(e) => {
-                                    tracing::error!("Error parsing vote option: {e} proposal id {proposal_id}");
-                                    continue;
-                                }
-                            };
+                            let proposal_vote_option =
+                                match serde_json::from_str::<ProposalVoteOption>(events.vote_option[0].replace(r#"\"#, "").as_str()) {
+                                    Ok(option) => option,
+                                    Err(e) => {
+                                        tracing::error!("Error parsing vote option: {e} proposal id {proposal_id}");
+                                        continue;
+                                    }
+                                };
 
                             let voter = match events.voter.get(0) {
                                 Some(voter) => String::from(voter),
@@ -240,7 +241,10 @@ impl Chain {
                                 }
                             };
 
-                            let proposal_vote_option_db = ProposalVoteOptionForDb { option: proposal_vote_option.option, weight: proposal_vote_option.weight.parse::<f32>().unwrap_or(0.0) };
+                            let proposal_vote_option_db = ProposalVoteOptionForDb {
+                                option: proposal_vote_option.option,
+                                weight: proposal_vote_option.weight.parse::<f32>().unwrap_or(0.0),
+                            };
 
                             let proposal_vote = ProposalVoteForDb {
                                 proposal_id,
@@ -255,8 +259,8 @@ impl Chain {
                         SocketResult::Empty {} => {
                             tracing::info!("Websocket empty response for {}", clone.config.name);
                         }
-                        _ => ()
-                    }
+                        _ => (),
+                    },
                     Err(error) => {
                         tracing::info!("Websocket JSON parse error for {}: {error}", clone.config.name);
                     }
@@ -347,6 +351,9 @@ impl Chain {
                                         continue;
                                     }
                                 };
+
+                                let _ = evm_poll_item.upsert_participants(&self.database).await;
+
                                 let evm_poll: EvmPollForDb = evm_poll_item.clone().into();
                                 if let Err(e) = tx.send((self.config.name.clone(), WsEvent::NewEvmPoll(evm_poll.clone()))) {
                                     tracing::error!("Error dispatching evm poll event: {e}");
@@ -414,9 +421,9 @@ impl Chain {
 
                                 match tx_content {
                                     InternalTransactionContent::Known(InternalTransactionContentKnowns::AxelarRefundRequest {
-                                                                          sender: _,
-                                                                          inner_message,
-                                                                      }) => match inner_message {
+                                        sender: _,
+                                        inner_message,
+                                    }) => match inner_message {
                                         InnerMessage::Known(InnerMessageKnown::VoteRequest { sender, vote, poll_id }) => {
                                             let mut is_confirmation_tx = false;
                                             if tx.raw.contains("POLL_STATE_COMPLETED") {
@@ -435,9 +442,9 @@ impl Chain {
                                                     match self.database.update_evm_poll_status(poll_id, &poll_status).await {
                                                         Ok(_) => {
                                                             tracing::info!(
-                                                                    "Successfully updated evm poll status completed for which poll id is {}",
-                                                                    &poll_id
-                                                                );
+                                                                "Successfully updated evm poll status completed for which poll id is {}",
+                                                                &poll_id
+                                                            );
                                                         }
                                                         Err(e) => {
                                                             tracing::error!("Can not updated evm poll participant {}", e);
@@ -459,7 +466,7 @@ impl Chain {
                                                     if let Ok(validator) = validator {
                                                         let voter_address = validator.voter_address.unwrap_or(String::from(sender));
                                                         let evm_poll_participant = EvmPollParticipantForDb {
-                                                            operator_address: validator.operator_address,
+                                                            operator_address: validator.operator_address.clone(),
                                                             tx_hash: tx_hash.to_string(),
                                                             poll_id: poll_id.clone(),
                                                             chain_name: String::from(chain),
@@ -469,12 +476,26 @@ impl Chain {
                                                             voter_address,
                                                             confirmation: is_confirmation_tx,
                                                         };
+
+                                                        match self.database.upsert_evm_poll_participant(evm_poll_participant.clone()).await {
+                                                            Ok(_) => {
+                                                                tracing::info!(
+                                                                    "Successfully updated evm poll participant {} for which poll id is {}",
+                                                                    &validator.operator_address,
+                                                                    &poll_id
+                                                                );
+                                                            }
+                                                            Err(e) => {
+                                                                tracing::error!("Can not updated evm poll participant {}", e);
+                                                            }
+                                                        };
+
                                                         if let Err(e) = ws_tx.send((
                                                             self.config.name.clone(),
-                                                            WsEvent::UpdateEvmPollParticipant((poll_id.clone(), evm_poll_participant.clone())),
+                                                            WsEvent::UpdateEvmPollParticipant((poll_id.clone(), evm_poll_participant)),
                                                         )) {
                                                             tracing::error!("Error dispatching Evm Poll Update event: {e}");
-                                                        }
+                                                        };
                                                     }
                                                 }
                                                 AxelarVote::Unknown(_) => {
@@ -684,22 +705,22 @@ pub enum SocketResultNonEmpty {
     #[serde(rename = "tm.event='Tx' AND message.action CONTAINS 'MsgVote'")]
     ProposalVoteTx { events: ProposalVoteEvents },
     #[serde(
-    rename = "tm.event='Tx' AND message.action='ConfirmERC20Deposit' AND axelar.evm.v1beta1.ConfirmDepositStarted.participants CONTAINS 'participants'"
+        rename = "tm.event='Tx' AND message.action='ConfirmERC20Deposit' AND axelar.evm.v1beta1.ConfirmDepositStarted.participants CONTAINS 'participants'"
     )]
     ConfirmERC20DepositStartedTx { events: ConfirmDepositStartedEvents },
 
     #[serde(
-    rename = "tm.event='Tx' AND message.action='ConfirmDeposit' AND axelar.evm.v1beta1.ConfirmDepositStarted.participants CONTAINS 'participants'"
+        rename = "tm.event='Tx' AND message.action='ConfirmDeposit' AND axelar.evm.v1beta1.ConfirmDepositStarted.participants CONTAINS 'participants'"
     )]
     ConfirmDepositStartedTx { events: ConfirmDepositStartedEvents },
 
     #[serde(
-    rename = "tm.event='Tx' AND message.action='ConfirmGatewayTx' AND axelar.evm.v1beta1.ConfirmGatewayTxStarted.participants CONTAINS 'participants'"
+        rename = "tm.event='Tx' AND message.action='ConfirmGatewayTx' AND axelar.evm.v1beta1.ConfirmGatewayTxStarted.participants CONTAINS 'participants'"
     )]
     ConfirmGatewayTxStartedTx { events: ConfirmGatewayTxStartedEvents },
 
     #[serde(
-    rename = "tm.event='Tx' AND message.action='ConfirmTransferKey' AND axelar.evm.v1beta1.ConfirmKeyTransferStarted.participants CONTAINS 'participants'"
+        rename = "tm.event='Tx' AND message.action='ConfirmTransferKey' AND axelar.evm.v1beta1.ConfirmKeyTransferStarted.participants CONTAINS 'participants'"
     )]
     ConfirmKeyTransferStartedTx { events: ConfirmKeyTransferStartedEvents },
 
@@ -913,7 +934,7 @@ impl SocketResultNonEmpty {
             },
             chain,
         )
-            .await
+        .await
         {
             Ok(res) => res,
             Err(e) => {
@@ -1111,6 +1132,23 @@ impl From<EvmPollItem> for EvmPollForDb {
             chain_name: value.chain_name.clone(),
             evm_deposit_address: value.evm_deposit_address,
         }
+    }
+}
+
+impl EvmPollItem {
+    pub async fn upsert_participants(&self, db: &DatabaseTR) -> Result<(), String> {
+        let participants: Vec<EvmPollParticipantForDb> = self
+            .participants_operator_address
+            .iter()
+            .map(|address| EvmPollParticipantForDb::from_info(address.clone(), self.poll_id.clone(), self.chain_name.clone()))
+            .collect();
+
+        let mut db_jobs = vec![];
+        for participant in participants {
+            db_jobs.push(async move { db.upsert_evm_poll_participant(participant).await });
+        }
+        join_all(db_jobs).await;
+        Ok(())
     }
 }
 
