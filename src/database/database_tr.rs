@@ -538,19 +538,37 @@ impl DatabaseTR {
         }
     }
 
-    /// Updates evm_poll item participant vote on to the evm_polls collection
+    pub async fn upsert_evm_poll_participant(&self, poll_participant: EvmPollParticipantForDb) -> Result<(), String> {
+        let doc = to_document(&poll_participant).unwrap();
+        let command = doc! {"update":"evm_poll_participants","updates":[{"q":{"poll_id":&poll_participant.poll_id,"operator_address":&poll_participant.operator_address},"u":doc,"upsert":true}]};
+        if (self.db().run_command(command, None).await).is_err() {
+            return Err("Cannot save the evm poll participant.".into());
+        };
+
+        Ok(())
+    }
+
+    /// Finds find_paginated_evm_poll_participants with pagination option
     /// # Usage
     /// ```rs
-    /// database.update_evm_poll_participant_vote(3890,EvmPollVote::YES).await;
+    /// database.find_paginated_evm_poll_participants(pipe,config).await;
     /// ```
-    pub async fn update_evm_poll_participant(&self, pool_id: &String, poll_participant: &EvmPollParticipantForDb) -> Result<(), String> {
-        let query = doc! {"poll_id": pool_id,"participants.operator_address": &poll_participant.operator_address};
-        let bson_doc = to_bson(poll_participant).unwrap();
-        let update_query = doc! {"$set": {"participants.$": bson_doc}};
-        match self.update_evm_poll(query, update_query).await {
-            Ok(_) => Ok(()),
-            Err(e) => Err(e),
-        }
+    pub async fn find_paginated_evm_poll_participants(
+        &self,
+        pipe: Option<Document>,
+        config: PaginationData,
+    ) -> Result<ListDbResult<EvmPollParticipantForDb>, String> {
+        let options = FindOptions::builder()
+            .limit(config.limit.map(|l| l as i64))
+            .sort(doc! { "poll_id": -1})
+            .build();
+
+        let results: FindResult<EvmPollParticipantForDb> = PaginatedCursor::new(Some(options), config.cursor, config.direction.map(|d| d.into()))
+            .find(&self.db().collection("evm_poll_participants"), pipe.as_ref())
+            .await
+            .map_err(|e| e.to_string())?;
+
+        Ok(ListDbResult::from(results))
     }
 
     /// Updates evm_poll item status on to the evm_polls collection
