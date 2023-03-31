@@ -272,9 +272,9 @@ impl Chain {
     }
     pub async fn sub_axelar_events(axelar: Chain, tx: Sender<(String, WsEvent)>) -> Result<(), String> {
         let poll = axelar.sub_for_axelar_evm_polls(tx.clone());
-        let vote = axelar.sub_for_axelar_evm_poll_votes(tx.clone());
+        // let vote = axelar.sub_for_axelar_evm_poll_votes(tx.clone());
         let heartbeats = axelar.sub_for_axelar_heartbeats();
-        match try_join!(poll, vote, heartbeats) {
+        match try_join!(poll, heartbeats) {
             Ok(..) => {}
             Err(e) => {
                 return Err(e.message.unwrap_or(String::from("")));
@@ -284,7 +284,7 @@ impl Chain {
         Ok(())
     }
 
-    async fn sub_for_axelar_evm_polls(&self, tx: Sender<(String, WsEvent)>) -> Result<(), TNRAppError> {
+    async fn sub_for_axelar_evm_polls(&self, ws_tx: Sender<(String, WsEvent)>) -> Result<(), TNRAppError> {
         let ws_url = self.config.wss_url.clone();
         let chain_name = self.config.name.clone();
 
@@ -295,27 +295,22 @@ impl Chain {
         // Split the connection into two parts.
         let (mut write, mut read) = ws_stream.split();
 
+        let events = vec![
+            AXELAR_SUB_CONFIRM_DEPOSIT_TX,
+            AXELAR_SUB_CONFIRM_ERC20_DEPOSIT_TX,
+            AXELAR_SUB_CONFIRM_TRANSFER_KEY_TX,
+            AXELAR_SUB_CONFIRM_GATEWAY_TX,
+            SUBSCRIBE_BLOCK,
+            AXELAR_SUB_VOTE_TX,
+        ];
+
         // Subscribe to txs which are related evm polls.
-        write
-            .send(AXELAR_SUB_CONFIRM_DEPOSIT_TX.into())
-            .await
-            .map_err(|e| format!("Can't subscribe to confirm AXELAR CONFIRM DEPOSIT TX for {}: {e}", chain_name))?;
-        write
-            .send(AXELAR_SUB_CONFIRM_ERC20_DEPOSIT_TX.into())
-            .await
-            .map_err(|e| format!("Can't subscribe to AXELAR CONFIRM ERC20_DEPOSIT TX for {}: {e}", chain_name))?;
-        write
-            .send(AXELAR_SUB_CONFIRM_TRANSFER_KEY_TX.into())
-            .await
-            .map_err(|e| format!("Can't subscribe to AXELAR CONFIRM TRANSFER_KEY TX for {}: {e}", chain_name))?;
-        write
-            .send(AXELAR_SUB_CONFIRM_GATEWAY_TX.into())
-            .await
-            .map_err(|e| format!("Can't subscribe to AXELAR CONFIRM GATEWAY TX for {}: {e}", chain_name))?;
-        write
-            .send(SUBSCRIBE_BLOCK.into())
-            .await
-            .map_err(|e| format!("Can't subscribe to SUBSCRIBE BLOCK for {}: {e}", chain_name))?;
+        for event in events {
+            write
+                .send(event.into())
+                .await
+                .map_err(|e| format!("Can't subscribe to confirm {} for {}: {e}", event, chain_name,))?;
+        }
 
         while let Some(msg) = read.next().await {
             if let Ok(Message::Text(text_msg)) = msg {
@@ -343,6 +338,123 @@ impl Chain {
                                     None => {}
                                 };
                             }
+                            SocketResult::NonEmpty(SocketResultNonEmpty::VotedTx { events: voted_tx }) => {
+                                let tx_hash = voted_tx.get_tx_hash();
+                                let tx = match voted_tx.fetch_tx(self).await {
+                                    Ok(res) => res,
+                                    Err(e) => {
+                                        tracing::error!("Axelar evm poll vote tx fetcher error {}", &e);
+                                        continue;
+                                    }
+                                };
+                                let tx_content = match tx.content.get(0) {
+                                    Some(res) => res,
+                                    None => {
+                                        tracing::error!("Axelar evm poll tx does not have content which hash is {}", &tx_hash);
+                                        continue;
+                                    }
+                                };
+
+                                match tx_content {
+                                    InternalTransactionContent::Known(InternalTransactionContentKnowns::AxelarRefundRequest {
+                                        sender: _,
+                                        inner_message,
+                                    }) => match inner_message {
+                                        InnerMessage::Known(InnerMessageKnown::VoteRequest { sender, vote, poll_id }) => {
+                                            let mut is_confirmation_tx = false;
+                                            if tx.raw.contains("POLL_STATE_COMPLETED") {
+                                                let mut poll_status = None;
+                                                let is_poll_failed = &tx.is_evm_poll_failed();
+                                                if *is_poll_failed {
+                                                    poll_status = Some(PollStatus::Failed);
+                                                } else {
+                                                    is_confirmation_tx = tx.is_evm_poll_confirmation_tx();
+                                                    if is_confirmation_tx {
+                                                        poll_status = Some(PollStatus::Completed);
+                                                    }
+                                                }
+
+                                                if let Some(poll_status) = poll_status {
+                                                    match self.database.update_evm_poll_status(poll_id, &poll_status).await {
+                                                        Ok(_) => {
+                                                            tracing::info!(
+                                                                "Successfully updated evm poll status completed for which poll id is {}",
+                                                                &poll_id
+                                                            );
+                                                        }
+                                                        Err(e) => {
+                                                            tracing::error!("Can not updated evm poll participant {}", e);
+                                                        }
+                                                    };
+                                                }
+                                            };
+
+                                            match vote {
+                                                AxelarVote::Known(axelar_known_vote) => {
+                                                    let vote = axelar_known_vote.evm_vote();
+                                                    let time = tx.time as u64;
+                                                    let tx_height = tx.height;
+                                                    let chain = match axelar_known_vote {
+                                                        AxelarKnownVote::VoteEvent { chain, .. } => chain,
+                                                    };
+
+                                                    let validator = self.database.find_validator(doc! {"voter_address":sender.clone()}).await;
+                                                    if let Ok(validator) = validator {
+                                                        let voter_address = validator.voter_address.unwrap_or(String::from(sender));
+                                                        let evm_poll_participant = EvmPollParticipantForDb {
+                                                            operator_address: validator.operator_address.clone(),
+                                                            tx_hash: tx_hash.to_string(),
+                                                            poll_id: poll_id.clone(),
+                                                            chain_name: String::from(chain),
+                                                            vote,
+                                                            time,
+                                                            tx_height,
+                                                            voter_address,
+                                                            confirmation: is_confirmation_tx,
+                                                        };
+                                                        match self.database.upsert_evm_poll_participant(evm_poll_participant.clone()).await {
+                                                            Ok(_) => {
+                                                                tracing::info!(
+                                                                    "Successfully updated evm poll participant {} for which poll id is {}",
+                                                                    &validator.operator_address,
+                                                                    &poll_id
+                                                                );
+                                                            }
+                                                            Err(e) => {
+                                                                tracing::error!("Can not updated evm poll participant {}", e);
+                                                            }
+                                                        };
+
+                                                        dbg!(&evm_poll_participant);
+
+                                                        if let Err(e) = ws_tx.send((
+                                                            self.config.name.clone(),
+                                                            WsEvent::UpdateEvmPollParticipant((poll_id.clone(), evm_poll_participant)),
+                                                        )) {
+                                                            tracing::error!("Error dispatching Evm Poll Update event: {e}");
+                                                        };
+                                                    }
+                                                }
+                                                AxelarVote::Unknown(_) => {
+                                                    tracing::error!("Unknown axelar evm poll vote info");
+                                                }
+                                            }
+                                        }
+                                        InnerMessage::Known(_) => {
+                                            tracing::warn!("Non handled message");
+                                        }
+                                        InnerMessage::Unknown(_) => {
+                                            tracing::error!("Unknown axelar evm poll inner message");
+                                        }
+                                    },
+                                    InternalTransactionContent::Unknown { .. } => {
+                                        tracing::error!("Unknown InternalTransactionContent");
+                                    }
+                                    _ => {
+                                        tracing::error!("Unknown tx content");
+                                    }
+                                };
+                            }
                             SocketResult::NonEmpty(evm_poll_msg) => {
                                 let evm_poll_item = match evm_poll_msg.get_evm_poll_item(self).await {
                                     Ok(res) => res,
@@ -355,7 +467,7 @@ impl Chain {
                                 let _ = evm_poll_item.upsert_participants(&self.database).await;
 
                                 let evm_poll: EvmPollForDb = evm_poll_item.clone().into();
-                                if let Err(e) = tx.send((self.config.name.clone(), WsEvent::NewEvmPoll(evm_poll.clone()))) {
+                                if let Err(e) = ws_tx.send((self.config.name.clone(), WsEvent::NewEvmPoll(evm_poll.clone()))) {
                                     tracing::error!("Error dispatching evm poll event: {e}");
                                 }
                                 match self.database.upsert_evm_poll(evm_poll).await {
