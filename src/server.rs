@@ -43,9 +43,9 @@ pub async fn start_web_server() -> std::io::Result<()> {
 
     let tx_clone = tx.clone();
     tokio::spawn(async move {
-            if let Err(e) = run_ws(tx_clone, chains).await {
-                tracing::error!("Error spawning the websocket task {e}");
-            };
+        if let Err(e) = run_ws(tx_clone, chains).await {
+            tracing::error!("Error spawning the websocket task {e}");
+        };
     });
 
     if let Ok(axelar) = state.get("axelar") {
