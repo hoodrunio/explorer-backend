@@ -108,3 +108,19 @@ kyve:
   wss_url: wss://rpc-eu-1.kyve.network/websocket
   grpc_url: http://144.76.236.90:9090
   archive_url: empty
+  
+celestia:
+  name: celestia
+  epoch: false
+  gecko: celestia
+  symbol: TIA
+  denom: utia
+  prefix: celestia
+  logo: https://raw.githubusercontent.com/testnetrunn/explorer-assets/main/testnet/celestia/black-celestia.png
+  # decimals: 6
+  # version: 0.45
+  rpc_url: https://blockspacerace-rpc.chainode.tech
+  rest_url: https://celrace-lcd.easy2stake.com
+  wss_url: wss://blockspacerace-rpc.chainode.tech/websocket
+  grpc_url: https://grpc-blockspacerace.pops.one:9090
+  archive_url: empty
