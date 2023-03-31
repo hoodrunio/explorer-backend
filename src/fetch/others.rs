@@ -283,16 +283,6 @@ impl PaginationConfig {
         self.offset
     }
 
-    /// Returns the value `offset` property holds.
-    pub const fn get_page(&self) -> u8 {
-        self.page
-    }
-
-    /// Makes the response reversed.
-    pub const fn reverse(self) -> Self {
-        Self { reverse: true, ..self }
-    }
-
     /// Sets a limit for results to be returned in the result page
     pub const fn limit(self, limit: u16) -> Self {
         Self { limit, ..self }

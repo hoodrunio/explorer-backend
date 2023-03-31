@@ -16,7 +16,7 @@ use crate::fetch::evm::{EvmSupportedChains, PollStatus};
 use crate::routes::PaginationData;
 
 use super::ProposalVoteForDb;
-use super::{chains::Chain, params::Params, validators::Validator};
+use super::{params::Params, validators::Validator};
 
 // Testnetrun explorer database.
 #[derive(Clone)]
@@ -77,24 +77,6 @@ impl DatabaseTR {
     /// ```
     fn transactions_collection(&self) -> Collection<TransactionForDb> {
         self.db().collection("transactions")
-    }
-
-    /// Returns the chains collection.
-    /// # Usage
-    /// ```rs
-    /// let collection = database.chains_collection();
-    /// ```
-    fn chains_collection(&self) -> Collection<Chain> {
-        self.db().collection("chains")
-    }
-
-    /// Returns the params collection.
-    /// # Usage
-    /// ```rs
-    /// let collection = database.params_collection();
-    /// ```
-    fn params_collection(&self) -> Collection<Params> {
-        self.db().collection("params")
     }
 
     /// Returns the historical data collection.
@@ -189,31 +171,6 @@ impl DatabaseTR {
         pipeline.push(save);
 
         let _ = self.validators_collection().aggregate(pipeline, None).await.map_err(|e| e.to_string())?;
-
-        Ok(())
-    }
-
-    /// Adds new validators to the validators collection of the database.
-    /// # Usage
-    /// ```rs
-    /// database.add_validators(validators).await;
-    /// ```
-    pub async fn add_validators(&self, validators: Vec<Validator>) -> Result<(), String> {
-        match self.validators_collection().insert_many(validators, None).await {
-            Ok(_) => Ok(()),
-            Err(_) => Err("Cannot save validators.".into()),
-        }
-    }
-
-    /// Adds new validators to the validators but if we have the same validator with same opertator address this will only update with new one.
-    /// # Usage
-    /// ```rs
-    /// database.upsert_validators(validators).await;
-    /// ```
-    pub async fn upsert_validators(&self, validators: Vec<Validator>) -> Result<(), String> {
-        for validator in validators {
-            self.upsert_validator(validator).await?;
-        }
 
         Ok(())
     }
@@ -635,32 +592,6 @@ impl DatabaseTR {
             .map_err(|e| e.to_string())?;
 
         Ok(ListDbResult::from(results))
-    }
-    /// Adds a new chain to the chains collection of the database.
-    /// # Usage
-    /// ```rs
-    /// database.add_chain(chain).await;
-    /// ```
-    async fn add_chain(&self, chain: Chain) -> Result<(), String> {
-        match self.chains_collection().insert_one(chain, None).await {
-            Ok(_) => Ok(()),
-            Err(_) => Err("Cannot save the chain.".into()),
-        }
-    }
-
-    /// Finds a validator by given document.
-    /// # Usage
-    /// ```rs
-    /// let validator = database.find_validator(doc!("operator_address": address)).await;
-    /// ```
-    async fn find_chain(&self, name: &str) -> Result<Chain, String> {
-        match self.chains_collection().find_one(doc! {"name":name }, None).await {
-            Ok(potential_chain) => match potential_chain {
-                Some(chain) => Ok(chain),
-                None => Err("No chain is found.".into()),
-            },
-            Err(e) => Err(format!("Cannot make request to DB: {e}")),
-        }
     }
 
     /// Finds a validator by given document.

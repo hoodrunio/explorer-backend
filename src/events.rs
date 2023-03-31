@@ -83,7 +83,7 @@ pub async fn handle_connection(
             Some(Ok(msg)) = incoming.next() => {
                 tracing::debug!("Got message from ws: {msg}");
                 match msg {
-                    Message::Ping(bytes) => { outgoing.send(Message::Pong(bytes)); },
+                    Message::Ping(bytes) => { let _ = outgoing.send(Message::Pong(bytes)).await; },
                     Message::Close(_) => {break }
                     _ => {}
                 };
@@ -98,7 +98,7 @@ pub async fn handle_connection(
                     WsEvent::UpdateEvmPollParticipant(_) => mode.poll,
                 };
                 if chain == wanted_chain && should_send {
-                    outgoing.send(Message::Text(serde_json::to_string(&msg).unwrap())).await;
+                    let _ = outgoing.send(Message::Text(serde_json::to_string(&msg).unwrap())).await;
                 }
             }
         }

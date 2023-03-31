@@ -6,8 +6,8 @@ use actix_web::{
 use mongodb::bson::doc;
 use serde::{Deserialize, Serialize};
 
-use crate::database::{HeartbeatForDb, ListDbResult};
-use crate::fetch::heartbeats::{HeartbeatsListElement, HeartbeatsListRawElement, HeartbeatsQuery};
+use crate::database::HeartbeatForDb;
+use crate::fetch::heartbeats::{HeartbeatsListElement, HeartbeatsQuery};
 use crate::routes::{extract_chain, PaginationData, TNRAppError, TNRAppSuccessResponse};
 use crate::state::State;
 
@@ -72,40 +72,4 @@ pub struct ValidatorHeartbeatsQBody {
 pub struct HeartbeatsListResp {
     pub list: Vec<HeartbeatsListElement>,
     pub pagination: PaginationData,
-}
-
-impl HeartbeatsListResp {
-    pub fn from_db_list(list_db_result: ListDbResult<HeartbeatForDb>) -> Result<Self, TNRAppError> {
-        let heartbeats = list_db_result
-            .data
-            .into_iter()
-            .map(|heartbeat| {
-                let heartbeat_raw = match heartbeat.heartbeat_raw {
-                    None => None,
-                    Some(res) => Some(HeartbeatsListRawElement {
-                        tx_hash: res.tx_hash.clone(),
-                        height: res.height.clone(),
-                        period_height: res.period_height.clone(),
-                        timestamp: res.timestamp.clone(),
-                        signatures: res.signatures.clone(),
-                        sender: res.sender.clone(),
-                        key_ids: res.key_ids.clone(),
-                    }),
-                };
-
-                HeartbeatsListElement {
-                    id: heartbeat.id.clone(),
-                    status: heartbeat.status.clone(),
-                    period_height: heartbeat.period_height.clone(),
-                    sender: heartbeat.sender.clone(),
-                    heartbeat_raw,
-                }
-            })
-            .collect();
-
-        Ok(Self {
-            list: heartbeats,
-            pagination: list_db_result.pagination,
-        })
-    }
 }

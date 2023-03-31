@@ -11,15 +11,11 @@ use crate::events::WsEvent;
 /// The state of the server.
 pub struct State {
     chains: HashMap<String, Chain>,
-    reqwest_client: reqwest::Client,
-    database: DatabaseTR,
 }
 
 impl State {
     /// Creates a new `State`.
     pub async fn new() -> State {
-        let client = reqwest::Client::new();
-        let database = DatabaseTR::new().await;
         let file = File::open("Chains.yml").expect("Missing Chains.yml file");
         let chain_configs: HashMap<String, IntermediateChainConfig> = serde_yaml::from_reader(file).expect("Invalid Chains.yml format");
 
@@ -45,11 +41,7 @@ impl State {
             .collect::<HashMap<String, Chain>>()
             .await;
 
-        State {
-            chains,
-            reqwest_client: client,
-            database,
-        }
+        State { chains }
     }
 
     /// Returns the matched chain.
@@ -79,7 +71,6 @@ impl State {
                     }
                     tokio::time::sleep(tokio::time::Duration::from_secs(10)).await;
                 }
-
             });
 
             tokio::spawn(async move {
