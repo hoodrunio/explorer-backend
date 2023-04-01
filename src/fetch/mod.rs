@@ -7,6 +7,7 @@ pub mod chain;
 pub mod delegations;
 pub mod delegators;
 pub mod evm;
+pub mod evm_socket_handler;
 pub mod heartbeats;
 pub mod others;
 pub mod params;
