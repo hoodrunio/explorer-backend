@@ -18,11 +18,10 @@ use crate::events::WsEvent;
 use crate::fetch::blocks::{Block, CosmosEvent, ResultBeginBlock, ResultEndBlock};
 use crate::fetch::evm::PollStatus;
 use crate::fetch::heartbeats::HeartbeatStatus;
-use crate::fetch::transactions::{
-    AxelarKnownVote, AxelarVote, InnerMessage, InnerMessageKnown, InternalTransaction, InternalTransactionContent, InternalTransactionContentKnowns,
-};
+use crate::fetch::transactions::InternalTransaction;
 use crate::routes::TNRAppError;
 
+use super::evm_socket_handler::EvmSocketHandler;
 use super::{blocks::BlockHeader, transactions::TransactionItem};
 
 const SUBSCRIBE_BLOCK: &str = r#"{ "jsonrpc": "2.0", "method": "subscribe", "params": ["tm.event='NewBlock'"], "id": 0 }"#;
@@ -314,168 +313,23 @@ impl Chain {
             if let Ok(Message::Text(text_msg)) = msg {
                 match serde_json::from_str::<SocketMessage>(&text_msg) {
                     Ok(socket_msg) => {
+                        let handler = EvmSocketHandler::new(self.clone(), ws_tx.clone());
+
                         match socket_msg.result {
                             SocketResult::NonEmpty(SocketResultNonEmpty::Block { data }) => {
-                                match &data.value.extract_evm_poll_completed_events() {
-                                    Some(polls) => {
-                                        if !polls.is_empty() {
-                                            for completed_poll in polls.clone() {
-                                                match self
-                                                    .database
-                                                    .update_evm_poll_status(&completed_poll.poll_id, &completed_poll.poll_status)
-                                                    .await
-                                                {
-                                                    Ok(_) => {}
-                                                    Err(e) => {
-                                                        tracing::error!("Could not update evm poll cause of {}", e);
-                                                    }
-                                                };
-                                            }
-                                        };
-                                    }
-                                    None => {}
-                                };
+                                tokio::spawn(async move {
+                                    handler.handle_evm_poll(data).await;
+                                });
                             }
                             SocketResult::NonEmpty(SocketResultNonEmpty::VotedTx { events: voted_tx }) => {
-                                let tx_hash = voted_tx.get_tx_hash();
-                                let tx = match voted_tx.fetch_tx(self).await {
-                                    Ok(res) => res,
-                                    Err(e) => {
-                                        tracing::error!("Axelar evm poll vote tx fetcher error {}", &e);
-                                        continue;
-                                    }
-                                };
-                                let tx_content = match tx.content.get(0) {
-                                    Some(res) => res,
-                                    None => {
-                                        tracing::error!("Axelar evm poll tx does not have content which hash is {}", &tx_hash);
-                                        continue;
-                                    }
-                                };
-
-                                match tx_content {
-                                    InternalTransactionContent::Known(InternalTransactionContentKnowns::AxelarRefundRequest {
-                                        sender: _,
-                                        inner_message,
-                                    }) => match inner_message {
-                                        InnerMessage::Known(InnerMessageKnown::VoteRequest { sender, vote, poll_id }) => {
-                                            let mut is_confirmation_tx = false;
-                                            if tx.raw.contains("POLL_STATE_COMPLETED") {
-                                                let mut poll_status = None;
-                                                let is_poll_failed = &tx.is_evm_poll_failed();
-                                                if *is_poll_failed {
-                                                    poll_status = Some(PollStatus::Failed);
-                                                } else {
-                                                    is_confirmation_tx = tx.is_evm_poll_confirmation_tx();
-                                                    if is_confirmation_tx {
-                                                        poll_status = Some(PollStatus::Completed);
-                                                    }
-                                                }
-
-                                                if let Some(poll_status) = poll_status {
-                                                    match self.database.update_evm_poll_status(poll_id, &poll_status).await {
-                                                        Ok(_) => {
-                                                            tracing::info!(
-                                                                "Successfully updated evm poll status completed for which poll id is {}",
-                                                                &poll_id
-                                                            );
-                                                        }
-                                                        Err(e) => {
-                                                            tracing::error!("Can not updated evm poll participant {}", e);
-                                                        }
-                                                    };
-                                                }
-                                            };
-
-                                            match vote {
-                                                AxelarVote::Known(axelar_known_vote) => {
-                                                    let vote = axelar_known_vote.evm_vote();
-                                                    let time = tx.time as u64;
-                                                    let tx_height = tx.height;
-                                                    let chain = match axelar_known_vote {
-                                                        AxelarKnownVote::VoteEvent { chain, .. } => chain,
-                                                    };
-
-                                                    let validator = self.database.find_validator(doc! {"voter_address":sender.clone()}).await;
-                                                    if let Ok(validator) = validator {
-                                                        let voter_address = validator.voter_address.unwrap_or(String::from(sender));
-                                                        let evm_poll_participant = EvmPollParticipantForDb {
-                                                            operator_address: validator.operator_address.clone(),
-                                                            tx_hash: tx_hash.to_string(),
-                                                            poll_id: poll_id.clone(),
-                                                            chain_name: String::from(chain),
-                                                            vote,
-                                                            time,
-                                                            tx_height,
-                                                            voter_address,
-                                                            confirmation: is_confirmation_tx,
-                                                        };
-                                                        match self.database.upsert_evm_poll_participant(evm_poll_participant.clone()).await {
-                                                            Ok(_) => {
-                                                                tracing::info!(
-                                                                    "Successfully updated evm poll participant {} for which poll id is {}",
-                                                                    &validator.operator_address,
-                                                                    &poll_id
-                                                                );
-                                                            }
-                                                            Err(e) => {
-                                                                tracing::error!("Can not updated evm poll participant {}", e);
-                                                            }
-                                                        };
-
-                                                        dbg!(&evm_poll_participant);
-
-                                                        if let Err(e) = ws_tx.send((
-                                                            self.config.name.clone(),
-                                                            WsEvent::UpdateEvmPollParticipant((poll_id.clone(), evm_poll_participant)),
-                                                        )) {
-                                                            tracing::error!("Error dispatching Evm Poll Update event: {e}");
-                                                        };
-                                                    }
-                                                }
-                                                AxelarVote::Unknown(_) => {
-                                                    tracing::error!("Unknown axelar evm poll vote info");
-                                                }
-                                            }
-                                        }
-                                        InnerMessage::Known(_) => {
-                                            tracing::warn!("Non handled message");
-                                        }
-                                        InnerMessage::Unknown(_) => {
-                                            tracing::error!("Unknown axelar evm poll inner message");
-                                        }
-                                    },
-                                    InternalTransactionContent::Unknown { .. } => {
-                                        tracing::error!("Unknown InternalTransactionContent");
-                                    }
-                                    _ => {
-                                        tracing::error!("Unknown tx content");
-                                    }
-                                };
+                                tokio::spawn(async move {
+                                    handler.handle_evm_poll_status(voted_tx).await;
+                                });
                             }
                             SocketResult::NonEmpty(evm_poll_msg) => {
-                                let evm_poll_item = match evm_poll_msg.get_evm_poll_item(self).await {
-                                    Ok(res) => res,
-                                    Err(e) => {
-                                        tracing::error!("Could not get evm poll item {}", e);
-                                        continue;
-                                    }
-                                };
-
-                                let _ = evm_poll_item.upsert_participants(&self.database).await;
-
-                                let evm_poll: EvmPollForDb = evm_poll_item.clone().into();
-                                if let Err(e) = ws_tx.send((self.config.name.clone(), WsEvent::NewEvmPoll(evm_poll.clone()))) {
-                                    tracing::error!("Error dispatching evm poll event: {e}");
-                                }
-                                match self.database.upsert_evm_poll(evm_poll).await {
-                                    Ok(_) => {
-                                        tracing::info!("evm poll successfully created by poll id {}", &evm_poll_item.poll_id);
-                                    }
-                                    Err(e) => {
-                                        tracing::error!("evm poll could not created {}, Error: {}", &evm_poll_item.poll_id, e);
-                                    }
-                                };
+                                tokio::spawn(async move {
+                                    handler.handle_evm_poll_any_message(evm_poll_msg).await;
+                                });
                             }
                             SocketResult::Empty { .. } => {}
                         };
