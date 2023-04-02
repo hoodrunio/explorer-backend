@@ -122,8 +122,6 @@ impl EvmSocketHandler {
                                         }
                                     };
 
-                                    dbg!(&evm_poll_participant);
-
                                     if let Err(e) = self.ws_tx_sender.send((
                                         self.chain.config.name.clone(),
                                         WsEvent::UpdateEvmPollParticipant((poll_id.clone(), evm_poll_participant)),

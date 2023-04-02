@@ -46,7 +46,7 @@ pub async fn handle_connection(
             return Err(ErrorResponse::new(Some("Please provide the subjects as parameters".to_string())));
         };
 
-        let Ok(parsed) = dbg!(serde_querystring::from_str::<SubscriptionMode>(query, ParseMode::UrlEncoded)) else {
+        let Ok(parsed) = serde_querystring::from_str::<SubscriptionMode>(query, ParseMode::UrlEncoded) else {
             return Err(ErrorResponse::new(Some("Invalid query parameters".to_string())));
         };
 
