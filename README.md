@@ -25,7 +25,9 @@ The UI repo can be found [here.](https://github.com/testnetrunn/explorer-ui-v2)
 - **gRPC** implementation. (gRPC infra instead of REST.) - Under development. (🚧)
 - Support Kyve Pools and protocol layer features. - Under development. (🚧)
 
+# Sub-modules
 
+[Protocol-buffers](https://github.com/testnetrunn/protos)
 
 # Usage
 > If you don't have Rust installed, follow the instructions at [rust-lang.org](https://www.rust-lang.org/tools/install).
