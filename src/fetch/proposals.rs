@@ -973,16 +973,20 @@ pub struct InternalProposal {
 #[derive(Deserialize, Serialize, Debug)]
 pub struct InternalProposalFinalTallyResult {
     /// Number of `yes` votes. Eg: `"50"`
-    pub yes_count: String,
+    pub raw_yes_count: String,
+    pub yes_ratio: TnrDecimal,
     pub yes_amount: ChainAmountItem,
     /// Number of `abstain` votes. Eg: `"35"`
-    pub abstain_count: String,
+    pub raw_abstain_count: String,
+    pub abstain_ratio: TnrDecimal,
     pub abstain_amount: ChainAmountItem,
     /// Number of `no` votes. Eg: `"12"`
-    pub no_count: String,
+    pub raw_no_count: String,
+    pub no_ratio: TnrDecimal,
     pub no_amount: ChainAmountItem,
     /// Number of `no with veto` votes.  Eg: `"7"`
-    pub no_with_veto_count: String,
+    pub raw_no_with_veto_count: String,
+    pub no_with_veto_ratio: TnrDecimal,
     pub no_with_veto_amount: ChainAmountItem,
 }
 
