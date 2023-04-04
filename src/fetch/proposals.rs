@@ -1,5 +1,6 @@
-use crate::utils::ts_to_ms;
+use crate::{fetch::amount_util::TnrDecimal, utils::ts_to_ms};
 use futures::future::join_all;
+use rust_decimal::prelude::FromPrimitive;
 use serde::{Deserialize, Serialize};
 use std::str;
 use tonic::transport::Endpoint;
@@ -333,21 +334,8 @@ impl Chain {
         let proposal = proposal_resp.proposal.ok_or_else(|| String::from("No proposal content"))?;
         let tally_result = match proposal.final_tally_result {
             Some(t) => {
-                let yes_amount = self.string_amount_parser(t.yes_count.clone(), None).await.unwrap_or_default();
-                let abstain_amount = self.string_amount_parser(t.abstain_count.clone(), None).await.unwrap_or_default();
-                let no_amount = self.string_amount_parser(t.no_count.clone(), None).await.unwrap_or_default();
-                let no_with_veto_amount = self.string_amount_parser(t.no_with_veto_count.clone(), None).await.unwrap_or_default();
-
-                Some(InternalProposalFinalTallyResult {
-                    yes_count: t.yes_count,
-                    yes_amount,
-                    abstain_count: t.abstain_count,
-                    abstain_amount,
-                    no_count: t.no_count,
-                    no_amount,
-                    no_with_veto_count: t.no_with_veto_count,
-                    no_with_veto_amount,
-                })
+                let internal_proposal_final_tally_result = InternalProposalFinalTallyResult::from_raw_tally_result(&self, t.into()).await;
+                Some(internal_proposal_final_tally_result)
             }
             None => None,
         };
@@ -402,21 +390,8 @@ impl Chain {
 
         let final_tally_result = match proposal.final_tally_result {
             Some(t) => {
-                let yes_amount = self.string_amount_parser(t.yes.clone(), None).await.unwrap_or_default();
-                let abstain_amount = self.string_amount_parser(t.abstain.clone(), None).await.unwrap_or_default();
-                let no_amount = self.string_amount_parser(t.no.clone(), None).await.unwrap_or_default();
-                let no_with_veto_amount = self.string_amount_parser(t.no_with_veto.clone(), None).await.unwrap_or_default();
-
-                Some(InternalProposalFinalTallyResult {
-                    yes_count: t.yes,
-                    yes_amount,
-                    abstain_count: t.abstain,
-                    abstain_amount,
-                    no_count: t.no,
-                    no_amount,
-                    no_with_veto_count: t.no_with_veto,
-                    no_with_veto_amount,
-                })
+                let internal_proposal_final_tally_result = InternalProposalFinalTallyResult::from_raw_tally_result(&self, t.into()).await;
+                Some(internal_proposal_final_tally_result)
             }
             None => None,
         };
@@ -639,26 +614,9 @@ impl Chain {
         let tally_resp = resp.into_inner();
         let tally = tally_resp.tally.ok_or_else(|| String::from("Tally not found"))?;
 
-        let yes_amount = self.string_amount_parser(tally.yes_count.clone(), None).await.unwrap_or_default();
-        let abstain_amount = self.string_amount_parser(tally.abstain_count.clone(), None).await.unwrap_or_default();
-        let no_amount = self.string_amount_parser(tally.no_count.clone(), None).await.unwrap_or_default();
-        let no_with_veto_amount = self
-            .string_amount_parser(tally.no_with_veto_count.clone(), None)
-            .await
-            .unwrap_or_default();
+        let internal_proposal_final_tally_result = InternalProposalFinalTallyResult::from_raw_tally_result(&self, tally.into()).await;
 
-        let internal_pro_final_tally_result = InternalProposalFinalTallyResult {
-            yes_count: tally.yes_count,
-            yes_amount,
-            abstain_count: tally.abstain_count,
-            abstain_amount,
-            no_count: tally.no_count,
-            no_amount,
-            no_with_veto_count: tally.no_with_veto_count,
-            no_with_veto_amount,
-        };
-
-        Ok(internal_pro_final_tally_result)
+        Ok(internal_proposal_final_tally_result)
     }
 
     async fn proposal_tally_v1beta1(&self, proposal_id: u64) -> Result<InternalProposalFinalTallyResult, String> {
@@ -675,23 +633,9 @@ impl Chain {
         let tally_resp = resp.into_inner();
         let tally = tally_resp.tally.ok_or_else(|| String::from("Tally not found"))?;
 
-        let yes_amount = self.string_amount_parser(tally.yes.clone(), None).await.unwrap_or_default();
-        let abstain_amount = self.string_amount_parser(tally.abstain.clone(), None).await.unwrap_or_default();
-        let no_amount = self.string_amount_parser(tally.no.clone(), None).await.unwrap_or_default();
-        let no_with_veto_amount = self.string_amount_parser(tally.no_with_veto.clone(), None).await.unwrap_or_default();
+        let internal_proposal_final_tally_result = InternalProposalFinalTallyResult::from_raw_tally_result(&self, tally.into()).await;
 
-        let internal_pro_final_tally_result = InternalProposalFinalTallyResult {
-            yes_count: tally.yes,
-            yes_amount,
-            abstain_count: tally.abstain,
-            abstain_amount,
-            no_count: tally.no,
-            no_amount,
-            no_with_veto_count: tally.no_with_veto,
-            no_with_veto_amount,
-        };
-
-        Ok(internal_pro_final_tally_result)
+        Ok(internal_proposal_final_tally_result)
     }
 
     /// Returns the tally of given proposal.
