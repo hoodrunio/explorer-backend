@@ -1,6 +1,5 @@
 use crate::{fetch::amount_util::TnrDecimal, utils::ts_to_ms};
 use futures::future::join_all;
-use rust_decimal::prelude::FromPrimitive;
 use serde::{Deserialize, Serialize};
 use std::str;
 use tonic::transport::Endpoint;
@@ -334,7 +333,7 @@ impl Chain {
         let proposal = proposal_resp.proposal.ok_or_else(|| String::from("No proposal content"))?;
         let tally_result = match proposal.final_tally_result {
             Some(t) => {
-                let internal_proposal_final_tally_result = InternalProposalFinalTallyResult::from_raw_tally_result(&self, t.into()).await;
+                let internal_proposal_final_tally_result = InternalProposalFinalTallyResult::from_raw_tally_result(self, t.into()).await;
                 Some(internal_proposal_final_tally_result)
             }
             None => None,
@@ -390,7 +389,7 @@ impl Chain {
 
         let final_tally_result = match proposal.final_tally_result {
             Some(t) => {
-                let internal_proposal_final_tally_result = InternalProposalFinalTallyResult::from_raw_tally_result(&self, t.into()).await;
+                let internal_proposal_final_tally_result = InternalProposalFinalTallyResult::from_raw_tally_result(self, t.into()).await;
                 Some(internal_proposal_final_tally_result)
             }
             None => None,
@@ -614,7 +613,7 @@ impl Chain {
         let tally_resp = resp.into_inner();
         let tally = tally_resp.tally.ok_or_else(|| String::from("Tally not found"))?;
 
-        let internal_proposal_final_tally_result = InternalProposalFinalTallyResult::from_raw_tally_result(&self, tally.into()).await;
+        let internal_proposal_final_tally_result = InternalProposalFinalTallyResult::from_raw_tally_result(self, tally.into()).await;
 
         Ok(internal_proposal_final_tally_result)
     }
@@ -633,7 +632,7 @@ impl Chain {
         let tally_resp = resp.into_inner();
         let tally = tally_resp.tally.ok_or_else(|| String::from("Tally not found"))?;
 
-        let internal_proposal_final_tally_result = InternalProposalFinalTallyResult::from_raw_tally_result(&self, tally.into()).await;
+        let internal_proposal_final_tally_result = InternalProposalFinalTallyResult::from_raw_tally_result(self, tally.into()).await;
 
         Ok(internal_proposal_final_tally_result)
     }
