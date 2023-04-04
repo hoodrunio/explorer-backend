@@ -121,7 +121,7 @@ celestia:
   # decimals: 6
   # version: 0.45
   rpc_url: https://blockspacerace-rpc.chainode.tech
-  rest_url: https://celrace-lcd.easy2stake.com
+  rest_url: https://api-1.celestia.nodes.guru
   wss_url: wss://blockspacerace-rpc.chainode.tech/websocket
   grpc_url: https://grpc-blockspacerace.pops.one:9090
   archive_url: empty
