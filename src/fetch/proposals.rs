@@ -986,6 +986,12 @@ pub struct InternalProposalFinalTallyResult {
     pub no_with_veto_amount: ChainAmountItem,
 }
 
+pub struct RawProposalFinalTallyResult {
+    pub raw_yes: String,
+    pub raw_abstain: String,
+    pub raw_no: String,
+    pub raw_no_with_veto: String,
+}
 #[derive(Serialize, Debug)]
 pub struct ProposalItem {
     /// Proposal ID.
