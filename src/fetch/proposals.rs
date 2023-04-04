@@ -990,6 +990,49 @@ pub struct InternalProposalFinalTallyResult {
     pub no_with_veto_amount: ChainAmountItem,
 }
 
+impl InternalProposalFinalTallyResult {
+    pub async fn from_raw_tally_result(chain: &Chain, raw_tally_result: RawProposalFinalTallyResult) -> Self {
+        let yes_amount = chain
+            .string_amount_parser(raw_tally_result.raw_yes.clone(), None)
+            .await
+            .unwrap_or_default();
+        let abstain_amount = chain
+            .string_amount_parser(raw_tally_result.raw_abstain.clone(), None)
+            .await
+            .unwrap_or_default();
+        let no_amount = chain
+            .string_amount_parser(raw_tally_result.raw_no.clone(), None)
+            .await
+            .unwrap_or_default();
+        let no_with_veto_amount = chain
+            .string_amount_parser(raw_tally_result.raw_no_with_veto.clone(), None)
+            .await
+            .unwrap_or_default();
+
+        let total_voting_power = yes_amount.amount + abstain_amount.amount + no_amount.amount + no_with_veto_amount.amount;
+
+        let yes_ratio = yes_amount.amount.checked_div(total_voting_power).unwrap_or_default();
+        let abstain_ratio = abstain_amount.amount.checked_div(total_voting_power).unwrap_or_default();
+        let no_ratio = no_amount.amount.checked_div(total_voting_power).unwrap_or_default();
+        let no_with_veto_ratio = no_with_veto_amount.amount.checked_div(total_voting_power).unwrap_or_default();
+
+        InternalProposalFinalTallyResult {
+            raw_yes_count: raw_tally_result.raw_yes,
+            yes_amount,
+            yes_ratio,
+            raw_abstain_count: raw_tally_result.raw_abstain,
+            abstain_amount,
+            abstain_ratio,
+            raw_no_count: raw_tally_result.raw_no,
+            no_amount,
+            no_ratio,
+            raw_no_with_veto_count: raw_tally_result.raw_no_with_veto,
+            no_with_veto_amount,
+            no_with_veto_ratio,
+        }
+    }
+}
+
 pub struct RawProposalFinalTallyResult {
     pub raw_yes: String,
     pub raw_abstain: String,
