@@ -331,13 +331,7 @@ impl Chain {
 
         let proposal_resp = client.into_inner();
         let proposal = proposal_resp.proposal.ok_or_else(|| String::from("No proposal content"))?;
-        let tally_result = match proposal.final_tally_result {
-            Some(t) => {
-                let internal_proposal_final_tally_result = InternalProposalFinalTallyResult::from_raw_tally_result(self, t.into()).await;
-                Some(internal_proposal_final_tally_result)
-            }
-            None => None,
-        };
+        let final_tally_result = self.get_proposal_tally(proposal_id).await.ok();
 
         let messages = proposal.messages.into_iter().map(|m| m.into()).collect();
         let total_deposit_string_amount = proposal.total_deposit.iter().map(|d| d.amount.clone()).collect();
@@ -347,7 +341,7 @@ impl Chain {
             id: proposal.id,
             messages,
             status: ProposalStatus::from_id(proposal.status),
-            final_tally_result: tally_result,
+            final_tally_result,
             total_deposit,
             submit_time: proposal.submit_time.map(|ts| ts_to_ms(&ts.to_string()).unwrap_or_default()),
             deposit_end_time: proposal.deposit_end_time.map(|ts| ts_to_ms(&ts.to_string()).unwrap_or_default()),
@@ -387,13 +381,7 @@ impl Chain {
             messages.push(p);
         }
 
-        let final_tally_result = match proposal.final_tally_result {
-            Some(t) => {
-                let internal_proposal_final_tally_result = InternalProposalFinalTallyResult::from_raw_tally_result(self, t.into()).await;
-                Some(internal_proposal_final_tally_result)
-            }
-            None => None,
-        };
+        let final_tally_result = self.get_proposal_tally(proposal_id).await.ok();
 
         let total_deposit_string_amount = proposal.total_deposit.iter().map(|d| d.amount.clone()).collect();
         let total_deposit = self.string_amount_parser(total_deposit_string_amount, None).await.unwrap_or_default();
@@ -913,7 +901,7 @@ pub struct InternalProposal {
     pub expedited: Option<bool>,
 }
 
-#[derive(Deserialize, Serialize, Debug)]
+#[derive(Deserialize, Serialize, Debug, Default)]
 pub struct InternalProposalFinalTallyResult {
     /// Number of `yes` votes. Eg: `"50"`
     pub raw_yes_count: String,
