@@ -846,7 +846,7 @@ pub struct ValidatorListValidatorDescription {
 
 #[derive(Deserialize, Serialize, Debug)]
 pub struct InternalRedelegation {
-    pub amount: f64,
+    pub amount: ChainAmountItem,
     pub completion_time: i64,
     pub delegator_address: String,
     pub validator_to_address: String,
@@ -867,14 +867,10 @@ impl InternalRedelegation {
         };
 
         let validator_to_metadata = chain.database.find_validator_by_operator_addr(&validator_dst_address).await?;
+        let amount = chain.string_amount_parser(amount.amount.clone(), Some(amount.denom.clone())).await?;
 
         Ok(Self {
-            amount: chain.calc_amount_u128_to_f64(
-                amount
-                    .amount
-                    .parse()
-                    .map_err(|_| format!("Cannot parse redelegation amount, {}.", amount.amount))?,
-            ),
+            amount,
             completion_time: match tx_response.logs.get(0) {
                 Some(log) => match log.events.iter().find(|event| event.r#type == "redelegate") {
                     Some(event) => match event.attributes.iter().find(|attr| attr.key == "completion_time") {
