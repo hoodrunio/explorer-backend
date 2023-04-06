@@ -121,7 +121,7 @@ kyve:
   # decimals: 6
   # version: 0.45
   rpc_url: https://rpc-eu-1.kyve.network
-  rest_url: https://kyve.api.yeksin.net
+  rest_url: https://lcd-kyve.ezstaking.dev
   wss_url: wss://rpc-eu-1.kyve.network/websocket
   grpc_url: http://144.76.236.90:9090
   archive_url: empty
