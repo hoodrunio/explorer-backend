@@ -89,14 +89,10 @@ impl Chain {
 
         for unbonding in &resp.unbonding_responses {
             for entry in &unbonding.entries {
+                let balance_amount = self.string_amount_parser(entry.balance.clone(), None).await?;
                 unbondings.push(InternalUnbonding {
                     address: unbonding.delegator_address.to_string(),
-                    balance: self.calc_amount_u128_to_f64(
-                        entry
-                            .balance
-                            .parse::<u128>()
-                            .map_err(|_| format!("Cannot parse unbonding delegation balance, '{}'.", entry.balance))?,
-                    ),
+                    balance: balance_amount,
                     completion_time: DateTime::parse_from_rfc3339(&entry.completion_time)
                         .map_err(|_| format!("Cannot parse unbonding delegation completion datetime, '{}'.", entry.completion_time))?
                         .timestamp_millis(),
@@ -546,7 +542,7 @@ pub struct ValidatorSetPubKey {
 #[derive(Deserialize, Serialize, Debug)]
 pub struct InternalUnbonding {
     pub address: String,
-    pub balance: f64,
+    pub balance: ChainAmountItem,
     pub completion_time: i64,
 }
 
