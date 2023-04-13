@@ -141,3 +141,36 @@ celestia:
   wss_url: wss://blockspacerace-rpc.chainode.tech/websocket
   grpc_url: https://grpc-blockspacerace.pops.one:9090
   archive_url: empty
+
+c4e:
+  name: c4e
+  epoch: false
+  gecko: c4e
+  symbol: C4E
+  denom: uc4e
+  prefix: c4e
+  logo: https://raw.githubusercontent.com/testnetrunn/explorer-assets/main/mainnet/c4e/c4e.png
+  decimals: 6
+  # version: 0.45
+  rpc_url: https://rpc-c4e.stakerun.com
+  rest_url: https://lcd-c4e.stakerun.com
+  wss_url: wss://rpc-c4e.stakerun.com/websocket
+  grpc_url: https://grpc-c4e.stakerun.com:1190
+  archive_url: empty
+
+
+archway-testnet:
+  name: archway-testnet
+  epoch: false
+  gecko: archway
+  symbol: CONST
+  denom: uconst
+  prefix: archway
+  logo: https://raw.githubusercontent.com/testnetrunn/explorer-assets/main/testnet/archway/archway.png
+  decimals: 6
+  # version: 0.45
+  rpc_url: https://rpc.constantine-2.archway.tech
+  rest_url: https://api.constantine-2.archway.tech
+  wss_url: wss://rpc.constantine-2.archway.tech/websocket
+  grpc_url: https://grpc-archway.testnet-pride.com:23090
+  archive_url: empty
