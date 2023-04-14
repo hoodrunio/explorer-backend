@@ -37,6 +37,8 @@ versions = { version = "4.1.0", features = ["serde"] }
 bech32 = "0.9.1"
 dashmap = "5.4.0"
 serde-querystring = "0.1.0"
+tendermint-rpc = { version = "0.30.0", features = ["websocket-client"] }
+anyhow = "1.0.70"
 
 [build-dependencies]
 serde = { version = "1.0.147", features = ["derive"] }
