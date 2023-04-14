@@ -6,6 +6,8 @@ use futures::future::join_all;
 use futures::{SinkExt, StreamExt};
 use mongodb::bson::doc;
 use serde::{Deserialize, Serialize};
+use tendermint_rpc::query::EventType;
+use tendermint_rpc::{SubscriptionClient, WebSocketClient};
 use tokio::sync::broadcast::Sender;
 use tokio::sync::Mutex;
 use tokio::try_join;
