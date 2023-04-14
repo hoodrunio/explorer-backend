@@ -336,7 +336,7 @@ impl DatabaseTR {
     /// ```
     pub async fn find_paginated_validators(&self, query: Option<Document>, config: PaginationData) -> Result<ListDbResult<ValidatorForDb>, String> {
         let find_options = FindOptions::builder()
-            .sort(doc! { "delegator_shares": - 1})
+            .sort(doc! { "delegator_shares": - 1, "rank": 1})
             .limit(config.limit.map(|l| l as i64).unwrap_or_else(|| 20))
             .build();
 
