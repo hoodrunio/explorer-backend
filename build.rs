@@ -33,6 +33,7 @@ fn main() {
                 "cosmos/base/v1beta1/coin.proto",
                 "cosmos/params/v1beta1/params.proto",
                 "cosmos/upgrade/v1beta1/upgrade.proto",
+                "cosmos/upgrade/v1beta1/tx.proto",
                 "cosmos/distribution/v1beta1/distribution.proto",
                 "ibc/core/client/v1/client.proto",
                 "evmos/erc20/v1/erc20.proto",

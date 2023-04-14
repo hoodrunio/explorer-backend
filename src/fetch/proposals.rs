@@ -1,4 +1,3 @@
-use crate::{fetch::amount_util::TnrDecimal, utils::ts_to_ms};
 use futures::future::join_all;
 use serde::{Deserialize, Serialize};
 use std::str;
@@ -7,14 +6,26 @@ use tonic::transport::Endpoint;
 use crate::{
     chain::Chain,
     database::ListDbResult,
+    routes::{
+        PaginationData,
+        ProposalStatus,
+        ChainAmountItem,
+        PaginationDirection
+    },
     fetch::{
+        amount_util::TnrDecimal,
         cosmos::{
             base::query::v1beta1::{PageRequest, PageResponse},
             distribution::v1beta1::CommunityPoolSpendProposal,
-            gov::v1::{MsgExecLegacyContent, TallyResult as TallyResultV1},
-            gov::v1beta1::{TallyResult as TallyResultV1Beta1, TextProposal},
+            gov::{
+                v1::{MsgExecLegacyContent, TallyResult as TallyResultV1},
+                v1beta1::{TallyResult as TallyResultV1Beta1, TextProposal}
+            },
             params::v1beta1::ParameterChangeProposal,
-            upgrade::v1beta1::SoftwareUpgradeProposal,
+            upgrade::{
+                v1beta1::SoftwareUpgradeProposal,
+                v1beta1::MsgSoftwareUpgrade
+            }
         },
         evmos::{
             erc20::v1::{RegisterCoinProposal, RegisterErc20Proposal, ToggleTokenConversionProposal},
@@ -23,19 +34,19 @@ use crate::{
         gravity::v1::IbcMetadataProposal,
         ibc::core::client::v1::ClientUpdateProposal,
         kyve::global::v1beta1::MsgUpdateParams as KyveMsgUpdateParams,
-        osmosis::poolincentives::v1beta1::UpdatePoolIncentivesProposal,
+        osmosis::{
+            poolincentives::v1beta1::UpdatePoolIncentivesProposal,
+            superfluid::v1beta1::{RemoveSuperfluidAssetsProposal, SetSuperfluidAssetsProposal},
+            txfees::v1beta1::UpdateFeeTokenProposal
+        },
         quicksilver::interchainstaking::v1::RegisterZoneProposal,
         umee::leverage::v1::MsgGovUpdateRegistry,
+        cosmwasm::wasm::v1::StoreCodeProposal,
     },
-    routes::PaginationData,
-    routes::ProposalStatus,
-    routes::{ChainAmountItem, PaginationDirection},
+    utils::ts_to_ms,
 };
 
 use prost::Message;
-use crate::fetch::cosmwasm::wasm::v1::StoreCodeProposal;
-use crate::fetch::osmosis::superfluid::v1beta1::SetSuperfluidAssetsProposal;
-use crate::fetch::osmosis::txfees::v1beta1::UpdateFeeTokenProposal;
 
 #[derive(Deserialize, Serialize, Clone, Debug)]
 pub struct ProposalInfo {
@@ -139,6 +150,17 @@ impl From<prost_wkt_types::Any> for ProposalInfo {
                 let value = SetSuperfluidAssetsProposal::decode(content.value.as_ref()).unwrap();
                 let content = serde_json::to_value(&value).unwrap();
                 (value.title, value.description, content)
+            }
+            "/osmosis.superfluid.v1beta1.RemoveSuperfluidAssetsProposal" => {
+                let value = RemoveSuperfluidAssetsProposal::decode(content.value.as_ref()).unwrap();
+                let content = serde_json::to_value(&value).unwrap();
+                (value.title, value.description, content)
+            }
+            "/cosmos.upgrade.v1beta1.MsgSoftwareUpgrade" => {
+                let value = MsgSoftwareUpgrade::decode(content.value.as_ref()).unwrap();
+                let content = serde_json::to_value(&value).unwrap();
+                ("".to_string(), "".to_string(), content)
+
             }
 
             _other => (String::from(""), String::from(""), serde_json::Value::Null),
