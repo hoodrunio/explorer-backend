@@ -102,6 +102,20 @@ pub mod osmosis {
             tonic::include_proto!("osmosis.poolincentives.v1beta1");
         }
     }
+
+    pub mod txfees {
+        pub mod v1beta1 {
+            tonic::include_proto!("osmosis.txfees.v1beta1");
+        }
+    }
+
+    pub mod superfluid {
+        tonic::include_proto!("osmosis.superfluid");
+
+        pub mod v1beta1 {
+            tonic::include_proto!("osmosis.superfluid.v1beta1");
+        }
+    }
 }
 
 pub mod umee {
@@ -130,6 +144,15 @@ pub mod kyve {
     pub mod global {
         pub mod v1beta1 {
             tonic::include_proto!("kyve.global.v1beta1");
+        }
+    }
+}
+
+
+pub mod cosmwasm {
+    pub mod wasm {
+        pub mod v1 {
+            tonic::include_proto!("cosmwasm.wasm.v1");
         }
     }
 }

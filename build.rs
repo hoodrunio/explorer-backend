@@ -42,6 +42,10 @@ fn main() {
                 "gravity/v1/types.proto",
                 "quicksilver/interchainstaking/v1/proposals.proto",
                 "kyve/global/v1beta1/tx.proto",
+                "cosmwasm/wasm/v1/proposal.proto",
+                "osmosis/superfluid/v1beta1/gov.proto",
+                "osmosis/superfluid/superfluid.proto",
+                "osmosis/txfees/v1beta1/gov.proto"
             ],
             &["protos"],
         )

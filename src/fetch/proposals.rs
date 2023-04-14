@@ -33,6 +33,9 @@ use crate::{
 };
 
 use prost::Message;
+use crate::fetch::cosmwasm::wasm::v1::StoreCodeProposal;
+use crate::fetch::osmosis::superfluid::v1beta1::SetSuperfluidAssetsProposal;
+use crate::fetch::osmosis::txfees::v1beta1::UpdateFeeTokenProposal;
 
 #[derive(Deserialize, Serialize, Clone, Debug)]
 pub struct ProposalInfo {
@@ -121,6 +124,21 @@ impl From<prost_wkt_types::Any> for ProposalInfo {
                 let value = KyveMsgUpdateParams::decode(content.value.as_ref()).unwrap();
                 let content = serde_json::to_value(value).unwrap();
                 ("".to_string(), "".to_string(), content)
+            }
+            "/cosmwasm.wasm.v1.StoreCodeProposal" => {
+                let value = StoreCodeProposal::decode(content.value.as_ref()).unwrap();
+                let content = serde_json::to_value(&value).unwrap();
+                (value.title, value.description, content)
+            }
+            "/osmosis.txfees.v1beta1.UpdateFeeTokenProposal" => {
+                let value = UpdateFeeTokenProposal::decode(content.value.as_ref()).unwrap();
+                let content = serde_json::to_value(&value).unwrap();
+                (value.title, value.description, content)
+            }
+            "/osmosis.superfluid.v1beta1.SetSuperfluidAssetsProposal" => {
+                let value = SetSuperfluidAssetsProposal::decode(content.value.as_ref()).unwrap();
+                let content = serde_json::to_value(&value).unwrap();
+                (value.title, value.description, content)
             }
 
             _other => (String::from(""), String::from(""), serde_json::Value::Null),
