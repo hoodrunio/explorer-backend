@@ -14,6 +14,7 @@ use crate::state::State;
 struct ChainResponseItem {
     name: String,
     logo: String,
+    main: bool,
     main_denom: String,
     main_symbol: String,
     acc_address_prefix: String,
@@ -28,6 +29,7 @@ pub async fn chains(state: Data<State>) -> Result<impl Responder, TNRAppError> {
         .map(|(name, chain)| ChainResponseItem {
             name,
             logo: chain.config.logo,
+            main: chain.config.main,
             main_denom: chain.config.main_denom,
             main_symbol: chain.config.main_symbol,
             acc_address_prefix: chain.config.base_prefix,

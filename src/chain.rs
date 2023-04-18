@@ -67,6 +67,7 @@ impl Chain {
         let chain_config = ChainConfig {
             name: ic.name.clone(),
             logo: ic.logo,
+            main: ic.main.unwrap_or_else(|| true),
             epoch: ic.epoch.unwrap_or(false),
             gecko: ic.gecko,
             base_prefix: ic.prefix.unwrap_or(ic.name),
@@ -100,6 +101,7 @@ pub struct ChainConfig {
     /// Logo url
     pub logo: String,
     /// The name of the chain.
+    pub main: bool,
     pub epoch: bool,
     /// The optional Coin Gecko ID.
     pub gecko: Option<String>,
@@ -138,6 +140,7 @@ pub struct ChainConfig {
 pub struct IntermediateChainConfig {
     pub name: String,
     pub logo: String,
+    pub main: Option<bool>,
     pub epoch: Option<bool>,
     pub gecko: Option<String>,
     pub prefix: Option<String>,
