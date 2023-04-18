@@ -174,3 +174,19 @@ archway-testnet:
   wss_url: wss://rpc.constantine-2.archway.tech/websocket
   grpc_url: https://grpc-archway.testnet-pride.com:23090
   archive_url: empty
+  
+babylon-testnet:
+  name: babylon-testnet
+  epoch: false
+  gecko: babylon
+  symbol: BBN
+  denom: ubbn
+  prefix: bbn
+  logo: https://raw.githubusercontent.com/testnetrunn/explorer-assets/main/testnet/babylon/babylon.png
+  decimals: 6
+  # version: 0.45
+  rpc_url: http://rpc.testnet.babylonchain.io:26657
+  rest_url: http://rpc.testnet.babylonchain.io:1317
+  wss_url: ws://rpc.testnet.babylonchain.io:26657/websocket
+  grpc_url: http://rpc.testnet.babylonchain.io:9090
+  archive_url: empty
