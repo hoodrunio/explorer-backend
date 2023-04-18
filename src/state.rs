@@ -1,8 +1,12 @@
 use std::collections::HashMap;
+use std::env::VarError;
 use std::fs::File;
+use std::io;
+use std::io::Read;
 
 use futures::{stream, StreamExt};
 use tokio::sync::broadcast::Sender;
+use tracing_subscriber::fmt::format;
 
 use crate::chain::{Chain, IntermediateChainConfig};
 use crate::database::DatabaseTR;
@@ -16,8 +20,17 @@ pub struct State {
 impl State {
     /// Creates a new `State`.
     pub async fn new() -> State {
-        let file = File::open("Chains.yml").expect("Missing Chains.yml file");
-        let chain_configs: HashMap<String, IntermediateChainConfig> = serde_yaml::from_reader(file).expect("Invalid Chains.yml format");
+        let chains_yml = match std::env::var("OFFLINE") {
+            Ok(var) if var == "true" => {
+                let mut yml = String::new();
+                File::open("Chains.yml").expect("Missing Chains.yml file").read_to_string(&mut yml).unwrap();
+                yml
+            }
+            _ => {
+                reqwest::get(format!("{}/Chains.yml", std::env::var("TNR_EXPLORER_ASSETS_URI").unwrap())).await.unwrap().text().await.unwrap()
+            }
+        };
+        let chain_configs: HashMap<String, IntermediateChainConfig> = serde_yaml::from_str(chains_yml.as_str()).expect("Invalid Chains.yml format");
 
         let stream = stream::iter(chain_configs.into_iter());
 
