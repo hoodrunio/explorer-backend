@@ -38,7 +38,7 @@ impl Chain {
 
     /// Returns the supply of given token.
     pub async fn get_supply_by_denom(&self, denom: &str) -> Result<OutRestResponse<ChainAmountItem>, String> {
-        let from_supply_list_chains = vec!["evmos", "umee", "quicksilver", "kyve", "c4e"];
+        let from_supply_list_chains = vec!["evmos", "umee", "quicksilver", "kyve", "c4e", "babylon-testnet"];
         if from_supply_list_chains.contains(&self.config.name.as_str()) {
             let query = vec![];
 
