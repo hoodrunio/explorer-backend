@@ -46,9 +46,11 @@ fn main() {
                 "cosmwasm/wasm/v1/proposal.proto",
                 "osmosis/superfluid/v1beta1/gov.proto",
                 "osmosis/superfluid/superfluid.proto",
-                "osmosis/txfees/v1beta1/gov.proto"
+                "osmosis/txfees/v1beta1/gov.proto",
+                "lavanet/lava/plans/plans_add_proposal.proto",
+                "lavanet/lava/spec/spec_add_proposal.proto",
             ],
-            &["protos"],
+            &["protos", "protos/lavanet/lava"],
         )
         .unwrap();
 

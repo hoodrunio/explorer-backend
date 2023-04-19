@@ -156,3 +156,15 @@ pub mod cosmwasm {
         }
     }
 }
+
+pub mod lavanet {
+    pub mod lava {
+        pub mod plans {
+            tonic::include_proto!("lavanet.lava.plans");
+        }
+
+        pub mod spec {
+            tonic::include_proto!("lavanet.lava.spec");
+        }
+    }
+}

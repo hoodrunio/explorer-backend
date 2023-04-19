@@ -47,6 +47,8 @@ use crate::{
 };
 
 use prost::Message;
+use crate::fetch::lavanet::lava::plans::PlansAddProposal;
+use crate::fetch::lavanet::lava::spec::SpecAddProposal;
 
 #[derive(Deserialize, Serialize, Clone, Debug)]
 pub struct ProposalInfo {
@@ -161,6 +163,16 @@ impl From<prost_wkt_types::Any> for ProposalInfo {
                 let content = serde_json::to_value(&value).unwrap();
                 ("".to_string(), "".to_string(), content)
 
+            }
+            "/lavanet.lava.plans.PlansAddProposal" => {
+                let value = PlansAddProposal::decode(content.value.as_ref()).unwrap();
+                let content = serde_json::to_value(&value).unwrap();
+                (value.title, value.description, content)
+            }
+            "/lavanet.lava.spec.SpecAddProposal" => {
+                let value = SpecAddProposal::decode(content.value.as_ref()).unwrap();
+                let content = serde_json::to_value(&value).unwrap();
+                (value.title, value.description, content)
             }
 
             _other => (String::from(""), String::from(""), serde_json::Value::Null),
