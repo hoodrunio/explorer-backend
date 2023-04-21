@@ -10,7 +10,7 @@ use tendermint_rpc::query::EventType;
 use tendermint_rpc::{SubscriptionClient, WebSocketClient};
 use tokio::sync::broadcast::Sender;
 use tokio::sync::Mutex;
-use tokio::try_join;
+use tokio::{select, try_join};
 use tokio_tungstenite::{connect_async, tungstenite::Message};
 
 use crate::chain::Chain;
@@ -75,7 +75,7 @@ const AXELAR_SUB_VOTE_TX: &str = r#"{
     }
 }"#;
 
-#[derive(Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct BaseTransaction {
     /// `[ "F0E26D70191E27C8AB6249DE9C088B8C2812443CDF0DF04D7C83AE76A117C083" ]`
     // #[serde(rename = "tx.hash")]
@@ -113,9 +113,16 @@ impl BaseTransaction {
     }
 }
 
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub enum ChainEvent {
+    Tx(BaseTransaction, ExtraTxEventData),
+    Block(BaseTransaction, ExtraBlockEventData)
+}
+
 pub type TXMap = BTreeMap<String, Vec<String>>;
 
-#[derive(Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ConfirmDepositStarted {
     chain: String,
     participants: String,
@@ -136,7 +143,7 @@ impl ConfirmDepositStarted {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ConfirmGatewayTxStartedEvents {
     chain: String,
     participants: PollParticipants,
@@ -144,7 +151,7 @@ pub struct ConfirmGatewayTxStartedEvents {
     message_action: String,
 }
 
-#[derive(Debug, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct PollParticipants {
     poll_id: String,
     participants: Vec<String>,
@@ -162,7 +169,7 @@ impl ConfirmGatewayTxStartedEvents {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ConfirmKeyTransferStartedEvents {
     chain: String,
     participants: String,
@@ -181,7 +188,7 @@ impl ConfirmKeyTransferStartedEvents {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct PollVoteEvent {
     poll_state: String,
 }
@@ -194,36 +201,46 @@ impl PollVoteEvent {
     }
 }
 
-#[derive(Debug, Clone)]
-pub enum ExtraEventData {
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub enum ExtraTxEventData {
     ConfirmDepositStarted(ConfirmDepositStarted),
     ConfirmGatewayTxStarted(ConfirmGatewayTxStartedEvents),
     ConfirmKeyTransferStarted(ConfirmKeyTransferStartedEvents),
     PollVote(PollVoteEvent)
 }
 
-pub fn parse_transaction(events: TXMap) -> (BaseTransaction, Option<ExtraEventData>) {
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct BaseBlock {
+
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub enum ExtraBlockEventData {
+
+}
+
+pub fn parse_transaction(events: TXMap) -> (BaseTransaction, Option<ExtraTxEventData>) {
     let tx = BaseTransaction::from_tx_events(events.clone());
 
     match tx.message_action.as_str() {
         "ConfirmERC20Deposit" | "ConfirmDeposit" => {
             if events.contains_key("axelar.evm.v1beta1.ConfirmDepositStarted.participants") {
                 let sp_tx = ConfirmDepositStarted::from_tx_events(events);
-                return (tx, Some(ExtraEventData::ConfirmDepositStarted(sp_tx)));
+                return (tx, Some(ExtraTxEventData::ConfirmDepositStarted(sp_tx)));
                 // dbg!(sp_tx);
             }
         },
         "ConfirmGatewayTx" => {
             if events.contains_key("axelar.evm.v1beta1.ConfirmGatewayTxStarted.participants") {
                 let sp_tx = ConfirmGatewayTxStartedEvents::from_tx_events(events);
-                return (tx, Some(ExtraEventData::ConfirmGatewayTxStarted(sp_tx)));
+                return (tx, Some(ExtraTxEventData::ConfirmGatewayTxStarted(sp_tx)));
                 // dbg!(sp_tx);
             }
         },
         "ConfirmTransferKey" => {
             if events.contains_key("axelar.evm.v1beta1.ConfirmKeyTransferStarted.participants") {
                 let sp_tx = ConfirmKeyTransferStartedEvents::from_tx_events(events);
-                return (tx, Some(ExtraEventData::ConfirmKeyTransferStarted(sp_tx)));
+                return (tx, Some(ExtraTxEventData::ConfirmKeyTransferStarted(sp_tx)));
                 // dbg!(sp_tx);
             }
         },
@@ -231,7 +248,7 @@ pub fn parse_transaction(events: TXMap) -> (BaseTransaction, Option<ExtraEventDa
             if events.contains_key("axelar.vote.v1beta1.Voted.state") {
                 // dbg!(other);
                 let sp_tx = PollVoteEvent::from_tx_events(events);
-                return (tx, Some(ExtraEventData::PollVote(sp_tx)));
+                return (tx, Some(ExtraTxEventData::PollVote(sp_tx)));
                 // dbg!(sp_tx);
             }
         }
@@ -252,21 +269,41 @@ pub fn parse_transaction(events: TXMap) -> (BaseTransaction, Option<ExtraEventDa
 // }
 
 impl Chain {
-    async fn subscribe_events(&self, event_type: EventType, tx: Sender<(String, WsEvent)>) -> Result<(), String> {
+    pub async fn subscribe_events(&self, tx: Sender<(String, WsEvent)>) -> Result<(), String> {
         let (client, driver) = WebSocketClient::new(self.config.wss_url.as_str())
             .await
             .map_err(|e| format!("Failed to connect to the websocket endpoint: {e}"))?;
 
         let driver_handle = tokio::spawn(async move { driver.run().await });
 
-        let mut subs = client.subscribe(event_type.into())
+        let mut txs = client.subscribe(EventType::Tx.into())
             .await
-            .map_err(|e| format!("Failed to subscribe to events: {e}"))?;
+            .map_err(|e| format!("Failed to subscribe to new transactions: {e}"))?;
 
-        while let Some(res) = subs.next().await {
-            let Ok(ev) = res else {
-                continue;
-            };
+        let mut blocks = client.subscribe(EventType::NewBlock.into())
+            .await
+            .map_err(|e| format!("Failed to subscribe to new blocks: {e}"))?;
+    
+        
+
+        loop {
+            select! {
+                Some(tx) = txs.next() => {
+                    let Ok(tx) = tx else {
+                        continue;
+                    };
+                    dbg!(tx);
+
+                    // let tx = parse_transaction()
+                },
+                Some(block) = blocks.next() => {
+                    let Ok(block) = block else {
+                        continue;
+                    };
+                    dbg!(block);
+
+                }
+            }
         }
 
         Ok(())
@@ -721,15 +758,15 @@ pub enum SocketResultNonEmpty {
     )]
     ConfirmDepositStartedTx { events: ConfirmDepositStartedEvents },
 
-    #[serde(
-        rename = "tm.event='Tx' AND message.action='ConfirmGatewayTx' AND axelar.evm.v1beta1.ConfirmGatewayTxStarted.participants CONTAINS 'participants'"
-    )]
-    ConfirmGatewayTxStartedTx { events: ConfirmGatewayTxStartedEvents },
+    // #[serde(
+    //     rename = "tm.event='Tx' AND message.action='ConfirmGatewayTx' AND axelar.evm.v1beta1.ConfirmGatewayTxStarted.participants CONTAINS 'participants'"
+    // )]
+    // ConfirmGatewayTxStartedTx { events: ConfirmGatewayTxStartedEvents },
 
-    #[serde(
-        rename = "tm.event='Tx' AND message.action='ConfirmTransferKey' AND axelar.evm.v1beta1.ConfirmKeyTransferStarted.participants CONTAINS 'participants'"
-    )]
-    ConfirmKeyTransferStartedTx { events: ConfirmKeyTransferStartedEvents },
+    // #[serde(
+    //     rename = "tm.event='Tx' AND message.action='ConfirmTransferKey' AND axelar.evm.v1beta1.ConfirmKeyTransferStarted.participants CONTAINS 'participants'"
+    // )]
+    // ConfirmKeyTransferStartedTx { events: ConfirmKeyTransferStartedEvents },
 
     #[serde(rename = "tm.event='Tx' AND axelar.vote.v1beta1.Voted.action CONTAINS 'vote'")]
     VotedTx { events: VotedTxEvents },
@@ -874,33 +911,33 @@ pub struct ConfirmDepositStartedEvents {
     pub message_action: [String; 1],
 }
 
-#[derive(Deserialize, Debug, Clone)]
-pub struct ConfirmGatewayTxStartedEvents {
-    #[serde(rename = "tx.height")]
-    pub tx_height: [String; 1],
-    #[serde(rename = "axelar.evm.v1beta1.ConfirmGatewayTxStarted.chain")]
-    pub chain: [String; 1],
-    #[serde(rename = "axelar.evm.v1beta1.ConfirmGatewayTxStarted.participants")]
-    pub participants: [String; 1],
-    #[serde(rename = "axelar.evm.v1beta1.ConfirmGatewayTxStarted.tx_id")]
-    pub tx_id: [String; 1],
-    #[serde(rename = "message.action")]
-    pub message_action: [String; 1],
-}
+// #[derive(Deserialize, Debug, Clone)]
+// pub struct ConfirmGatewayTxStartedEvents {
+//     #[serde(rename = "tx.height")]
+//     pub tx_height: [String; 1],
+//     #[serde(rename = "axelar.evm.v1beta1.ConfirmGatewayTxStarted.chain")]
+//     pub chain: [String; 1],
+//     #[serde(rename = "axelar.evm.v1beta1.ConfirmGatewayTxStarted.participants")]
+//     pub participants: [String; 1],
+//     #[serde(rename = "axelar.evm.v1beta1.ConfirmGatewayTxStarted.tx_id")]
+//     pub tx_id: [String; 1],
+//     #[serde(rename = "message.action")]
+//     pub message_action: [String; 1],
+// }
 
-#[derive(Deserialize, Debug, Clone)]
-pub struct ConfirmKeyTransferStartedEvents {
-    #[serde(rename = "tx.height")]
-    pub tx_height: [String; 1],
-    #[serde(rename = "axelar.evm.v1beta1.ConfirmKeyTransferStarted.chain")]
-    pub chain: [String; 1],
-    #[serde(rename = "axelar.evm.v1beta1.ConfirmKeyTransferStarted.participants")]
-    pub participants: [String; 1],
-    #[serde(rename = "axelar.evm.v1beta1.ConfirmKeyTransferStarted.tx_id")]
-    pub tx_id: [String; 1],
-    #[serde(rename = "message.action")]
-    pub message_action: [String; 1],
-}
+// #[derive(Deserialize, Debug, Clone)]
+// pub struct ConfirmKeyTransferStartedEvents {
+//     #[serde(rename = "tx.height")]
+//     pub tx_height: [String; 1],
+//     #[serde(rename = "axelar.evm.v1beta1.ConfirmKeyTransferStarted.chain")]
+//     pub chain: [String; 1],
+//     #[serde(rename = "axelar.evm.v1beta1.ConfirmKeyTransferStarted.participants")]
+//     pub participants: [String; 1],
+//     #[serde(rename = "axelar.evm.v1beta1.ConfirmKeyTransferStarted.tx_id")]
+//     pub tx_id: [String; 1],
+//     #[serde(rename = "message.action")]
+//     pub message_action: [String; 1],
+// }
 
 #[derive(Deserialize, Debug, Clone)]
 pub struct ProposalVoteEvents {
@@ -960,12 +997,12 @@ impl SocketResultNonEmpty {
             SocketResultNonEmpty::ConfirmDepositStartedTx { events } => {
                 events.tx_height.get(0).unwrap_or(&String::from("0")).parse::<u64>().unwrap_or(0)
             }
-            SocketResultNonEmpty::ConfirmGatewayTxStartedTx { events } => {
-                events.tx_height.get(0).unwrap_or(&String::from("0")).parse::<u64>().unwrap_or(0)
-            }
-            SocketResultNonEmpty::ConfirmKeyTransferStartedTx { events } => {
-                events.tx_height.get(0).unwrap_or(&String::from("0")).parse::<u64>().unwrap_or(0)
-            }
+            // SocketResultNonEmpty::ConfirmGatewayTxStartedTx { events } => {
+            //     events.tx_height.get(0).unwrap_or(&String::from("0")).parse::<u64>().unwrap_or(0)
+            // }
+            // SocketResultNonEmpty::ConfirmKeyTransferStartedTx { events } => {
+                // events.tx_height.get(0).unwrap_or(&String::from("0")).parse::<u64>().unwrap_or(0)
+            // }
             _ => 0,
         }
     }
@@ -973,8 +1010,8 @@ impl SocketResultNonEmpty {
         match self {
             SocketResultNonEmpty::ConfirmERC20DepositStartedTx { events } => events.chain.get(0).unwrap_or(&String::from("")).to_string(),
             SocketResultNonEmpty::ConfirmDepositStartedTx { events } => events.chain.get(0).unwrap_or(&String::from("")).to_string(),
-            SocketResultNonEmpty::ConfirmGatewayTxStartedTx { events } => events.chain.get(0).unwrap_or(&String::from("")).to_string(),
-            SocketResultNonEmpty::ConfirmKeyTransferStartedTx { events } => events.chain.get(0).unwrap_or(&String::from("")).to_string(),
+            // SocketResultNonEmpty::ConfirmGatewayTxStartedTx { events } => events.chain.get(0).unwrap_or(&String::from("")).to_string(),
+            // SocketResultNonEmpty::ConfirmKeyTransferStartedTx { events } => events.chain.get(0).unwrap_or(&String::from("")).to_string(),
             _ => String::from(""),
         }
     }
@@ -982,8 +1019,8 @@ impl SocketResultNonEmpty {
         match self {
             SocketResultNonEmpty::ConfirmERC20DepositStartedTx { events } => events.message_action.get(0).unwrap_or(&String::from("")).to_string(),
             SocketResultNonEmpty::ConfirmDepositStartedTx { events } => events.message_action.get(0).unwrap_or(&String::from("")).to_string(),
-            SocketResultNonEmpty::ConfirmGatewayTxStartedTx { events } => events.message_action.get(0).unwrap_or(&String::from("")).to_string(),
-            SocketResultNonEmpty::ConfirmKeyTransferStartedTx { events } => events.message_action.get(0).unwrap_or(&String::from("")).to_string(),
+            // SocketResultNonEmpty::ConfirmGatewayTxStartedTx { events } => events.message_action.get(0).unwrap_or(&String::from("")).to_string(),
+            // SocketResultNonEmpty::ConfirmKeyTransferStartedTx { events } => events.message_action.get(0).unwrap_or(&String::from("")).to_string(),
             _ => String::from(""),
         }
     }
@@ -991,8 +1028,8 @@ impl SocketResultNonEmpty {
         match self {
             SocketResultNonEmpty::ConfirmERC20DepositStartedTx { events } => events.participants.get(0).unwrap_or(&String::from("")).to_string(),
             SocketResultNonEmpty::ConfirmDepositStartedTx { events } => events.participants.get(0).unwrap_or(&String::from("")).to_string(),
-            SocketResultNonEmpty::ConfirmGatewayTxStartedTx { events } => events.participants.get(0).unwrap_or(&String::from("")).to_string(),
-            SocketResultNonEmpty::ConfirmKeyTransferStartedTx { events } => events.participants.get(0).unwrap_or(&String::from("")).to_string(),
+            // SocketResultNonEmpty::ConfirmGatewayTxStartedTx { events } => events.participants.get(0).unwrap_or(&String::from("")).to_string(),
+            // SocketResultNonEmpty::ConfirmKeyTransferStartedTx { events } => events.participants.get(0).unwrap_or(&String::from("")).to_string(),
             _ => String::from(""),
         }
     }
@@ -1000,8 +1037,8 @@ impl SocketResultNonEmpty {
         match self {
             SocketResultNonEmpty::ConfirmERC20DepositStartedTx { events } => events.tx_id.get(0).unwrap_or(&String::from("")).to_string(),
             SocketResultNonEmpty::ConfirmDepositStartedTx { events } => events.tx_id.get(0).unwrap_or(&String::from("")).to_string(),
-            SocketResultNonEmpty::ConfirmGatewayTxStartedTx { events } => events.tx_id.get(0).unwrap_or(&String::from("")).to_string(),
-            SocketResultNonEmpty::ConfirmKeyTransferStartedTx { events } => events.tx_id.get(0).unwrap_or(&String::from("")).to_string(),
+            // SocketResultNonEmpty::ConfirmGatewayTxStartedTx { events } => events.tx_id.get(0).unwrap_or(&String::from("")).to_string(),
+            // SocketResultNonEmpty::ConfirmKeyTransferStartedTx { events } => events.tx_id.get(0).unwrap_or(&String::from("")).to_string(),
             _ => String::from(""),
         }
     }
@@ -1012,8 +1049,8 @@ impl SocketResultNonEmpty {
                 events.evm_deposit_address.get(0).unwrap_or(&String::from("")).to_string()
             }
             SocketResultNonEmpty::ConfirmDepositStartedTx { events } => events.evm_deposit_address.get(0).unwrap_or(&String::from("")).to_string(),
-            SocketResultNonEmpty::ConfirmGatewayTxStartedTx { events: _ } => String::from(""),
-            SocketResultNonEmpty::ConfirmKeyTransferStartedTx { events: _ } => String::from(""),
+            // SocketResultNonEmpty::ConfirmGatewayTxStartedTx { events: _ } => String::from(""),
+            // SocketResultNonEmpty::ConfirmKeyTransferStartedTx { events: _ } => String::from(""),
             _ => String::from(""),
         }
     }

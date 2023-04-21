@@ -65,7 +65,7 @@ impl State {
             tokio::spawn(async move {
                 loop {
                     let tx_clone = tx.clone();
-                    match chain.subscribe_to_events(tx_clone).await {
+                    match chain.subscribe_events(tx_clone).await {
                         Ok(_) => tracing::info!("Stopped listening events for {name}"),
                         Err(e) => tracing::error!("Failed listening events for {name}: {e}"),
                     }
