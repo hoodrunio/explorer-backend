@@ -551,7 +551,8 @@ pub struct InternalAxelarHeartbeatInfo {
 #[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct TransactionItem {
     pub height: u64,
-    pub r#type: String,
+    #[serde(rename = "type")]
+    pub tx_type: String,
     pub hash: String,
     pub amount: ChainAmountItem,
     pub fee: ChainAmountItem,
@@ -740,7 +741,7 @@ impl From<InternalTransaction> for TransactionItem {
     fn from(tx: InternalTransaction) -> Self {
         Self {
             height: tx.height,
-            r#type: tx.r#type,
+            tx_type: tx.r#type,
             hash: tx.hash,
             amount: tx.amount,
             fee: tx.fee,
@@ -810,7 +811,7 @@ impl TransactionItem {
                 .height
                 .parse()
                 .map_err(|_| format!("Cannot parse transaction height, '{}'.", tx_response.height))?,
-            r#type: tx
+            tx_type: tx
                 .body
                 .messages
                 .get(0)

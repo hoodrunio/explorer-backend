@@ -1,13 +1,19 @@
 use std::collections::BTreeMap;
+use std::fmt::{Display, Formatter};
+use std::num::ParseIntError;
 use std::sync::Arc;
+use std::time::{SystemTime, UNIX_EPOCH};
+use actix_web::cookie::time::error::Parse;
 
 use chrono::{DateTime, Utc};
 use futures::future::join_all;
 use futures::{SinkExt, StreamExt};
+use futures::stream::select;
 use mongodb::bson::doc;
 use serde::{Deserialize, Serialize};
 use tendermint_rpc::query::EventType;
 use tendermint_rpc::{SubscriptionClient, WebSocketClient};
+use tendermint_rpc::event::EventData;
 use tokio::sync::broadcast::Sender;
 use tokio::sync::Mutex;
 use tokio::{select, try_join};
@@ -79,37 +85,32 @@ const AXELAR_SUB_VOTE_TX: &str = r#"{
 pub struct BaseTransaction {
     /// `[ "F0E26D70191E27C8AB6249DE9C088B8C2812443CDF0DF04D7C83AE76A117C083" ]`
     // #[serde(rename = "tx.hash")]
-    pub tx_hash: String,
-
+    pub hash: String,
     /// `[ "2931697000000000aevmos" ]`
     // #[serde(rename = "tx.fee")]
-    pub tx_fee: String,
-
+    pub fee: String,
     /// `[ "8076531" ]`
     // #[serde(rename = "tx.height")]
-    pub tx_height: String,
-
+    pub height: String,
     /// `[ "/ethermint.evm.v1.MsgEthereumTx" ]`
     // #[serde(rename = "message.action")]
     pub message_action: String,
-
     /// `[ "1535902500000000aevmos" ]`
     // #[serde(rename = "transfer.amount")]
     pub transfer_amount: String,
 }
 
 impl BaseTransaction {
-    fn from_tx_events(ev: TXMap) -> Self {
+    fn from_tx_events(ev: TXMap) -> Option<Self> {
 
+        Some(Self {
+            hash: ev.get("tx.hash")?.get(0)?.to_string(),
+            fee: ev.get("tx.fee")?.get(0)?.to_string(),
+            height: ev.get("tx.height")?.get(0)?.to_string(),
+            message_action: ev.get("message.action")?.get(0)?.to_string(),
+            transfer_amount: ev.get("transfer.amount")?.get(0)?.to_string(),
 
-        Self {
-            tx_hash: ev["tx.hash"].get(0).unwrap().to_string(),
-            tx_fee: ev["tx.fee"].get(0).unwrap().to_string(),
-            tx_height: ev["tx.height"].get(0).unwrap().to_string(),
-            message_action: ev["message.action"].get(0).unwrap().to_string(),
-            transfer_amount: ev["transfer.amount"].get(0).unwrap().to_string(),
-
-        }
+        })
     }
 }
 
@@ -219,43 +220,77 @@ pub enum ExtraBlockEventData {
 
 }
 
-pub fn parse_transaction(events: TXMap) -> (BaseTransaction, Option<ExtraTxEventData>) {
-    let tx = BaseTransaction::from_tx_events(events.clone());
+#[derive(Debug, Clone)]
+pub enum ParseError {
+    ParseIntError(ParseIntError),
+    MissingData
+}
+
+impl From<ParseIntError> for ParseError {
+    fn from(value: ParseIntError) -> Self {
+        Self::ParseIntError(value)
+    }
+}
+
+impl Display for ParseError {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ParseError::ParseIntError(e) => {
+                write!(f, "Failed to parse number: {}", e)
+            }
+            ParseError::MissingData => {
+                write!(f, "Some data is missing")
+            }
+        }
+    }
+}
+
+pub fn parse_transaction(events: TXMap) -> Result<(TransactionItem, Option<ExtraTxEventData>), ParseError> {
+    let tx = BaseTransaction::from_tx_events(events.clone()).ok_or(ParseError::MissingData)?;
+
+    let tx_item = TransactionItem {
+        height: tx.height.parse::<u64>()?,
+        tx_type: tx.message_action.clone(),
+        hash: tx.hash.clone(),
+        amount: Default::default(),
+        fee: Default::default(),
+        result: "Success".to_string(),
+        time: SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_millis() as i64,
+    };
 
     match tx.message_action.as_str() {
         "ConfirmERC20Deposit" | "ConfirmDeposit" => {
             if events.contains_key("axelar.evm.v1beta1.ConfirmDepositStarted.participants") {
                 let sp_tx = ConfirmDepositStarted::from_tx_events(events);
-                return (tx, Some(ExtraTxEventData::ConfirmDepositStarted(sp_tx)));
+                return Ok((tx_item, Some(ExtraTxEventData::ConfirmDepositStarted(sp_tx))));
                 // dbg!(sp_tx);
             }
         },
         "ConfirmGatewayTx" => {
             if events.contains_key("axelar.evm.v1beta1.ConfirmGatewayTxStarted.participants") {
                 let sp_tx = ConfirmGatewayTxStartedEvents::from_tx_events(events);
-                return (tx, Some(ExtraTxEventData::ConfirmGatewayTxStarted(sp_tx)));
+                return Ok((tx_item, Some(ExtraTxEventData::ConfirmGatewayTxStarted(sp_tx))));
                 // dbg!(sp_tx);
             }
         },
         "ConfirmTransferKey" => {
             if events.contains_key("axelar.evm.v1beta1.ConfirmKeyTransferStarted.participants") {
                 let sp_tx = ConfirmKeyTransferStartedEvents::from_tx_events(events);
-                return (tx, Some(ExtraTxEventData::ConfirmKeyTransferStarted(sp_tx)));
+                return Ok((tx_item, Some(ExtraTxEventData::ConfirmKeyTransferStarted(sp_tx))));
                 // dbg!(sp_tx);
             }
         },
         other => {
             if events.contains_key("axelar.vote.v1beta1.Voted.state") {
-                // dbg!(other);
+                // dbg!(&events);
                 let sp_tx = PollVoteEvent::from_tx_events(events);
-                return (tx, Some(ExtraTxEventData::PollVote(sp_tx)));
-                // dbg!(sp_tx);
+                return Ok((tx_item, Some(ExtraTxEventData::PollVote(sp_tx))));
             }
         }
 
         // m => { if m != "RefundMsgRequest" { dbg!(m); } }
     }
-    (tx, None)
+    Ok((tx_item, None))
 }
 
 // #[derive(Debug, Clone)]
@@ -284,28 +319,59 @@ impl Chain {
             .await
             .map_err(|e| format!("Failed to subscribe to new blocks: {e}"))?;
     
-        
 
-        loop {
-            select! {
-                Some(tx) = txs.next() => {
-                    let Ok(tx) = tx else {
-                        continue;
-                    };
-                    dbg!(tx);
+        let mut bundled = select(txs, blocks);
 
-                    // let tx = parse_transaction()
-                },
-                Some(block) = blocks.next() => {
-                    let Ok(block) = block else {
-                        continue;
+        let previous_block = Mutex::new(None);
+        while let Some(ev) = bundled.next().await {
+            let Ok(ev) = ev else {
+                continue
+            };
+
+            let events = ev.events.clone().unwrap();
+
+            match ev.data {
+                EventData::NewBlock { block, result_begin_block, result_end_block } => {
+                    let (Some(block), Some(result_begin_block), Some(result_end_block)) = (block, result_begin_block, result_end_block) else {
+                        continue
                     };
-                    dbg!(block);
+
+                    let mut prev_block = previous_block.lock().await;
+
+                    match prev_block.as_ref() {
+                        Some(prev) => {
+                            // let proposer = self.database.find_validator_by_hex_addr(prev.header)
+                        },
+                        None => *prev_block = Some(block),
+
+                    }
+                }
+                EventData::Tx { tx_result } => {
+                    let Ok((base, extra)) = parse_transaction(events) else {
+                        continue
+                    };
+
+
+                    if let Some(extra_data) = extra {
+                        match extra_data {
+                            ExtraTxEventData::ConfirmDepositStarted(_) => {}
+                            ExtraTxEventData::ConfirmGatewayTxStarted(_) => {}
+                            ExtraTxEventData::ConfirmKeyTransferStarted(_) => {}
+                            ExtraTxEventData::PollVote(v) => {
+                                let tx_hash = base.hash;
+                                dbg!(base.tx_type);
+
+                                // let proposal_vote_option = serde_json::from_str(v)
+                            }
+                        }
+                    }
+
 
                 }
+                EventData::GenericJsonEvent(_) => {}
             }
-        }
 
+        }
         Ok(())
     }
     /// Subscribes to all the events.
@@ -371,7 +437,7 @@ impl Chain {
                                     .map_err(|e| format!("Cannot parse tx height {}: {e}", events.tx_height[0]))?,
                                 time: std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_millis() as i64,
                                 result: "Success".to_string(),
-                                r#type: events.message_action[0]
+                                tx_type: events.message_action[0]
                                     .split_once("Msg")
                                     .map(|(_, r)| r)
                                     .unwrap_or(events.message_action[0].split('.').last().unwrap_or("Unknown"))
