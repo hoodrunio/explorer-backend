@@ -276,8 +276,34 @@ pub struct PollVoteEvent {
 impl PollVoteEvent {
     fn from_tx_events(ev: TXMap) -> Self {
         Self {
-            poll_state: ev["axelar.vote.v1beta1.Voted.state"].get(0).unwrap().to_string()
+            poll_state: ev["axelar.vote.v1beta1.Voted.state"].get(0).unwrap().to_string(),
         }
+    }
+
+    pub async fn fetch_tx(&self, chain: &Chain, base_tx: &TransactionItem) -> Result<InternalTransaction, TNRAppError> {
+        let tx_hash = base_tx.hash.clone();
+
+        let internal_tx = match chain.get_tx_by_hash(&tx_hash).await {
+            Ok(res) => res.value,
+            Err(e) => {
+                tracing::error!("tx could not fetched retrying 1 {}", e);
+                match chain.get_tx_by_hash(&tx_hash).await {
+                    Ok(res) => res.value,
+                    Err(e) => {
+                        tracing::error!("tx could not fetched retrying 2  {}", e);
+                        match chain.get_tx_by_hash(&tx_hash).await {
+                            Ok(res) => res.value,
+                            Err(e) => {
+                                tracing::error!("tx could not fetched  {}", e);
+                                return Err(TNRAppError::from(e));
+                            }
+                        }
+                    }
+                }
+            }
+        };
+
+        Ok(internal_tx)
     }
 }
 
@@ -286,23 +312,20 @@ pub enum ExtraTxEventData {
     ConfirmDepositStarted(ConfirmDepositStarted),
     ConfirmGatewayTxStarted(ConfirmGatewayTxStartedEvents),
     ConfirmKeyTransferStarted(ConfirmKeyTransferStartedEvents),
-    PollVote(PollVoteEvent)
+    NewPoll(NewPollEvent),
+    PollVote(PollVoteEvent),
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct BaseBlock {
-
-}
+pub struct BaseBlock {}
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub enum ExtraBlockEventData {
-
-}
+pub enum ExtraBlockEventData {}
 
 #[derive(Debug, Clone)]
 pub enum ParseError {
     ParseIntError(ParseIntError),
-    MissingData
+    MissingData,
 }
 
 impl From<ParseIntError> for ParseError {
@@ -341,33 +364,27 @@ pub fn parse_transaction(events: TXMap) -> Result<(TransactionItem, Option<Extra
         "ConfirmERC20Deposit" | "ConfirmDeposit" => {
             if events.contains_key("axelar.evm.v1beta1.ConfirmDepositStarted.participants") {
                 let sp_tx = ConfirmDepositStarted::from_tx_events(events);
-                return Ok((tx_item, Some(ExtraTxEventData::ConfirmDepositStarted(sp_tx))));
-                // dbg!(sp_tx);
+                return Ok((tx_item, Some(ExtraTxEventData::NewPoll(sp_tx.into()))));
             }
-        },
+        }
         "ConfirmGatewayTx" => {
             if events.contains_key("axelar.evm.v1beta1.ConfirmGatewayTxStarted.participants") {
                 let sp_tx = ConfirmGatewayTxStartedEvents::from_tx_events(events);
-                return Ok((tx_item, Some(ExtraTxEventData::ConfirmGatewayTxStarted(sp_tx))));
-                // dbg!(sp_tx);
+                return Ok((tx_item, Some(ExtraTxEventData::NewPoll(sp_tx.into()))));
             }
-        },
+        }
         "ConfirmTransferKey" => {
             if events.contains_key("axelar.evm.v1beta1.ConfirmKeyTransferStarted.participants") {
                 let sp_tx = ConfirmKeyTransferStartedEvents::from_tx_events(events);
-                return Ok((tx_item, Some(ExtraTxEventData::ConfirmKeyTransferStarted(sp_tx))));
-                // dbg!(sp_tx);
+                return Ok((tx_item, Some(ExtraTxEventData::NewPoll(sp_tx.into()))));
             }
-        },
+        }
         other => {
             if events.contains_key("axelar.vote.v1beta1.Voted.state") {
-                // dbg!(&events);
                 let sp_tx = PollVoteEvent::from_tx_events(events);
                 return Ok((tx_item, Some(ExtraTxEventData::PollVote(sp_tx))));
             }
-        }
-
-        // m => { if m != "RefundMsgRequest" { dbg!(m); } }
+        } // m => { if m != "RefundMsgRequest" { dbg!(m); } }
     }
     Ok((tx_item, None))
 }
