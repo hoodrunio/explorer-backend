@@ -7,7 +7,6 @@ use tokio::sync::broadcast::channel;
 use tracing_actix_web::TracingLogger;
 use web::Data;
 
-use crate::chain::Chain;
 use crate::events::{run_ws, WsEvent};
 use crate::routes;
 use crate::state::State;
