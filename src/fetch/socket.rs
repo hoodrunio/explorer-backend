@@ -569,18 +569,6 @@ impl Chain {
 
         Ok(())
     }
-    pub async fn sub_axelar_events(axelar: Chain, tx: Sender<(String, WsEvent)>) -> Result<(), String> {
-        let poll = axelar.sub_for_axelar_evm_polls(tx.clone());
-        let heartbeats = axelar.sub_for_axelar_heartbeats();
-        match try_join!(poll, heartbeats) {
-            Ok(..) => {}
-            Err(e) => {
-                return Err(e.message.unwrap_or(String::from("")));
-            }
-        };
-
-        Ok(())
-    }
     pub fn convert_to_evm_hex(&self, string_byte_array: &String) -> Option<String> {
         let mut result: Option<String> = None;
 
