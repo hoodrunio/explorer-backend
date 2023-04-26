@@ -467,33 +467,6 @@ pub struct CosmosEvent {
     pub r#type: String,
 }
 
-impl CosmosEvent {
-    pub fn is_heartbeat_event(&self) -> bool {
-        self.r#type == "heartbeat"
-    }
-
-    // pub fn get_event_with_type(&self, event_type: &str) -> Option<CosmosEvent> {
-    //     if self.r#type == event_type {
-    //         return Some(self.clone());
-    //     }
-
-    //     None
-    // }
-}
-
-impl ResultEndBlock {
-    pub fn is_heartbeat_begin(&self) -> bool {
-        for event in &self.events {
-            let res = event.is_heartbeat_event();
-            if res {
-                return res;
-            }
-        }
-
-        false
-    }
-}
-
 #[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct CosmosEventAttribute {
     #[serde(deserialize_with = "from_base64")]
