@@ -425,7 +425,7 @@ impl DatabaseTR {
     pub async fn find_paginated_evm_polls(&self, pipe: Option<Document>, config: PaginationData) -> Result<ListDbResult<EvmPollForDb>, String> {
         let options = FindOptions::builder()
             .limit(config.limit.map(|l| l as i64))
-            .sort(doc! { "poll_id": -1})
+            .sort(doc! { "timestamp": -1})
             .build();
 
         let results: FindResult<EvmPollForDb> = PaginatedCursor::new(Some(options), config.cursor, config.direction.map(|d| d.into()))
