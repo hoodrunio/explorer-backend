@@ -187,6 +187,88 @@ impl ConfirmKeyTransferStartedEvents {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct NewPollEvent {
+    chain: String,
+    poll_participants: PollParticipants,
+    tx_id: String,
+    evm_deposit_address: String,
+    message_action: String,
+}
+
+impl NewPollEvent {
+    pub async fn get_evm_poll_item(&self, chain: &Chain, base_tx: TransactionItem) -> Result<EvmPollItem, TNRAppError> {
+        let tx_height = base_tx.height;
+        let chain_name = self.chain.clone();
+        let action_name = self.message_action.clone();
+        let poll_participants = self.poll_participants.clone();
+        let tx_id = self.tx_id.clone();
+        let deposit_address = self.evm_deposit_address.clone();
+
+        EvmPollItem::new(
+            &EvmPollItemEventParams {
+                chain: chain_name,
+                deposit_address,
+                tx_height,
+                action_name,
+                poll_participants,
+                tx_id,
+            },
+            chain,
+        )
+        .await
+    }
+}
+
+impl Default for NewPollEvent {
+    fn default() -> Self {
+        Self {
+            chain: "".to_string(),
+            poll_participants: PollParticipants {
+                poll_id: String::default(),
+                participants: vec![],
+            },
+            tx_id: "".to_string(),
+            evm_deposit_address: "".to_string(),
+            message_action: "".to_string(),
+        }
+    }
+}
+
+impl From<ConfirmDepositStarted> for NewPollEvent {
+    fn from(e: ConfirmDepositStarted) -> Self {
+        Self {
+            chain: e.chain,
+            poll_participants: e.participants,
+            tx_id: e.tx_id,
+            evm_deposit_address: e.evm_deposit_address,
+            message_action: e.action,
+        }
+    }
+}
+impl From<ConfirmGatewayTxStartedEvents> for NewPollEvent {
+    fn from(e: ConfirmGatewayTxStartedEvents) -> Self {
+        Self {
+            chain: e.chain,
+            poll_participants: e.participants,
+            tx_id: e.tx_id,
+            message_action: e.message_action,
+            ..Default::default()
+        }
+    }
+}
+impl From<ConfirmKeyTransferStartedEvents> for NewPollEvent {
+    fn from(e: ConfirmKeyTransferStartedEvents) -> Self {
+        Self {
+            chain: e.chain,
+            poll_participants: e.participants,
+            tx_id: e.tx_id,
+            message_action: e.message_action,
+            ..Default::default()
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct PollVoteEvent {
     poll_state: String,
 }
