@@ -715,13 +715,7 @@ pub struct EvmPollItem {
 
 impl EvmPollItem {
     async fn new(params: &EvmPollItemEventParams, chain: &Chain) -> Result<Self, TNRAppError> {
-        let rmv_backslash_participants = str::replace(&params.participants_raw, r#"\"#, "");
-        let poll_info = match serde_json::from_str::<PoolParticipants>(&rmv_backslash_participants) {
-            Ok(res) => res,
-            Err(e) => {
-                return Err(TNRAppError::from(format!("error {}", e)));
-            }
-        };
+        let poll_info = params.poll_participants.clone();
 
         let tx_height = params.tx_height;
         let time = match chain.get_block_by_height(Some(tx_height)).await {
