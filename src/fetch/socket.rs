@@ -1,40 +1,36 @@
+use crate::utils::Base64Convert;
 use std::collections::BTreeMap;
 use std::fmt::{Display, Formatter};
 use std::num::ParseIntError;
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
-use actix_web::cookie::time::error::Parse;
 
 use chrono::{DateTime, Utc};
 use futures::future::join_all;
-use futures::{SinkExt, StreamExt};
 use futures::stream::select;
+use futures::{SinkExt, StreamExt};
 use mongodb::bson::doc;
 use serde::{Deserialize, Serialize};
+use tendermint_rpc::event::EventData;
 use tendermint_rpc::query::EventType;
 use tendermint_rpc::{SubscriptionClient, WebSocketClient};
-use tendermint_rpc::event::EventData;
 use tokio::sync::broadcast::Sender;
 use tokio::sync::Mutex;
-use tokio::{select, try_join};
 use tokio_tungstenite::{connect_async, tungstenite::Message};
 
 use crate::chain::Chain;
-use crate::database::{
-    BlockForDb, DatabaseTR, EvmPollForDb, EvmPollParticipantForDb, HeartbeatForDb, HeartbeatRawForDb, ProposalVoteForDb, ProposalVoteOptionForDb,
-};
+use crate::database::{BlockForDb, DatabaseTR, EvmPollForDb, EvmPollParticipantForDb, ProposalVoteForDb, ProposalVoteOptionForDb};
 use crate::events::WsEvent;
 use crate::fetch::blocks::{Block, CosmosEvent, ResultBeginBlock, ResultEndBlock};
 use crate::fetch::evm::PollStatus;
-use crate::fetch::heartbeats::HeartbeatStatus;
 use crate::fetch::transactions::InternalTransaction;
 use crate::routes::TNRAppError;
 
+use super::blocks::CosmosEventAttribute;
 use super::evm_socket_handler::EvmSocketHandler;
 use super::{blocks::BlockHeader, transactions::TransactionItem};
 
 const SUBSCRIBE_BLOCK: &str = r#"{ "jsonrpc": "2.0", "method": "subscribe", "params": ["tm.event='NewBlock'"], "id": 0 }"#;
-// const SUBSCRIBE_HEADER: &str = r#"{ "jsonrpc": "2.0", "method": "subscribe", "params": ["tm.event='NewBlockHeader'"], "id": 1 }"#;
 const SUBSCRIBE_TX: &str = r#"{ "jsonrpc": "2.0", "method": "subscribe", "params": ["tm.event='Tx'"], "id": 2 }"#;
 const SUBSCRIBE_PROPOSAL_VOTE_TX: &str =
     r#"{ "jsonrpc": "2.0", "method": "subscribe", "params": ["tm.event='Tx' AND message.action CONTAINS 'MsgVote'"], "id": 2 }"#;
