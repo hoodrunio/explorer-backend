@@ -1,15 +1,19 @@
 use crate::{
     chain::Chain,
-    database::{EvmPollForDb, EvmPollParticipantForDb},
+    database::{EvmPollForDb, EvmPollParticipantForDb, HeartbeatForDb, HeartbeatRawForDb},
     events::WsEvent,
 };
+use futures::future::join_all;
 use mongodb::bson::doc;
 use tokio::sync::broadcast::Sender;
 
 use super::{
     evm::PollStatus,
-    socket::{NewBlockData, SocketResultNonEmpty, VotedTxEvents},
-    transactions::{AxelarKnownVote, AxelarVote, InnerMessage, InnerMessageKnown, InternalTransactionContent, InternalTransactionContentKnowns},
+    heartbeats::HeartbeatStatus,
+    socket::{EvmPollBlockInfo, NewPollEvent, PollVoteEvent},
+    transactions::{
+        AxelarKnownVote, AxelarVote, InnerMessage, InnerMessageKnown, InternalTransactionContent, InternalTransactionContentKnowns, TransactionItem,
+    },
 };
 
 pub struct EvmSocketHandler {
@@ -21,8 +25,8 @@ impl EvmSocketHandler {
     pub fn new(chain: Chain, ws_tx_sender: Sender<(String, WsEvent)>) -> Self {
         Self { chain, ws_tx_sender }
     }
-    pub async fn handle_evm_poll(&self, evm_poll_block_data: NewBlockData) {
-        if let Some(polls) = &evm_poll_block_data.value.extract_evm_poll_completed_events() {
+    pub async fn new_evm_poll_from_block(&self, evm_poll_block_info: EvmPollBlockInfo) {
+        if let Some(polls) = &evm_poll_block_info.extract_evm_poll_completed_events() {
             if !polls.is_empty() {
                 for completed_poll in polls.clone() {
                     match self
@@ -40,9 +44,38 @@ impl EvmSocketHandler {
             };
         }
     }
-    pub async fn handle_evm_poll_status(&self, voted_tx: VotedTxEvents) {
-        let tx_hash = voted_tx.get_tx_hash();
-        let tx = match voted_tx.fetch_tx(&self.chain).await {
+    pub async fn new_evm_poll_from_tx(&self, new_poll_event: NewPollEvent, base_tx: TransactionItem) {
+        dbg!(&new_poll_event);
+
+        let evm_poll_item = match new_poll_event.get_evm_poll_item(&self.chain, base_tx).await {
+            Ok(res) => res,
+            Err(e) => {
+                tracing::error!("Could not get evm poll item {}", e);
+                return;
+            }
+        };
+
+        let _ = evm_poll_item.upsert_participants(&self.chain.database).await;
+
+        let evm_poll: EvmPollForDb = evm_poll_item.clone().into();
+        if let Err(e) = self
+            .ws_tx_sender
+            .send((self.chain.config.name.clone(), WsEvent::NewEvmPoll(evm_poll.clone())))
+        {
+            tracing::error!("Error dispatching evm poll event: {e}");
+        }
+        match self.chain.database.upsert_evm_poll(evm_poll).await {
+            Ok(_) => {
+                tracing::info!("evm poll successfully created by poll id {}", &evm_poll_item.poll_id);
+            }
+            Err(e) => {
+                tracing::error!("evm poll could not created {}, Error: {}", &evm_poll_item.poll_id, e);
+            }
+        };
+    }
+    pub async fn evm_poll_status_handler(&self, poll_vote_event: PollVoteEvent, base_tx: TransactionItem) {
+        let tx_hash = base_tx.hash.clone();
+        let tx = match poll_vote_event.fetch_tx(&self.chain, &base_tx).await {
             Ok(res) => res,
             Err(e) => {
                 tracing::error!("Axelar evm poll vote tx fetcher error {}", &e);
