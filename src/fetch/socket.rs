@@ -731,7 +731,7 @@ impl EvmPollItem {
         Ok(Self {
             poll_id: poll_info.poll_id.clone(),
             status: String::from("Pending"),
-            participants_operator_address: poll_info.participants_operator_address.clone(),
+            participants_operator_address: poll_info.participants.clone(),
             evm_deposit_address,
             action,
             evm_tx_id,
@@ -747,7 +747,7 @@ struct EvmPollItemEventParams {
     pub tx_height: u64,
     pub chain: String,
     pub action_name: String,
-    pub participants_raw: String,
+    pub poll_participants: PollParticipants,
     pub tx_id: String,
     pub deposit_address: String,
 }
@@ -789,4 +789,68 @@ pub enum EvmPollVote {
     UnSubmit,
     Yes,
     No,
+}
+
+#[derive(Deserialize, Debug, Clone)]
+pub struct EvmPollBlockInfo {
+    events: Vec<CosmosEvent>,
+}
+
+impl EvmPollBlockInfo {
+    fn extract_evm_poll_info(&self, event: &CosmosEvent, status: PollStatus) -> AxelarCompletedPoll {
+        let mut poll_id: String = String::from("");
+        let mut chain: String = String::from("");
+        let mut tx_id: String = String::from("");
+
+        for attribute in event.attributes.clone() {
+            if attribute.key == "poll_id" {
+                poll_id = attribute.value.clone().replace('"', "");
+            };
+            if attribute.key == "chain" {
+                chain = attribute.value.clone().replace('"', "");
+            };
+            if attribute.key == "tx_id" {
+                tx_id = attribute.value.clone();
+            };
+        }
+
+        AxelarCompletedPoll {
+            chain,
+            poll_id,
+            tx_id,
+            poll_status: status,
+        }
+    }
+
+    pub fn extract_evm_poll_completed_events(&self) -> Option<Vec<AxelarCompletedPoll>> {
+        let end_block_events = &self.events;
+        if end_block_events.is_empty() {
+            return None;
+        };
+        let mut poll_completed_axelar_polls: Vec<AxelarCompletedPoll> = vec![];
+
+        for event in end_block_events {
+            if event.r#type == "axelar.evm.v1beta1.PollCompleted" {
+                let completed_axelar_poll_info = self.extract_evm_poll_info(event, PollStatus::Completed);
+                let ignore = poll_completed_axelar_polls
+                    .clone()
+                    .into_iter()
+                    .any(|poll| poll.poll_id == completed_axelar_poll_info.poll_id);
+
+                if !ignore {
+                    poll_completed_axelar_polls.push(completed_axelar_poll_info);
+                };
+            };
+            if event.r#type == "axelar.evm.v1beta1.NoEventsConfirmed" {
+                let axelar_poll_info = self.extract_evm_poll_info(event, PollStatus::Failed);
+                poll_completed_axelar_polls.push(axelar_poll_info);
+            };
+        }
+
+        if poll_completed_axelar_polls.is_empty() {
+            return None;
+        }
+
+        Some(poll_completed_axelar_polls)
+    }
 }
