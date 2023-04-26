@@ -627,28 +627,6 @@ pub enum SocketResultNonEmpty {
     Block { data: NewBlockData },
     #[serde(rename = "tm.event='Tx' AND message.action CONTAINS 'MsgVote'")]
     ProposalVoteTx { events: ProposalVoteEvents },
-    #[serde(
-        rename = "tm.event='Tx' AND message.action='ConfirmERC20Deposit' AND axelar.evm.v1beta1.ConfirmDepositStarted.participants CONTAINS 'participants'"
-    )]
-    ConfirmERC20DepositStartedTx { events: ConfirmDepositStartedEvents },
-
-    #[serde(
-        rename = "tm.event='Tx' AND message.action='ConfirmDeposit' AND axelar.evm.v1beta1.ConfirmDepositStarted.participants CONTAINS 'participants'"
-    )]
-    ConfirmDepositStartedTx { events: ConfirmDepositStartedEvents },
-
-    // #[serde(
-    //     rename = "tm.event='Tx' AND message.action='ConfirmGatewayTx' AND axelar.evm.v1beta1.ConfirmGatewayTxStarted.participants CONTAINS 'participants'"
-    // )]
-    // ConfirmGatewayTxStartedTx { events: ConfirmGatewayTxStartedEvents },
-
-    // #[serde(
-    //     rename = "tm.event='Tx' AND message.action='ConfirmTransferKey' AND axelar.evm.v1beta1.ConfirmKeyTransferStarted.participants CONTAINS 'participants'"
-    // )]
-    // ConfirmKeyTransferStartedTx { events: ConfirmKeyTransferStartedEvents },
-
-    #[serde(rename = "tm.event='Tx' AND axelar.vote.v1beta1.Voted.action CONTAINS 'vote'")]
-    VotedTx { events: VotedTxEvents },
 }
 
 #[derive(Deserialize)]
@@ -677,65 +655,6 @@ pub struct NewBlockValue {
     pub block: Block,
     pub result_begin_block: ResultBeginBlock,
     pub result_end_block: ResultEndBlock,
-}
-
-impl NewBlockValue {
-    fn extract_evm_poll_info(&self, event: &CosmosEvent, status: PollStatus) -> AxelarCompletedPoll {
-        let mut poll_id: String = String::from("");
-        let mut chain: String = String::from("");
-        let mut tx_id: String = String::from("");
-
-        for attribute in event.attributes.clone() {
-            if attribute.key == "poll_id" {
-                poll_id = attribute.value.clone().replace('"', "");
-            };
-            if attribute.key == "chain" {
-                chain = attribute.value.clone().replace('"', "");
-            };
-            if attribute.key == "tx_id" {
-                tx_id = attribute.value.clone();
-            };
-        }
-
-        AxelarCompletedPoll {
-            chain,
-            poll_id,
-            tx_id,
-            poll_status: status,
-        }
-    }
-
-    pub fn extract_evm_poll_completed_events(&self) -> Option<Vec<AxelarCompletedPoll>> {
-        let end_block_events = &self.result_end_block.events;
-        if end_block_events.is_empty() {
-            return None;
-        };
-        let mut poll_completed_axelar_polls: Vec<AxelarCompletedPoll> = vec![];
-
-        for event in end_block_events {
-            if event.r#type == "axelar.evm.v1beta1.PollCompleted" {
-                let completed_axelar_poll_info = self.extract_evm_poll_info(event, PollStatus::Completed);
-                let ignore = poll_completed_axelar_polls
-                    .clone()
-                    .into_iter()
-                    .any(|poll| poll.poll_id == completed_axelar_poll_info.poll_id);
-
-                if !ignore {
-                    poll_completed_axelar_polls.push(completed_axelar_poll_info);
-                };
-            };
-            if event.r#type == "axelar.evm.v1beta1.NoEventsConfirmed" {
-                let axelar_poll_info = self.extract_evm_poll_info(event, PollStatus::Failed);
-                poll_completed_axelar_polls.push(axelar_poll_info);
-            };
-        }
-
-        if poll_completed_axelar_polls.is_empty() {
-            return None;
-        }
-
-        Some(poll_completed_axelar_polls)
-    }
 }
 
 #[derive(Deserialize, Debug, Clone)]
@@ -773,50 +692,6 @@ pub struct TxEvents {
     #[serde(rename = "transfer.amount")]
     pub transfer_amount: Vec<String>,
 }
-
-#[derive(Deserialize, Debug, Clone)]
-pub struct ConfirmDepositStartedEvents {
-    #[serde(rename = "tx.height")]
-    pub tx_height: [String; 1],
-    #[serde(rename = "axelar.evm.v1beta1.ConfirmDepositStarted.chain")]
-    pub chain: [String; 1],
-    #[serde(rename = "axelar.evm.v1beta1.ConfirmDepositStarted.participants")]
-    pub participants: [String; 1],
-    #[serde(rename = "axelar.evm.v1beta1.ConfirmDepositStarted.tx_id")]
-    pub tx_id: [String; 1],
-    #[serde(rename = "axelar.evm.v1beta1.ConfirmDepositStarted.deposit_address")]
-    pub evm_deposit_address: [String; 1],
-    #[serde(rename = "message.action")]
-    pub message_action: [String; 1],
-}
-
-// #[derive(Deserialize, Debug, Clone)]
-// pub struct ConfirmGatewayTxStartedEvents {
-//     #[serde(rename = "tx.height")]
-//     pub tx_height: [String; 1],
-//     #[serde(rename = "axelar.evm.v1beta1.ConfirmGatewayTxStarted.chain")]
-//     pub chain: [String; 1],
-//     #[serde(rename = "axelar.evm.v1beta1.ConfirmGatewayTxStarted.participants")]
-//     pub participants: [String; 1],
-//     #[serde(rename = "axelar.evm.v1beta1.ConfirmGatewayTxStarted.tx_id")]
-//     pub tx_id: [String; 1],
-//     #[serde(rename = "message.action")]
-//     pub message_action: [String; 1],
-// }
-
-// #[derive(Deserialize, Debug, Clone)]
-// pub struct ConfirmKeyTransferStartedEvents {
-//     #[serde(rename = "tx.height")]
-//     pub tx_height: [String; 1],
-//     #[serde(rename = "axelar.evm.v1beta1.ConfirmKeyTransferStarted.chain")]
-//     pub chain: [String; 1],
-//     #[serde(rename = "axelar.evm.v1beta1.ConfirmKeyTransferStarted.participants")]
-//     pub participants: [String; 1],
-//     #[serde(rename = "axelar.evm.v1beta1.ConfirmKeyTransferStarted.tx_id")]
-//     pub tx_id: [String; 1],
-//     #[serde(rename = "message.action")]
-//     pub message_action: [String; 1],
-// }
 
 #[derive(Deserialize, Debug, Clone)]
 pub struct ProposalVoteEvents {
