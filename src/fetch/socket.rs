@@ -102,23 +102,20 @@ pub struct BaseTransaction {
 
 impl BaseTransaction {
     fn from_tx_events(ev: TXMap) -> Option<Self> {
-
         Some(Self {
             hash: ev.get("tx.hash")?.get(0)?.to_string(),
             fee: ev.get("tx.fee")?.get(0)?.to_string(),
             height: ev.get("tx.height")?.get(0)?.to_string(),
             message_action: ev.get("message.action")?.get(0)?.to_string(),
             transfer_amount: ev.get("transfer.amount")?.get(0)?.to_string(),
-
         })
     }
 }
 
-
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum ChainEvent {
     Tx(BaseTransaction, ExtraTxEventData),
-    Block(BaseTransaction, ExtraBlockEventData)
+    Block(BaseTransaction, ExtraBlockEventData),
 }
 
 pub type TXMap = BTreeMap<String, Vec<String>>;
@@ -126,7 +123,7 @@ pub type TXMap = BTreeMap<String, Vec<String>>;
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ConfirmDepositStarted {
     chain: String,
-    participants: String,
+    participants: PollParticipants,
     tx_id: String,
     evm_deposit_address: String,
     action: String,
@@ -134,16 +131,17 @@ pub struct ConfirmDepositStarted {
 
 impl ConfirmDepositStarted {
     fn from_tx_events(ev: TXMap) -> Self {
+        let participants = serde_json::from_str(ev["axelar.evm.v1beta1.ConfirmDepositStarted.participants"].get(0).unwrap()).unwrap();
+
         Self {
             chain: ev["axelar.evm.v1beta1.ConfirmDepositStarted.chain"].get(0).unwrap().to_string(),
-            participants: ev["axelar.evm.v1beta1.ConfirmDepositStarted.participants"].get(0).unwrap().to_string(),
+            participants,
             tx_id: ev["axelar.evm.v1beta1.ConfirmDepositStarted.tx_id"].get(0).unwrap().to_string(),
             evm_deposit_address: ev["axelar.evm.v1beta1.ConfirmDepositStarted.deposit_address"].get(0).unwrap().to_string(),
-            action: ev["message.action"].get(0).unwrap().to_string()
+            action: ev["message.action"].get(0).unwrap().to_string(),
         }
     }
 }
-
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ConfirmGatewayTxStartedEvents {
     chain: String,
@@ -161,6 +159,7 @@ pub struct PollParticipants {
 impl ConfirmGatewayTxStartedEvents {
     fn from_tx_events(ev: TXMap) -> Self {
         let participants = serde_json::from_str(ev["axelar.evm.v1beta1.ConfirmGatewayTxStarted.participants"].get(0).unwrap()).unwrap();
+
         Self {
             chain: ev["axelar.evm.v1beta1.ConfirmGatewayTxStarted.chain"].get(0).unwrap().to_string(),
             participants,
@@ -173,16 +172,18 @@ impl ConfirmGatewayTxStartedEvents {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ConfirmKeyTransferStartedEvents {
     chain: String,
-    participants: String,
+    participants: PollParticipants,
     tx_id: String,
     message_action: String,
 }
 
 impl ConfirmKeyTransferStartedEvents {
     fn from_tx_events(ev: TXMap) -> Self {
+        let participants = serde_json::from_str(ev["axelar.evm.v1beta1.ConfirmKeyTransferStarted.participants"].get(0).unwrap()).unwrap();
+
         Self {
             chain: ev["axelar.evm.v1beta1.ConfirmKeyTransferStarted.chain"].get(0).unwrap().to_string(),
-            participants: ev["axelar.evm.v1beta1.ConfirmKeyTransferStarted.participants"].get(0).unwrap().to_string(),
+            participants,
             tx_id: ev["axelar.evm.v1beta1.ConfirmKeyTransferStarted.tx_id"].get(0).unwrap().to_string(),
             message_action: ev["message.action"].get(0).unwrap().to_string(),
         }
