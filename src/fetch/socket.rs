@@ -389,16 +389,6 @@ pub fn parse_transaction(events: TXMap) -> Result<(TransactionItem, Option<Extra
     Ok((tx_item, None))
 }
 
-// #[derive(Debug, Clone)]
-// pub enum SpecialTransaction {
-// ProposalVoteTx { events: ProposalVoteEvents },
-// ConfirmERC20DepositStartedTx { events: ConfirmDepositStartedEvents },
-// ConfirmDepositStartedTx { events: ConfirmDepositStartedEvents },
-// ConfirmGatewayTxStartedTx { events: ConfirmGatewayTxStartedEvents },
-// ConfirmKeyTransferStartedTx { events: ConfirmKeyTransferStartedEvents },
-// VotedTx { events: VotedTxEvents },
-// }
-
 impl Chain {
     pub async fn subscribe_events(&self, tx: Sender<(String, WsEvent)>) -> Result<(), String> {
         let (client, driver) = WebSocketClient::new(self.config.wss_url.as_str())
@@ -407,39 +397,79 @@ impl Chain {
 
         let driver_handle = tokio::spawn(async move { driver.run().await });
 
-        let mut txs = client.subscribe(EventType::Tx.into())
+        let mut txs = client
+            .subscribe(EventType::Tx.into())
             .await
             .map_err(|e| format!("Failed to subscribe to new transactions: {e}"))?;
 
-        let mut blocks = client.subscribe(EventType::NewBlock.into())
+        let mut blocks = client
+            .subscribe(EventType::NewBlock.into())
             .await
             .map_err(|e| format!("Failed to subscribe to new blocks: {e}"))?;
-    
 
         let mut bundled = select(txs, blocks);
 
         let previous_block = Mutex::new(None);
+
+        let mut heartbeat_begin_height: u64 = 0;
         while let Some(ev) = bundled.next().await {
             let Ok(ev) = ev else {
                 continue
             };
 
             let events = ev.events.clone().unwrap();
+            let handler = EvmSocketHandler::new(self.clone(), tx.clone());
 
             match ev.data {
-                EventData::NewBlock { block, result_begin_block, result_end_block } => {
+                EventData::NewBlock {
+                    block,
+                    result_begin_block,
+                    result_end_block,
+                } => {
                     let (Some(block), Some(result_begin_block), Some(result_end_block)) = (block, result_begin_block, result_end_block) else {
                         continue
                     };
+
+                    tokio::spawn(async move {
+                        let evm_poll_block_info = EvmPollBlockInfo {
+                            events: result_end_block
+                                .events
+                                .into_iter()
+                                .map(|e| {
+                                    let attributes = e
+                                        .attributes
+                                        .into_iter()
+                                        .map(|a| {
+                                            let key = String::base64_to_string(&a.key);
+                                            let value = String::base64_to_string(&a.value);
+                                            let index = a.index;
+
+                                            CosmosEventAttribute { key, value, index }
+                                        })
+                                        .collect();
+
+                                    CosmosEvent { r#type: e.kind, attributes }
+                                })
+                                .collect::<Vec<CosmosEvent>>(),
+                        };
+
+                        handler.new_evm_poll_from_block(evm_poll_block_info).await;
+                    });
+
+                    // tokio::spawn(async move {
+                    //     let is_hearbeat_begin = result_end_block.events.iter().any(|e| e.kind == "heartbeat");
+                    //     handler
+                    //         .heartbeat_handler(self, heightShouldBeHere, is_hearbeat_begin, heartbeat_begin_height)
+                    //         .await;
+                    // });
 
                     let mut prev_block = previous_block.lock().await;
 
                     match prev_block.as_ref() {
                         Some(prev) => {
                             // let proposer = self.database.find_validator_by_hex_addr(prev.header)
-                        },
+                        }
                         None => *prev_block = Some(block),
-
                     }
                 }
                 EventData::Tx { tx_result } => {
@@ -447,26 +477,26 @@ impl Chain {
                         continue
                     };
 
-
                     if let Some(extra_data) = extra {
                         match extra_data {
-                            ExtraTxEventData::ConfirmDepositStarted(_) => {}
-                            ExtraTxEventData::ConfirmGatewayTxStarted(_) => {}
-                            ExtraTxEventData::ConfirmKeyTransferStarted(_) => {}
+                            ExtraTxEventData::NewPoll(p) => {
+                                tokio::spawn(async move {
+                                    handler.new_evm_poll_from_tx(p, base).await;
+                                });
+                            }
                             ExtraTxEventData::PollVote(v) => {
-                                let tx_hash = base.hash;
-                                dbg!(base.tx_type);
+                                tokio::spawn(async move {
+                                    handler.evm_poll_status_handler(v, base).await;
+                                });
 
                                 // let proposal_vote_option = serde_json::from_str(v)
                             }
+                            _ => {}
                         }
                     }
-
-
                 }
                 EventData::GenericJsonEvent(_) => {}
             }
-
         }
         Ok(())
     }
