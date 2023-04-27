@@ -184,12 +184,13 @@ impl EvmSocketHandler {
             }
         };
     }
-    pub async fn heartbeat_handler(&self, chain: &Chain, current_height: u64, is_heartbeat_begin: bool, mut heartbeat_begin_height: u64) {
+    pub async fn heartbeat_handler(&self, current_height: u64, is_heartbeat_begin: bool, mut heartbeat_begin_height: u64) {
         let heartbeat_block_check_range = 6;
         if is_heartbeat_begin {
             heartbeat_begin_height = current_height;
 
-            if let Ok(res) = chain
+            if let Ok(res) = self
+                .chain
                 .database
                 .find_validators(Some(doc! {"$match":{"voter_address":{"$exists":true}}}))
                 .await
@@ -200,7 +201,7 @@ impl EvmSocketHandler {
                     match validator.voter_address.clone() {
                         None => {}
                         Some(sender_address) => {
-                            let generated_id = chain.generate_heartbeat_id(sender_address.clone(), period_height);
+                            let generated_id = self.chain.generate_heartbeat_id(sender_address.clone(), period_height);
                             let heartbeat = HeartbeatForDb {
                                 heartbeat_raw: None,
                                 period_height,
@@ -213,7 +214,7 @@ impl EvmSocketHandler {
                     };
                 }
 
-                match chain.database.add_heartbeat_many(initial_period_heartbeats).await {
+                match self.chain.database.add_heartbeat_many(initial_period_heartbeats).await {
                     Ok(_) => {
                         tracing::info!("Current period initial heartbeats inserted");
                     }
@@ -225,17 +226,17 @@ impl EvmSocketHandler {
         };
 
         if heartbeat_begin_height + heartbeat_block_check_range >= current_height {
-            let block_result = chain.get_block_result_by_height(Some(current_height)).await;
+            let block_result = self.chain.get_block_result_by_height(Some(current_height)).await;
 
             if let Ok(block_result) = block_result {
                 let mut block_res_txs_handler_futures = vec![];
                 for block_res_tx_res in block_result.value.txs_results {
                     let sender_address = block_res_tx_res.get_sender_address().unwrap_or(String::from("")).clone();
                     block_res_txs_handler_futures.push(async move {
-                        let heartbeat_info = chain.get_axelar_sender_heartbeat_info(&sender_address, current_height).await;
+                        let heartbeat_info = self.chain.get_axelar_sender_heartbeat_info(&sender_address, current_height).await;
                         if let Ok(info) = heartbeat_info {
                             let period_height = heartbeat_begin_height + 1;
-                            let generated_id = chain.generate_heartbeat_id(info.sender.clone(), period_height);
+                            let generated_id = self.chain.generate_heartbeat_id(info.sender.clone(), period_height);
                             let sender = info.sender.clone();
                             let heartbeat_raw = HeartbeatRawForDb {
                                 height: current_height,
@@ -254,7 +255,7 @@ impl EvmSocketHandler {
                                 sender,
                                 period_height,
                             };
-                            match chain.database.upsert_heartbeat(db_heartbeat).await {
+                            match self.chain.database.upsert_heartbeat(db_heartbeat).await {
                                 Ok(_) => {
                                     tracing::info!("Successfully inserted heartbeat id {}", &generated_id)
                                 }
