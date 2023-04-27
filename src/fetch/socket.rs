@@ -430,38 +430,34 @@ impl Chain {
                         continue
                     };
 
-                    tokio::spawn(async move {
-                        let evm_poll_block_info = EvmPollBlockInfo {
-                            events: result_end_block
-                                .events
-                                .into_iter()
-                                .map(|e| {
-                                    let attributes = e
-                                        .attributes
-                                        .into_iter()
-                                        .map(|a| {
-                                            let key = String::base64_to_string(&a.key);
-                                            let value = String::base64_to_string(&a.value);
-                                            let index = a.index;
+                    let is_hearbeat_begin = result_end_block.clone().events.iter().any(|e| e.kind == "heartbeat");
+                    handler
+                        .heartbeat_handler(block.header.height.value(), is_hearbeat_begin, heartbeat_begin_height)
+                        .await;
 
-                                            CosmosEventAttribute { key, value, index }
-                                        })
-                                        .collect();
+                    let evm_poll_block_info = EvmPollBlockInfo {
+                        events: result_end_block
+                            .events
+                            .into_iter()
+                            .map(|e| {
+                                let attributes = e
+                                    .attributes
+                                    .into_iter()
+                                    .map(|a| {
+                                        let key = String::base64_to_string(&a.key);
+                                        let value = String::base64_to_string(&a.value);
+                                        let index = a.index;
 
-                                    CosmosEvent { r#type: e.kind, attributes }
-                                })
-                                .collect::<Vec<CosmosEvent>>(),
-                        };
+                                        CosmosEventAttribute { key, value, index }
+                                    })
+                                    .collect();
 
-                        handler.new_evm_poll_from_block(evm_poll_block_info).await;
-                    });
+                                CosmosEvent { r#type: e.kind, attributes }
+                            })
+                            .collect::<Vec<CosmosEvent>>(),
+                    };
 
-                    // tokio::spawn(async move {
-                    //     let is_hearbeat_begin = result_end_block.events.iter().any(|e| e.kind == "heartbeat");
-                    //     handler
-                    //         .heartbeat_handler(self, heightShouldBeHere, is_hearbeat_begin, heartbeat_begin_height)
-                    //         .await;
-                    // });
+                    handler.new_evm_poll_from_block(evm_poll_block_info).await;
 
                     let mut prev_block = previous_block.lock().await;
 
@@ -480,14 +476,10 @@ impl Chain {
                     if let Some(extra_data) = extra {
                         match extra_data {
                             ExtraTxEventData::NewPoll(p) => {
-                                tokio::spawn(async move {
-                                    handler.new_evm_poll_from_tx(p, base).await;
-                                });
+                                handler.new_evm_poll_from_tx(p, base).await;
                             }
                             ExtraTxEventData::PollVote(v) => {
-                                tokio::spawn(async move {
-                                    handler.evm_poll_status_handler(v, base).await;
-                                });
+                                handler.evm_poll_status_handler(v, base).await;
 
                                 // let proposal_vote_option = serde_json::from_str(v)
                             }
