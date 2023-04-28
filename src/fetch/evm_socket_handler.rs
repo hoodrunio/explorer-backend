@@ -10,7 +10,7 @@ use tokio::sync::broadcast::Sender;
 use super::{
     evm::PollStatus,
     heartbeats::HeartbeatStatus,
-    socket::{EvmPollBlockInfo, NewPollEvent, PollVoteEvent},
+    socket::{EvmPollBlockInfo, HeartbeatStateParams, NewPollEvent, PollVoteEvent},
     transactions::{
         AxelarKnownVote, AxelarVote, InnerMessage, InnerMessageKnown, InternalTransactionContent, InternalTransactionContentKnowns, TransactionItem,
     },
@@ -184,18 +184,21 @@ impl EvmSocketHandler {
             }
         };
     }
-    pub async fn heartbeat_handler(&self, current_height: u64, is_heartbeat_begin: bool, mut heartbeat_begin_height: u64) {
-        let heartbeat_block_check_range = 6;
-        if is_heartbeat_begin {
-            heartbeat_begin_height = current_height;
+    pub async fn heartbeat_handler(&self, params: HeartbeatStateParams) {
+        let HeartbeatStateParams {
+            current_height,
+            is_heartbeat_begin,
+            period_height,
+            is_in_period,
+        } = params;
 
+        if is_heartbeat_begin {
             if let Ok(res) = self
                 .chain
                 .database
                 .find_validators(Some(doc! {"$match":{"voter_address":{"$exists":true}}}))
                 .await
             {
-                let period_height = heartbeat_begin_height + 1;
                 let mut initial_period_heartbeats = vec![];
                 for validator in res.into_iter() {
                     match validator.voter_address.clone() {
@@ -225,7 +228,7 @@ impl EvmSocketHandler {
             };
         };
 
-        if heartbeat_begin_height + heartbeat_block_check_range >= current_height {
+        if is_in_period {
             let block_result = self.chain.get_block_result_by_height(Some(current_height)).await;
 
             if let Ok(block_result) = block_result {
@@ -235,7 +238,6 @@ impl EvmSocketHandler {
                     block_res_txs_handler_futures.push(async move {
                         let heartbeat_info = self.chain.get_axelar_sender_heartbeat_info(&sender_address, current_height).await;
                         if let Ok(info) = heartbeat_info {
-                            let period_height = heartbeat_begin_height + 1;
                             let generated_id = self.chain.generate_heartbeat_id(info.sender.clone(), period_height);
                             let sender = info.sender.clone();
                             let heartbeat_raw = HeartbeatRawForDb {
