@@ -412,6 +412,8 @@ impl Chain {
         let previous_block = Mutex::new(None);
 
         let mut heartbeat_begin_height: u64 = 0;
+        let heartbeat_block_check_range = 6;
+
         while let Some(ev) = bundled.next().await {
             let Ok(ev) = ev else {
                 continue
@@ -430,34 +432,38 @@ impl Chain {
                         continue
                     };
 
-                    let is_hearbeat_begin = result_end_block.clone().events.iter().any(|e| e.kind == "heartbeat");
-                    handler
-                        .heartbeat_handler(block.header.height.value(), is_hearbeat_begin, heartbeat_begin_height)
-                        .await;
+                    if vec![String::from("axelar"), String::from("axelar-testnet")].contains(&self.config.name) {
+                        let is_hearbeat_begin = result_end_block.clone().events.iter().any(|e| e.kind == "heartbeat");
+                        let current_height = block.header.height.value();
 
-                    let evm_poll_block_info = EvmPollBlockInfo {
-                        events: result_end_block
-                            .events
-                            .into_iter()
-                            .map(|e| {
-                                let attributes = e
-                                    .attributes
-                                    .into_iter()
-                                    .map(|a| {
-                                        let key = String::base64_to_string(&a.key);
-                                        let value = String::base64_to_string(&a.value);
-                                        let index = a.index;
+                        let handler_params = HeartbeatStateParams::from_ws_block(current_height, is_hearbeat_begin, &mut heartbeat_begin_height);
 
-                                        CosmosEventAttribute { key, value, index }
-                                    })
-                                    .collect();
+                        handler.heartbeat_handler(handler_params).await;
 
-                                CosmosEvent { r#type: e.kind, attributes }
-                            })
-                            .collect::<Vec<CosmosEvent>>(),
-                    };
+                        let evm_poll_block_info = EvmPollBlockInfo {
+                            events: result_end_block
+                                .events
+                                .into_iter()
+                                .map(|e| {
+                                    let attributes = e
+                                        .attributes
+                                        .into_iter()
+                                        .map(|a| {
+                                            let key = String::base64_to_string(&a.key);
+                                            let value = String::base64_to_string(&a.value);
+                                            let index = a.index;
 
-                    handler.new_evm_poll_from_block(evm_poll_block_info).await;
+                                            CosmosEventAttribute { key, value, index }
+                                        })
+                                        .collect();
+
+                                    CosmosEvent { r#type: e.kind, attributes }
+                                })
+                                .collect::<Vec<CosmosEvent>>(),
+                        };
+
+                        handler.new_evm_poll_from_block(evm_poll_block_info).await;
+                    }
 
                     let mut prev_block = previous_block.lock().await;
 
@@ -473,17 +479,19 @@ impl Chain {
                         continue
                     };
 
-                    if let Some(extra_data) = extra {
-                        match extra_data {
-                            ExtraTxEventData::NewPoll(p) => {
-                                handler.new_evm_poll_from_tx(p, base).await;
-                            }
-                            ExtraTxEventData::PollVote(v) => {
-                                handler.evm_poll_status_handler(v, base).await;
+                    if vec![String::from("axelar"), String::from("axelar-testnet")].contains(&self.config.name) {
+                        if let Some(extra_data) = extra {
+                            match extra_data {
+                                ExtraTxEventData::NewPoll(p) => {
+                                    handler.new_evm_poll_from_tx(p, base).await;
+                                }
+                                ExtraTxEventData::PollVote(v) => {
+                                    handler.evm_poll_status_handler(v, base).await;
 
-                                // let proposal_vote_option = serde_json::from_str(v)
+                                    // let proposal_vote_option = serde_json::from_str(v)
+                                }
+                                _ => {}
                             }
-                            _ => {}
                         }
                     }
                 }
@@ -970,5 +978,31 @@ impl EvmPollBlockInfo {
         }
 
         Some(poll_completed_axelar_polls)
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
+pub struct HeartbeatStateParams {
+    pub current_height: u64,
+    pub is_heartbeat_begin: bool,
+    pub period_height: u64,
+    pub is_in_period: bool,
+}
+
+impl HeartbeatStateParams {
+    pub fn from_ws_block(current_height: u64, is_hearbeat_begin: bool, heartbeat_begin_height: &mut u64) -> Self {
+        let heartbeat_block_check_range = 6;
+        if is_hearbeat_begin {
+            *heartbeat_begin_height = current_height;
+        }
+        let is_in_period = *heartbeat_begin_height + heartbeat_block_check_range >= current_height;
+        let period_height = *heartbeat_begin_height + 1;
+
+        Self {
+            current_height,
+            is_heartbeat_begin: is_hearbeat_begin,
+            period_height,
+            is_in_period,
+        }
     }
 }
