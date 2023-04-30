@@ -1,8 +1,9 @@
 use crate::{
     chain::Chain,
-    database::{EvmPollForDb, EvmPollParticipantForDb, HeartbeatForDb, HeartbeatRawForDb},
+    database::{EvmPollForDb, EvmPollParticipantForDb, HeartbeatForDb, HeartbeatRawForDb, ProposalVoteForDb, ProposalVoteOptionForDb},
     events::WsEvent,
 };
+use chrono::Utc;
 use futures::future::join_all;
 use mongodb::bson::doc;
 use tokio::sync::broadcast::Sender;
@@ -10,7 +11,7 @@ use tokio::sync::broadcast::Sender;
 use super::{
     evm::PollStatus,
     heartbeats::HeartbeatStatus,
-    socket::{EvmPollBlockInfo, HeartbeatStateParams, NewPollEvent, PollVoteEvent},
+    socket::{EvmPollBlockInfo, HeartbeatStateParams, NewPollEvent, NewProposalEvent, PollVoteEvent, ProposalVoteOption},
     transactions::{
         AxelarKnownVote, AxelarVote, InnerMessage, InnerMessageKnown, InternalTransactionContent, InternalTransactionContentKnowns, TransactionItem,
     },
@@ -272,5 +273,30 @@ impl EvmSocketHandler {
                 join_all(block_res_txs_handler_futures).await;
             }
         }
+    }
+    pub async fn new_proposal_vote(&self, new_proposal: NewProposalEvent) {
+        let NewProposalEvent {
+            vote_option,
+            proposal_id,
+            voter,
+            tx_hash,
+        } = new_proposal;
+
+        let ProposalVoteOption { option, weight } = vote_option;
+
+        let proposal_vote_option_db = ProposalVoteOptionForDb {
+            option,
+            weight: weight.parse::<f32>().unwrap_or(0.0),
+        };
+
+        let proposal_vote = ProposalVoteForDb {
+            proposal_id,
+            voter,
+            option: proposal_vote_option_db,
+            tx_hash,
+            timestamp: Utc::now().timestamp_millis(),
+        };
+
+        let _ = self.chain.database.add_propsal_vote(proposal_vote).await;
     }
 }
