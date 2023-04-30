@@ -45,6 +45,7 @@ impl EvmSocketHandler {
             };
         }
     }
+    pub async fn new_evm_poll_from_tx(&self, new_poll_event: NewPollEvent) {
         let evm_poll_item = match new_poll_event.get_evm_poll_item(&self.chain).await {
             Ok(res) => res,
             Err(e) => {
@@ -71,9 +72,9 @@ impl EvmSocketHandler {
             }
         };
     }
-    pub async fn evm_poll_status_handler(&self, poll_vote_event: PollVoteEvent, base_tx: TransactionItem) {
-        let tx_hash = base_tx.hash.clone();
-        let tx = match poll_vote_event.fetch_tx(&self.chain, &base_tx).await {
+    pub async fn evm_poll_status_handler(&self, poll_vote_event: PollVoteEvent) {
+        let tx_hash = poll_vote_event.hash.clone();
+        let tx = match poll_vote_event.fetch_tx(&self.chain, tx_hash.clone()).await {
             Ok(res) => res,
             Err(e) => {
                 tracing::error!("Axelar evm poll vote tx fetcher error {}", &e);
