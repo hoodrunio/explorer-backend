@@ -98,12 +98,54 @@ pub struct BaseTransaction {
 
 impl BaseTransaction {
     fn from_tx_events(ev: TXMap) -> Option<Self> {
+        let tx_fee_denom = ev.get("tx.fee")?.get(0)?.to_string();
+        let transfer_amount = ev
+            .get("transfer.amount")?
+            .iter()
+            .filter(|str| str.to_string() != tx_fee_denom)
+            .map(String::from)
+            .collect::<Vec<String>>()
+            .get(0)
+            .unwrap_or(&String::from("0.00"))
+            .clone();
+
         Some(Self {
             hash: ev.get("tx.hash")?.get(0)?.to_string(),
-            fee: ev.get("tx.fee")?.get(0)?.to_string(),
+            fee: tx_fee_denom,
             height: ev.get("tx.height")?.get(0)?.to_string(),
             message_action: ev.get("message.action")?.get(0)?.to_string(),
-            transfer_amount: ev.get("transfer.amount")?.get(0)?.to_string(),
+            transfer_amount,
+        })
+    }
+}
+
+impl BaseTransaction {
+    pub async fn as_tx_item(&self, chain: &Chain) -> Result<TransactionItem, String> {
+        let tx_fee_denom = self.fee.clone();
+        let amount = chain
+            .string_amount_parser(self.transfer_amount.replace(chain.config.main_denom.as_str(), "").clone(), None)
+            .await?;
+
+        let fee = chain
+            .string_amount_parser(tx_fee_denom.replace(chain.config.main_denom.as_str(), "").clone(), None)
+            .await?;
+
+        Ok(TransactionItem {
+            amount,
+            fee,
+            hash: self.hash.clone(),
+            height: self
+                .height
+                .parse::<u64>()
+                .map_err(|e| format!("Cannot parse tx height {}: {e}", self.height))?,
+            time: std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_millis() as i64,
+            result: "Success".to_string(),
+            tx_type: self
+                .message_action
+                .split_once("Msg")
+                .map(|(_, r)| r)
+                .unwrap_or(self.message_action.split('.').last().unwrap_or("Unknown"))
+                .to_string(),
         })
     }
 }
@@ -123,6 +165,7 @@ pub struct ConfirmDepositStarted {
     tx_id: String,
     evm_deposit_address: String,
     action: String,
+    height: String,
 }
 
 impl ConfirmDepositStarted {
@@ -135,6 +178,7 @@ impl ConfirmDepositStarted {
             tx_id: ev["axelar.evm.v1beta1.ConfirmDepositStarted.tx_id"].get(0).unwrap().to_string(),
             evm_deposit_address: ev["axelar.evm.v1beta1.ConfirmDepositStarted.deposit_address"].get(0).unwrap().to_string(),
             action: ev["message.action"].get(0).unwrap().to_string(),
+            height: ev["tx.height"].get(0).unwrap().to_string(),
         }
     }
 }
@@ -143,6 +187,7 @@ pub struct ConfirmGatewayTxStartedEvents {
     chain: String,
     participants: PollParticipants,
     tx_id: String,
+    height: String,
     message_action: String,
 }
 
@@ -161,6 +206,7 @@ impl ConfirmGatewayTxStartedEvents {
             participants,
             tx_id: ev["axelar.evm.v1beta1.ConfirmGatewayTxStarted.tx_id"].get(0).unwrap().to_string(),
             message_action: ev["message.action"].get(0).unwrap().to_string(),
+            height: ev["tx.height"].get(0).unwrap().to_string(),
         }
     }
 }
@@ -171,6 +217,7 @@ pub struct ConfirmKeyTransferStartedEvents {
     participants: PollParticipants,
     tx_id: String,
     message_action: String,
+    height: String,
 }
 
 impl ConfirmKeyTransferStartedEvents {
@@ -182,6 +229,7 @@ impl ConfirmKeyTransferStartedEvents {
             participants,
             tx_id: ev["axelar.evm.v1beta1.ConfirmKeyTransferStarted.tx_id"].get(0).unwrap().to_string(),
             message_action: ev["message.action"].get(0).unwrap().to_string(),
+            height: ev["tx.height"].get(0).unwrap().to_string(),
         }
     }
 }
@@ -191,13 +239,14 @@ pub struct NewPollEvent {
     chain: String,
     poll_participants: PollParticipants,
     tx_id: String,
+    height: u64,
     evm_deposit_address: String,
     message_action: String,
 }
 
 impl NewPollEvent {
-    pub async fn get_evm_poll_item(&self, chain: &Chain, base_tx: TransactionItem) -> Result<EvmPollItem, TNRAppError> {
-        let tx_height = base_tx.height;
+    pub async fn get_evm_poll_item(&self, chain: &Chain) -> Result<EvmPollItem, TNRAppError> {
+        let tx_height = self.height;
         let chain_name = self.chain.clone();
         let action_name = self.message_action.clone();
         let poll_participants = self.poll_participants.clone();
@@ -230,6 +279,7 @@ impl Default for NewPollEvent {
             tx_id: "".to_string(),
             evm_deposit_address: "".to_string(),
             message_action: "".to_string(),
+            height: 0,
         }
     }
 }
@@ -242,6 +292,7 @@ impl From<ConfirmDepositStarted> for NewPollEvent {
             tx_id: e.tx_id,
             evm_deposit_address: e.evm_deposit_address,
             message_action: e.action,
+            height: e.height.parse::<u64>().unwrap_or(0),
         }
     }
 }
@@ -252,6 +303,7 @@ impl From<ConfirmGatewayTxStartedEvents> for NewPollEvent {
             poll_participants: e.participants,
             tx_id: e.tx_id,
             message_action: e.message_action,
+            height: e.height.parse::<u64>().unwrap_or(0),
             ..Default::default()
         }
     }
@@ -263,6 +315,7 @@ impl From<ConfirmKeyTransferStartedEvents> for NewPollEvent {
             poll_participants: e.participants,
             tx_id: e.tx_id,
             message_action: e.message_action,
+            height: e.height.parse::<u64>().unwrap_or(0),
             ..Default::default()
         }
     }
@@ -270,19 +323,19 @@ impl From<ConfirmKeyTransferStartedEvents> for NewPollEvent {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct PollVoteEvent {
-    poll_state: String,
+    pub poll_state: String,
+    pub hash: String,
 }
 
 impl PollVoteEvent {
     fn from_tx_events(ev: TXMap) -> Self {
         Self {
             poll_state: ev["axelar.vote.v1beta1.Voted.state"].get(0).unwrap().to_string(),
+            hash: ev.get("tx.hash").unwrap().get(0).unwrap().to_string(),
         }
     }
 
-    pub async fn fetch_tx(&self, chain: &Chain, base_tx: &TransactionItem) -> Result<InternalTransaction, TNRAppError> {
-        let tx_hash = base_tx.hash.clone();
-
+    pub async fn fetch_tx(&self, chain: &Chain, tx_hash: String) -> Result<InternalTransaction, TNRAppError> {
         let internal_tx = match chain.get_tx_by_hash(&tx_hash).await {
             Ok(res) => res.value,
             Err(e) => {
@@ -369,52 +422,42 @@ impl Display for ParseError {
     }
 }
 
-pub fn parse_transaction(events: TXMap) -> Result<(TransactionItem, Option<ExtraTxEventData>), ParseError> {
+pub fn parse_transaction(events: TXMap) -> Result<(BaseTransaction, Option<ExtraTxEventData>), ParseError> {
     let tx = BaseTransaction::from_tx_events(events.clone()).ok_or(ParseError::MissingData)?;
-
-    let tx_item = TransactionItem {
-        height: tx.height.parse::<u64>()?,
-        tx_type: tx.message_action.clone(),
-        hash: tx.hash.clone(),
-        amount: Default::default(),
-        fee: Default::default(),
-        result: "Success".to_string(),
-        time: SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_millis() as i64,
-    };
 
     match tx.message_action.as_str() {
         "ConfirmERC20Deposit" | "ConfirmDeposit" => {
             if events.contains_key("axelar.evm.v1beta1.ConfirmDepositStarted.participants") {
                 let sp_tx = ConfirmDepositStarted::from_tx_events(events);
-                return Ok((tx_item, Some(ExtraTxEventData::NewPoll(sp_tx.into()))));
+                return Ok((tx, Some(ExtraTxEventData::NewPoll(sp_tx.into()))));
             }
         }
         "ConfirmGatewayTx" => {
             if events.contains_key("axelar.evm.v1beta1.ConfirmGatewayTxStarted.participants") {
                 let sp_tx = ConfirmGatewayTxStartedEvents::from_tx_events(events);
-                return Ok((tx_item, Some(ExtraTxEventData::NewPoll(sp_tx.into()))));
+                return Ok((tx, Some(ExtraTxEventData::NewPoll(sp_tx.into()))));
             }
         }
         "ConfirmTransferKey" => {
             if events.contains_key("axelar.evm.v1beta1.ConfirmKeyTransferStarted.participants") {
                 let sp_tx = ConfirmKeyTransferStartedEvents::from_tx_events(events);
-                return Ok((tx_item, Some(ExtraTxEventData::NewPoll(sp_tx.into()))));
+                return Ok((tx, Some(ExtraTxEventData::NewPoll(sp_tx.into()))));
             }
         }
         "/cosmos.gov.v1beta1.MsgVote" => {
             if events.contains_key("proposal_vote.option") {
                 let sp_tx = NewProposalEvent::from_tx_events(events);
-                return Ok((tx_item, Some(ExtraTxEventData::NewProposal(sp_tx))));
+                return Ok((tx, Some(ExtraTxEventData::NewProposal(sp_tx))));
             };
         }
         other => {
             if events.contains_key("axelar.vote.v1beta1.Voted.state") {
                 let sp_tx = PollVoteEvent::from_tx_events(events);
-                return Ok((tx_item, Some(ExtraTxEventData::PollVote(sp_tx))));
+                return Ok((tx, Some(ExtraTxEventData::PollVote(sp_tx))));
             }
         } // m => { if m != "RefundMsgRequest" { dbg!(m); } }
     }
-    Ok((tx_item, None))
+    Ok((tx, None))
 }
 
 impl Chain {
@@ -505,15 +548,27 @@ impl Chain {
                     let Ok((base, extra)) = parse_transaction(events) else {
                         continue
                     };
+                    tracing::info!("wss: new tx on {}", self.config.name);
 
+                    //All Tx Flow
+                    let chain = self.clone();
+                    let tx_sender_clone = tx.clone();
+                    tokio::spawn(async move {
+                        if let Ok(tx_item) = base.clone().as_tx_item(&chain).await {
+                            tx_sender_clone.send((chain.config.name.clone(), WsEvent::NewTX(tx_item.clone()))).ok();
+                            let _ = chain.database.add_transaction(tx_item.into()).await;
+                        };
+                    });
+
+                    //Axelar tx flow
                     if vec![String::from("axelar"), String::from("axelar-testnet")].contains(&self.config.name) {
                         if let Some(extra_data) = extra {
                             match extra_data {
                                 ExtraTxEventData::NewPoll(p) => {
-                                    handler.new_evm_poll_from_tx(p, base).await;
+                                    handler.new_evm_poll_from_tx(p).await;
                                 }
                                 ExtraTxEventData::PollVote(v) => {
-                                    handler.evm_poll_status_handler(v, base).await;
+                                    handler.evm_poll_status_handler(v).await;
                                 }
                                 ExtraTxEventData::NewProposal(np) => {
                                     handler.new_proposal_vote(np).await;
