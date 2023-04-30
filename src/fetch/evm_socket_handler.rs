@@ -11,10 +11,8 @@ use tokio::sync::broadcast::Sender;
 use super::{
     evm::PollStatus,
     heartbeats::HeartbeatStatus,
-    socket::{EvmPollBlockInfo, HeartbeatStateParams, NewPollEvent, NewProposalEvent, PollVoteEvent, ProposalVoteOption},
-    transactions::{
-        AxelarKnownVote, AxelarVote, InnerMessage, InnerMessageKnown, InternalTransactionContent, InternalTransactionContentKnowns, TransactionItem,
-    },
+    socket::{EvmPollBlockInfo, HeartbeatStateParams, NewPollEvent, NewProposalVoteEvent, PollVoteEvent, ProposalVoteOption},
+    transactions::{AxelarKnownVote, AxelarVote, InnerMessage, InnerMessageKnown, InternalTransactionContent, InternalTransactionContentKnowns},
 };
 
 pub struct EvmSocketHandler {
@@ -272,8 +270,8 @@ impl EvmSocketHandler {
             }
         }
     }
-    pub async fn new_proposal_vote(&self, new_proposal: NewProposalEvent) {
-        let NewProposalEvent {
+    pub async fn new_proposal_vote(&self, new_proposal: NewProposalVoteEvent) {
+        let NewProposalVoteEvent {
             vote_option,
             proposal_id,
             voter,
