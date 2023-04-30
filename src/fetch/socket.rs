@@ -308,12 +308,34 @@ impl PollVoteEvent {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct NewProposalEvent {
+    pub vote_option: ProposalVoteOption,
+    pub voter: String,
+    pub proposal_id: String,
+    pub tx_hash: String,
+}
+
+impl NewProposalEvent {
+    fn from_tx_events(ev: TXMap) -> Self {
+        let vote_option = serde_json::from_str(ev["proposal_vote.option"].get(0).unwrap()).unwrap();
+
+        Self {
+            vote_option,
+            voter: ev["message.sender"].get(0).unwrap().to_string(),
+            proposal_id: ev["proposal_vote.proposal_id"].get(0).unwrap().to_string(),
+            tx_hash: ev["tx.hash"].get(0).unwrap().to_string(),
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum ExtraTxEventData {
     ConfirmDepositStarted(ConfirmDepositStarted),
     ConfirmGatewayTxStarted(ConfirmGatewayTxStartedEvents),
     ConfirmKeyTransferStarted(ConfirmKeyTransferStartedEvents),
     NewPoll(NewPollEvent),
     PollVote(PollVoteEvent),
+    NewProposal(NewProposalEvent),
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -378,6 +400,12 @@ pub fn parse_transaction(events: TXMap) -> Result<(TransactionItem, Option<Extra
                 let sp_tx = ConfirmKeyTransferStartedEvents::from_tx_events(events);
                 return Ok((tx_item, Some(ExtraTxEventData::NewPoll(sp_tx.into()))));
             }
+        }
+        "/cosmos.gov.v1beta1.MsgVote" => {
+            if events.contains_key("proposal_vote.option") {
+                let sp_tx = NewProposalEvent::from_tx_events(events);
+                return Ok((tx_item, Some(ExtraTxEventData::NewProposal(sp_tx))));
+            };
         }
         other => {
             if events.contains_key("axelar.vote.v1beta1.Voted.state") {
@@ -487,8 +515,9 @@ impl Chain {
                                 }
                                 ExtraTxEventData::PollVote(v) => {
                                     handler.evm_poll_status_handler(v, base).await;
-
-                                    // let proposal_vote_option = serde_json::from_str(v)
+                                }
+                                ExtraTxEventData::NewProposal(np) => {
+                                    handler.new_proposal_vote(np).await;
                                 }
                                 _ => {}
                             }
@@ -820,7 +849,7 @@ pub struct ProposalVoteEvents {
     pub tx_hash: [String; 1],
 }
 
-#[derive(Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ProposalVoteOption {
     pub weight: String,
     pub option: u8,
