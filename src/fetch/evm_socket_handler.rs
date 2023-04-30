@@ -45,10 +45,7 @@ impl EvmSocketHandler {
             };
         }
     }
-    pub async fn new_evm_poll_from_tx(&self, new_poll_event: NewPollEvent, base_tx: TransactionItem) {
-        dbg!(&new_poll_event);
-
-        let evm_poll_item = match new_poll_event.get_evm_poll_item(&self.chain, base_tx).await {
+        let evm_poll_item = match new_poll_event.get_evm_poll_item(&self.chain).await {
             Ok(res) => res,
             Err(e) => {
                 tracing::error!("Could not get evm poll item {}", e);
