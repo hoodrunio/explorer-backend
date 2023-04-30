@@ -440,7 +440,6 @@ impl Chain {
         let previous_block = Mutex::new(None);
 
         let mut heartbeat_begin_height: u64 = 0;
-        let heartbeat_block_check_range = 6;
 
         while let Some(ev) = bundled.next().await {
             let Ok(ev) = ev else {
