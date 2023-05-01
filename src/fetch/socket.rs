@@ -2,7 +2,6 @@ use crate::utils::Base64Convert;
 use std::collections::BTreeMap;
 use std::fmt::{Display, Formatter};
 use std::num::ParseIntError;
-use std::str::from_utf8;
 use std::sync::Arc;
 
 use chrono::{DateTime, Utc};
