@@ -387,7 +387,7 @@ impl DatabaseTR {
     /// let validator = database.find_validator_by_hex_addr(hex_address).await;
     /// ```
     pub async fn find_validator_by_hex_addr(&self, hex_address: &str) -> Result<Validator, String> {
-        self.find_validator(doc! {"hex_address": hex_address}).await
+        self.find_validator(doc! {"hex_address": hex_address.to_ascii_uppercase()}).await
     }
 
     /// Updates validator on to the validators collection
