@@ -9,7 +9,7 @@ use mongodb::bson::doc;
 use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::Value;
 
-use crate::fetch::socket::EvmPollVote;
+use crate::fetch::chain_socket::EvmPollVote;
 use crate::{
     chain::Chain,
     routes::{calc_pages, OutRestResponse},

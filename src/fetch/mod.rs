@@ -4,6 +4,7 @@ pub mod apr;
 pub mod assets;
 pub mod blocks;
 pub mod chain;
+pub mod chain_socket;
 pub mod delegations;
 pub mod delegators;
 pub mod evm;

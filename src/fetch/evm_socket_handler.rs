@@ -9,9 +9,10 @@ use mongodb::bson::doc;
 use tokio::sync::broadcast::Sender;
 
 use super::{
+    chain_socket::{EvmPollBlockInfo, NewPollEvent, NewProposalVoteEvent, PollVoteEvent, ProposalVoteOption},
     evm::PollStatus,
     heartbeats::HeartbeatStatus,
-    socket::{EvmPollBlockInfo, HeartbeatStateParams, NewPollEvent, NewProposalVoteEvent, PollVoteEvent, ProposalVoteOption},
+    socket::HeartbeatStateParams,
     transactions::{AxelarKnownVote, AxelarVote, InnerMessage, InnerMessageKnown, InternalTransactionContent, InternalTransactionContentKnowns},
 };
 
