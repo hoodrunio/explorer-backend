@@ -173,6 +173,15 @@ impl Chain {
 
         Ok(mint_params)
     }
+
+    pub async fn get_distributor_param(&self) -> Result<DistributorParamResponse, String> {
+        let chain_name = self.config.name.clone();
+        let distributor_param = self
+            .rest_api_request::<DistributorParamResponse>(&format!("/{chain_name}/distributor/v1beta1/params"), &[])
+            .await?;
+
+        Ok(distributor_param)
+    }
 }
 
 #[derive(Deserialize, Serialize, Debug)]
@@ -297,4 +306,38 @@ pub struct EvmosInflationEpochProvisionResponse {
 pub struct EvmosInflationEpochProvision {
     pub denom: String,
     pub amount: String,
+}
+
+#[derive(Deserialize, Serialize, Debug, PartialEq)]
+pub struct DistributorParamResponse {
+    pub params: DistributorParam,
+}
+#[derive(Deserialize, Serialize, Debug, PartialEq)]
+pub struct DistributorParam {
+    pub sub_distributors: Vec<SubDistributor>,
+}
+
+#[derive(Deserialize, Serialize, Debug, PartialEq)]
+pub struct IdType {
+    pub id: String,
+    #[serde(rename = "type")]
+    pub r#type: String,
+}
+#[derive(Deserialize, Serialize, Debug, PartialEq)]
+pub struct SubDistributor {
+    pub name: String,
+    pub sources: Vec<IdType>,
+    pub destinations: DistributorDestination,
+}
+#[derive(Deserialize, Serialize, Debug, PartialEq)]
+pub struct DistributorDestination {
+    pub primary_share: IdType,
+    pub burn_share: String,
+    pub shares: Vec<DistributionShare>,
+}
+#[derive(Deserialize, Serialize, Debug, PartialEq)]
+pub struct DistributionShare {
+    pub name: String,
+    pub share: String,
+    pub destination: IdType,
 }
