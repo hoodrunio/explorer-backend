@@ -72,18 +72,6 @@ impl State {
                     tokio::time::sleep(tokio::time::Duration::from_secs(10)).await;
                 }
             });
-
-            tokio::spawn(async move {
-                loop {
-                    let chain_clone = chain_clone.clone();
-                    match chain_clone.sub_proposal_events().await {
-                        Ok(_) => tracing::info!("Stopped listening proposal ws events for {name_clone}"),
-                        Err(e) => tracing::error!("Failed listening proposal ws events for {name_clone}: {e}"),
-                    }
-
-                    tokio::time::sleep(tokio::time::Duration::from_secs(10)).await;
-                }
-            });
         });
     }
 
