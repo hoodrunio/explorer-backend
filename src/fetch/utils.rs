@@ -143,4 +143,25 @@ impl Chain {
         }))
         .await
     }
+    pub fn convert_to_evm_hex(&self, string_byte_array: &String) -> Option<String> {
+        let mut result: Option<String> = None;
+
+        if string_byte_array.is_empty() {
+            return result;
+        };
+
+        let mut prefix = String::from("0x");
+        match serde_json::from_str::<Vec<u8>>(string_byte_array) {
+            Ok(res) => {
+                let hex_res = hex::encode(res);
+                prefix.push_str(hex_res.as_str());
+                result = Some(prefix);
+            }
+            Err(_) => {
+                tracing::error!("Error while evm tx id byte array converting to hex");
+            }
+        }
+
+        result
+    }
 }
