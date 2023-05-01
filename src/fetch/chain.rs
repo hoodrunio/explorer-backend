@@ -31,7 +31,7 @@ impl Chain {
             total_bonded = result.value.bonded as f64;
         };
 
-        let total_supply = total_supply.map(|res| res.value.amount).unwrap_or(TnrDecimal::ZERO);
+        let total_supply = total_supply.map(|res| res.amount).unwrap_or(TnrDecimal::ZERO);
 
         let community_pool = community_poll.map(|res| res.value).unwrap_or(0);
         let market_history = match market_history {

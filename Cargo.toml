@@ -7,48 +7,50 @@ build = "build.rs"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-mongodb = { version = "2.3.1", default-features = false, features = [
+mongodb = { version = "2.5.0", default-features = false, features = [
     "tokio-runtime",
 ] }
 actix = "0.13.0"
 actix-cors = "0.6.4"
-actix-web = "4.2.1"
-base64 = "0.20.0"
-chrono = "0.4.23"
-futures = "0.3.25"
-futures-core = "0.3.25"
+actix-web = "4.3.1"
+base64 = "0.21.0"
+chrono = "0.4.24"
+futures = "0.3.28"
+futures-core = "0.3.28"
 hex = "0.4.3"
 pin-project-lite = "0.2.9"
-reqwest = { version = "0.11.12", features = ["json"] }
-serde = { version = "1.0.147", features = ["derive"] }
-serde_json = "1.0.87"
+reqwest = { version = "0.11.17", features = ["json"] }
+serde = { version = "1.0.160", features = ["derive"] }
+serde_json = "1.0.96"
 sha2 = "0.10.6"
-tokio = { version = "1.21.2", features = ["full"] }
+tokio = { version = "1.28.0", features = ["full"] }
 tokio-tungstenite = { version = "0.18.0", features = ["native-tls"] }
-tendermint = "0.28.0"
-cosmrs = "0.11.0"
-serde_yaml = "0.9.16"
+tendermint = "0.31.1"
+cosmrs = "0.13.0"
+serde_yaml = "0.9.21"
 tracing = "0.1.37"
-tracing-subscriber = "0.3.16"
-tracing-actix-web = "0.7.0"
-dotenvy = "0.15.6"
+tracing-subscriber = "0.3.17"
+tracing-actix-web = "0.7.4"
+dotenvy = "0.15.7"
 versions = { version = "4.1.0", features = ["serde"] }
 bech32 = "0.9.1"
 dashmap = "5.4.0"
-serde-querystring = "0.1.0"
+serde-querystring = "0.2.1"
 mongodb-cursor-pagination = { git = "https://github.com/testnetrunn/mongodb-cursor-pagination.git" }
-rust_decimal = "1.28.1"
-tonic = "0.8"
+rust_decimal = "1.29.1"
+tonic = "0.9"
 prost = "0.11"
-prost-types = "0.11.8"
-prost-wkt = "0.4.1"
-prost-wkt-types = "0.4.1"
+prost-types = "0.11.9"
+#prost-wkt = "0.4.1"
+prost-wkt = { git = "https://github.com/testnetrunn/prost-wkt" }
+#prost-wkt-types = "0.4.1"
+prost-wkt-types = { git = "https://github.com/testnetrunn/prost-wkt" }
 
 [build-dependencies]
-serde = { version = "1.0.147", features = ["derive"] }
-serde_json = "1.0.87"
-reqwest = { version = "0.11.12", features = ["json"] }
-tokio = { version = "1.21.2", features = ["full"] }
-futures = "0.3.25"
-tonic-build = "0.8"
-prost-wkt-build = "0.4"
+serde = { version = "1.0.160", features = ["derive"] }
+serde_json = "1.0.96"
+reqwest = { version = "0.11.17", features = ["json"] }
+tokio = { version = "1.28.0", features = ["full"] }
+futures = "0.3.28"
+tonic-build = "0.9"
+prost-wkt-build = { git = "https://github.com/testnetrunn/prost-wkt" }
