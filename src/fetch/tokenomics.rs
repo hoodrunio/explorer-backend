@@ -182,6 +182,24 @@ impl Chain {
 
         Ok(distributor_param)
     }
+
+    pub async fn get_share_param(&self) -> Result<TnrDecimal, String> {
+        let distributor_param = self.get_distributor_param().await?;
+        let mut share_param = TnrDecimal::from_f64(1.0).unwrap_or_default();
+        if let Some(dp) = distributor_param
+            .params
+            .sub_distributors
+            .iter()
+            .find(|sd| sd.name == "inflation_and_fee_distributor")
+        {
+            for dest in dp.destinations.shares.iter() {
+                let parsed_share = TnrDecimal::from_str_exact(&dest.share).unwrap_or_default();
+                share_param = share_param.checked_sub(parsed_share).unwrap_or_default();
+            }
+        }
+
+        Ok(share_param)
+    }
 }
 
 #[derive(Deserialize, Serialize, Debug)]
