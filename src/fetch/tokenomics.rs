@@ -108,6 +108,10 @@ impl Chain {
                 .ok_or_else(|| "Failed to parse total supply".to_string())?;
 
             Ok(annual_provision / total_supply)
+        } else if ["c4e"].contains(&chain_name) {
+            self.rest_api_request::<C4EInflationRateResp>("/c4e/minter/v1beta1/inflation", &[])
+                .await
+                .map(|res| res.inflation.parse::<f64>().unwrap_or(default_return_value))
         } else {
             self.rest_api_request::<MintingInflationResp>("/cosmos/mint/v1beta1/inflation", &[])
                 .await
@@ -181,6 +185,12 @@ pub struct MintingInflationResp {
 pub struct MintingInflationRateResp {
     /// Minting inflation rate. Eg: `"91.087708112747866100"`
     pub inflation_rate: String,
+}
+
+#[derive(Deserialize, Serialize, Debug)]
+pub struct C4EInflationRateResp {
+    /// Minting inflation rate. Eg: `"91.087708112747866100"`
+    pub inflation: String,
 }
 
 #[derive(Deserialize, Serialize, Debug)]
