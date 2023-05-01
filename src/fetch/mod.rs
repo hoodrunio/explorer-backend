@@ -19,6 +19,41 @@ pub mod tokenomics;
 pub mod transactions;
 pub mod utils;
 pub mod validators;
+
+pub mod axelar {
+    pub mod evm {
+        pub mod v1beta1 {
+            tonic::include_proto!("axelar.evm.v1beta1");
+        }
+    }
+
+    pub mod tss {
+        pub mod exported {
+            pub mod v1beta1 {
+                tonic::include_proto!("axelar.tss.exported.v1beta1");
+            }
+        }
+    }
+
+    pub mod utils {
+        pub mod v1beta1 {
+            tonic::include_proto!("axelar.utils.v1beta1");
+        }
+    }
+
+    pub mod nexus {
+        pub mod v1beta1 {
+            tonic::include_proto!("axelar.nexus.v1beta1");
+        }
+
+        pub mod exported {
+            pub mod v1beta1 {
+                tonic::include_proto!("axelar.nexus.exported.v1beta1");
+            }
+        }
+    }
+}
+
 pub mod ibc {
     pub mod core {
         pub mod client {
@@ -72,6 +107,8 @@ pub mod cosmos {
     }
 
     pub mod base {
+        use sha2::digest::typenum::op;
+
         pub mod v1beta1 {
             tonic::include_proto!("cosmos.base.v1beta1");
         }
@@ -80,7 +117,53 @@ pub mod cosmos {
                 tonic::include_proto!("cosmos.base.query.v1beta1");
             }
         }
+
+        pub mod abci {
+            pub mod v1beta1 {
+                tonic::include_proto!("cosmos.base.abci.v1beta1");
+            }
+        }
     }
+
+    pub mod staking {
+        pub mod v1beta1 {
+            tonic::include_proto!("cosmos.staking.v1beta1");
+        }
+    }
+
+    pub mod mint {
+        pub mod v1beta1 {
+            tonic::include_proto!("cosmos.mint.v1beta1");
+        }
+    }
+
+    pub mod slashing {
+        pub mod v1beta1 {
+            tonic::include_proto!("cosmos.slashing.v1beta1");
+        }
+    }
+
+    pub mod crypto {
+        pub mod multisig {
+            pub mod v1beta1 {
+                tonic::include_proto!("cosmos.crypto.multisig.v1beta1");
+            }
+        }
+    }
+
+    pub mod tx {
+        pub mod v1beta1 {
+            tonic::include_proto!("cosmos.tx.v1beta1");
+        }
+
+        pub mod signing {
+            pub mod v1beta1 {
+                tonic::include_proto!("cosmos.tx.signing.v1beta1");
+            }
+        }
+    }
+
+
 }
 
 pub mod evmos {
@@ -93,6 +176,12 @@ pub mod evmos {
     pub mod incentives {
         pub mod v1 {
             tonic::include_proto!("evmos.incentives.v1");
+        }
+    }
+
+    pub mod inflation {
+        pub mod v1 {
+            tonic::include_proto!("evmos.inflation.v1");
         }
     }
 }
@@ -164,8 +253,30 @@ pub mod lavanet {
             tonic::include_proto!("lavanet.lava.plans");
         }
 
+        pub mod projects {
+            tonic::include_proto!("lavanet.lava.projects");
+        }
+
         pub mod spec {
             tonic::include_proto!("lavanet.lava.spec");
         }
+    }
+}
+
+pub mod tendermint {
+    pub mod types {
+        tonic::include_proto!("tendermint.types");
+    }
+
+    pub mod abci {
+        tonic::include_proto!("tendermint.abci");
+    }
+
+    pub mod crypto {
+        tonic::include_proto!("tendermint.crypto");
+    }
+
+    pub mod version {
+        tonic::include_proto!("tendermint.version");
     }
 }

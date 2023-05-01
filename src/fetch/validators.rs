@@ -6,8 +6,10 @@ use mongodb::bson::doc;
 use rust_decimal::prelude::{FromPrimitive, ToPrimitive};
 use serde::{Deserialize, Serialize};
 use tokio::join;
+use tonic::transport::Endpoint;
 
 use crate::database::{ListDbResult, ValidatorForDb};
+use crate::fetch::cosmos::tx::v1beta1::OrderBy;
 use crate::fetch::transactions::{InternalTransactionContent, InternalTransactionContentKnowns};
 use crate::routes::ChainAmountItem;
 use crate::routes::{PaginationData, TNRAppError};
@@ -16,6 +18,9 @@ use crate::{
     chain::Chain,
     routes::{calc_pages, OutRestResponse},
 };
+use crate::fetch::cosmos::base::query::v1beta1::PageRequest;
+
+use crate::fetch::cosmos::slashing::v1beta1::QuerySigningInfoResponse;
 
 use super::amount_util::TnrDecimal;
 use super::delegations::SelfDelagationResp;
@@ -26,137 +31,196 @@ use super::{
 
 impl Chain {
     /// Returns the signing info by given cons address.
-    pub async fn get_validator_signing_info(&self, cons_addr: &str) -> Result<OutRestResponse<InternalSlashingSigningInfoItem>, String> {
-        let path = format!("/cosmos/slashing/v1beta1/signing_infos/{cons_addr}");
+    pub async fn get_validator_signing_info(&self, cons_addr: &str) -> Result<InternalSlashingSigningInfoItem, String> {
+        use crate::fetch::cosmos::slashing::v1beta1::{QuerySigningInfoRequest, QuerySigningInfoResponse, query_client::QueryClient};
 
-        let resp = self.rest_api_request::<SigningInfoResp>(&path, &[]).await?;
+        let endpoint = Endpoint::from_shared(self.config.grpc_url.clone().unwrap()).unwrap();
+        
+        let req = QuerySigningInfoRequest {
+            cons_address: cons_addr.to_string(),
+        };
 
-        let signing_info = resp.val_signing_info.try_into()?;
+        let resp = QueryClient::connect(endpoint)
+            .await
+            .unwrap()
+            .signing_info(req)
+            .await
+            .map_err(|e| format!("{}", e))?;
 
-        Ok(OutRestResponse::new(signing_info, 0))
+        let signing_info = resp.into_inner();
+
+        let signing_info = signing_info.try_into()?;
+
+        Ok(signing_info)
     }
 
     /// Returns the delegations to given validator address.
     pub async fn get_validator_delegations(
         &self,
         validator_addr: &str,
-        config: PaginationConfig,
-    ) -> Result<OutRestResponse<Vec<InternalDelegation>>, String> {
-        let path = format!("/cosmos/staking/v1beta1/validators/{validator_addr}/delegations");
+        config: PaginationData,
+    ) -> Result<ListDbResult<InternalDelegation>, String> {
+        use crate::fetch::cosmos::staking::v1beta1::{QueryDelegatorDelegationsRequest, QueryDelegatorDelegationsResponse, query_client::QueryClient};
+        let endpoint = Endpoint::from_shared(self.config.grpc_url.clone().unwrap()).unwrap();
 
-        let mut query = vec![];
+        let pagination = config.into();
 
-        query.push(("pagination.reverse", format!("{}", config.is_reverse())));
-        query.push(("pagination.limit", format!("{}", config.get_limit())));
-        query.push(("pagination.count_total", "true".to_string()));
-        query.push(("pagination.offset", format!("{}", config.get_offset())));
+        let req = QueryDelegatorDelegationsRequest {
+            delegator_addr: validator_addr.to_string(),
+            pagination: Some(pagination),
+        };
 
-        let resp = self.rest_api_request::<ValidatorDelegationsResp>(&path, &query).await?;
 
-        let mut delegations = vec![];
+        let resp = QueryClient::connect(endpoint)
+            .await
+            .unwrap()
+            .delegator_delegations(req)
+            .await
+            .map_err(|e| format!("{e}"))?;
 
-        for delegation in resp.delegation_responses {
-            let amount = self.string_amount_parser(delegation.balance.amount.clone(), None).await?;
-            delegations.push(InternalDelegation {
-                address: delegation.delegation.delegator_address,
+        let delegations = resp.into_inner();
+        
+        let mut int_dels = vec![];
+
+
+        for delegation in delegations.delegation_responses {
+            let amount = self.string_amount_parser(delegation.balance.unwrap().amount.clone(), None).await?;
+            int_dels.push(InternalDelegation {
+                address: delegation.delegation.unwrap().delegator_address,
                 amount,
             })
         }
 
-        let pages = calc_pages(resp.pagination, config)?;
+        let resp = ListDbResult {
+            data: int_dels,
+            pagination: delegations.pagination.map(|p| p.into()).unwrap_or_default(),
+        };
 
-        Ok(OutRestResponse::new(delegations, pages))
+        Ok(resp)
     }
 
     /// Returns the unbonding delegations to given validator address.
     pub async fn get_validator_unbondings(
         &self,
         validator_addr: &str,
-        config: PaginationConfig,
-    ) -> Result<OutRestResponse<Vec<InternalUnbonding>>, String> {
+        config: PaginationData,
+    ) -> Result<ListDbResult<InternalUnbonding>, String> {
+        use crate::fetch::cosmos::staking::v1beta1::{QueryValidatorUnbondingDelegationsRequest, QueryValidatorUnbondingDelegationsResponse, query_client::QueryClient};
+
+        let endpoint = Endpoint::from_shared(self.config.grpc_url.clone().unwrap()).unwrap();
         let path = format!("/cosmos/staking/v1beta1/validators/{validator_addr}/unbonding_delegations");
 
-        let mut query = vec![];
+        let req = QueryValidatorUnbondingDelegationsRequest {
+            validator_addr: validator_addr.to_string(),
+            pagination: Some(config.into()),
+        };
 
-        query.push(("pagination.reverse", format!("{}", config.is_reverse())));
-        query.push(("pagination.limit", format!("{}", config.get_limit())));
-        query.push(("pagination.count_total", "true".to_string()));
-        query.push(("pagination.offset", format!("{}", config.get_offset())));
+        let resp = QueryClient::connect(endpoint)
+            .await
+            .unwrap()
+            .validator_unbonding_delegations(req)
+            .await
+            .map_err(|e| format!("{}", e))?;
 
-        let resp = self.rest_api_request::<ValidatorUnbondingsResp>(&path, &query).await?;
+
+        let resp_unboundings = resp.into_inner();
 
         let mut unbondings = vec![];
 
-        for unbonding in &resp.unbonding_responses {
+        for unbonding in &resp_unboundings.unbonding_responses {
             for entry in &unbonding.entries {
                 let balance_amount = self.string_amount_parser(entry.balance.clone(), None).await?;
                 unbondings.push(InternalUnbonding {
                     address: unbonding.delegator_address.to_string(),
                     balance: balance_amount,
-                    completion_time: DateTime::parse_from_rfc3339(&entry.completion_time)
-                        .map_err(|_| format!("Cannot parse unbonding delegation completion datetime, '{}'.", entry.completion_time))?
-                        .timestamp_millis(),
+                    completion_time: &entry.completion_time.clone().ok_or("no completion time".to_string())?.nanos / 1_000_000,
+                    // completion_time: DateTime::parse_from_rfc3339(&entry.completion_time)
+                        // .map_err(|_| format!("Cannot parse unbonding delegation completion datetime, '{}'.", entry.completion_time))?
+                        // .timestamp_millis(),
                 })
             }
         }
 
-        let pages = calc_pages(resp.pagination, config)?;
+        let resp = ListDbResult {
+            data: unbondings,
+            pagination: resp_unboundings.pagination.unwrap_or_default().into(),
+        };
 
-        Ok(OutRestResponse::new(unbondings, pages))
+        Ok(resp)
     }
 
     /// Returns the redelegations to given validator address.
     pub async fn get_validator_redelegations(
         &self,
         validator_addr: &str,
-        config: PaginationConfig,
+        config: PaginationData,
         query_config: ValidatorRedelegationQuery,
-    ) -> Result<OutRestResponse<Vec<InternalRedelegation>>, String> {
-        let mut query = vec![];
+    ) -> Result<ListDbResult<InternalRedelegation>, String> {
+        use crate::fetch::cosmos::tx::v1beta1::{GetTxsEventRequest, GetBlockWithTxsResponse, service_client::ServiceClient};
+
+        let endpoint = Endpoint::from_shared(self.config.grpc_url.clone().unwrap()).unwrap();
+
+        
         let is_destination = query_config.destination.unwrap_or(false);
         let is_source = query_config.source.unwrap_or(false);
 
-        query_config.validate()?;
+        let mut events = vec![];
 
         if is_source {
-            query.push(("events", format!("redelegate.source_validator='{}'", validator_addr)));
-        };
-        if is_destination {
-            query.push(("events", format!("redelegate.destination_validator='{}'", validator_addr)));
+            events.push(format!("redelegate.source_validator='{}'", validator_addr));
         };
 
-        query.push(("message.action", "'/cosmos.staking.v1beta1.MsgBeginRedelegate'".to_string()));
-        query.push(("pagination.reverse", format!("{}", config.is_reverse())));
-        query.push(("pagination.limit", format!("{}", config.get_limit())));
-        query.push(("pagination.count_total", "true".to_string()));
-        query.push(("pagination.offset", format!("{}", config.get_offset())));
+        if is_destination {
+            events.push(format!("redelegate.destination_validator='{}'", validator_addr));
+        };
+
+        let order_by = OrderBy::Unspecified;
+
+        let limit = config.limit.unwrap_or_else(|| 50);
+        let page = config.offset.map(|o| o / limit).unwrap_or_else(|| 1);
+        let req = GetTxsEventRequest {
+            events,
+            pagination: None,
+            order_by: todo!(),
+            page,
+            limit,
+            query: todo!(),
+        };
+
+
+
+        // query.push(("message.action", "'/cosmos.staking.v1beta1.MsgBeginRedelegate'".to_string()));
 
         let order_by_black_list = vec!["evmos", "umee", "kyve", "quicksilver"];
 
         if !order_by_black_list.contains(&self.config.name.as_str()) {
-            query.push(("order_by", "ORDER_BY_DESC".to_string()));
+            // query.push(("order_by", "ORDER_BY_DESC".to_string()));
         };
 
-        let resp = self.rest_api_request::<TxsResp>("/cosmos/tx/v1beta1/txs", &query).await?;
+        // let resp = self.rest_api_request::<TxsResp>("/cosmos/tx/v1beta1/txs", &query).await?;
 
-        let mut redelegations = vec![];
+        let mut redelegations: Vec<InternalRedelegation> = vec![];
 
-        for i in 0..resp.txs.len() {
-            let (tx, tx_response) = (
-                resp.txs
-                    .get(i)
-                    .ok_or_else(|| "The count of transactions and transaction responses aren't the same.".to_string())?,
-                resp.tx_responses
-                    .get(i)
-                    .ok_or_else(|| "The count of transactions and transaction responses aren't the same.".to_string())?,
-            );
+        // for i in 0..resp.txs.len() {
+        //     let (tx, tx_response) = (
+        //         resp.txs
+        //             .get(i)
+        //             .ok_or_else(|| "The count of transactions and transaction responses aren't the same.".to_string())?,
+        //         resp.tx_responses
+        //             .get(i)
+        //             .ok_or_else(|| "The count of transactions and transaction responses aren't the same.".to_string())?,
+        //     );
+        //
+        //     redelegations.push(InternalRedelegation::new(tx, tx_response, self).await?)
+        // }
 
-            redelegations.push(InternalRedelegation::new(tx, tx_response, self).await?)
-        }
+        // let pages = calc_pages(resp.pagination.unwrap_or(Pagination::default()), config)?;
 
-        let pages = calc_pages(resp.pagination.unwrap_or(Pagination::default()), config)?;
-
-        Ok(OutRestResponse::new(redelegations, pages))
+        Ok(ListDbResult {
+            data: vec![],
+            pagination: Default::default(),
+        })
+        // Ok(OutRestResponse::new(redelegations, pages))
     }
 
     /// Returns validator info by given validator address.
@@ -419,7 +483,7 @@ impl Chain {
 
         let (val_signing_info_resp, slashing_params) = join!(self.get_validator_signing_info(consensus_address), self.get_slashing_params());
 
-        let val_signing_info = val_signing_info_resp?.value;
+        let val_signing_info = val_signing_info_resp?;
         let slashing_params = slashing_params?.value;
 
         Ok(1.0 - (val_signing_info.missed_blocks_counter as f64 / slashing_params.signed_blocks_window as f64))
@@ -432,7 +496,7 @@ impl Chain {
             ValidatorStatus::Jailed
         } else if validator.status == "BOND_STATUS_UNBONDED" {
             ValidatorStatus::Inactive
-        } else if signing_info.value.tombstoned {
+        } else if signing_info.tombstoned {
             ValidatorStatus::Tombstoned
         } else {
             ValidatorStatus::Active
@@ -543,7 +607,7 @@ pub struct ValidatorSetPubKey {
 pub struct InternalUnbonding {
     pub address: String,
     pub balance: ChainAmountItem,
-    pub completion_time: i64,
+    pub completion_time: i32,
 }
 
 #[derive(Deserialize, Serialize, Debug)]
@@ -927,38 +991,29 @@ pub struct InternalSlashingSigningInfoItem {
     /// Validator address. Eg: `"evmosvalcons1qx4hehfny66jfzymzn6d5t38m0ely3cvw6zn06"`
     pub address: String,
     /// The block height slashing is started at. Eg: `0`
-    pub start_height: u64,
+    pub start_height: i64,
     /// Unknown. Eg: `5888077`
-    pub index_offset: u64,
+    pub index_offset: i64,
     /// The timestamp in milliseconds jailed until.
     pub jailed_until: i64,
     /// Tombstoned state. Eg: `false`
     pub tombstoned: bool,
     /// The count of missed blocks. Eg: `16433`
-    pub missed_blocks_counter: u64,
+    pub missed_blocks_counter: i64,
 }
 
-impl TryFrom<SlashingSigningInfoItem> for InternalSlashingSigningInfoItem {
+
+impl TryFrom<QuerySigningInfoResponse> for InternalSlashingSigningInfoItem {
     type Error = String;
-    fn try_from(value: SlashingSigningInfoItem) -> Result<Self, Self::Error> {
+    fn try_from(value: QuerySigningInfoResponse) -> Result<Self, Self::Error> {
+        let value = value.val_signing_info.unwrap();
         Ok(Self {
             address: value.address,
-            start_height: value
-                .start_height
-                .parse()
-                .map_err(|_| format!("Cannot parse slashing start height, `{}`.", value.start_height))?,
-            index_offset: value
-                .start_height
-                .parse()
-                .map_err(|_| format!("Cannot parse slashing index offset, `{}`.", value.index_offset))?,
-            jailed_until: DateTime::parse_from_rfc3339(&value.jailed_until)
-                .map_err(|_| format!("Cannot parse jailed untile datetime, '{}'", value.jailed_until))?
-                .timestamp_millis(),
+            start_height: value.start_height,
+            index_offset: value.start_height,
+            jailed_until: value.jailed_until.map(|ju| ju.nanos / 1_000_0000).ok_or_else(|| "Cannot parse jailed until datetime")?.into(),
             tombstoned: value.tombstoned,
-            missed_blocks_counter: value
-                .missed_blocks_counter
-                .parse()
-                .map_err(|_| format!("Cannot parse missed blocks counter, `{}`.", value.missed_blocks_counter))?,
+            missed_blocks_counter: value.missed_blocks_counter
         })
     }
 }

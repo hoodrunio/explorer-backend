@@ -4,7 +4,7 @@ use actix_web::{
     Responder,
 };
 
-use crate::routes::{extract_chain, TNRAppError, TNRAppSuccessResponse};
+use crate::routes::{extract_chain, PaginationData, TNRAppError, TNRAppSuccessResponse};
 use crate::{fetch::others::PaginationConfig, state::State};
 
 use super::QueryParams;
@@ -20,13 +20,12 @@ pub async fn supply(path: Path<(String, String)>, chains: Data<State>) -> Result
 }
 
 #[get("{chain}/supplies")]
-pub async fn supplies(path: Path<String>, chains: Data<State>, query: Query<QueryParams>) -> Result<impl Responder, TNRAppError> {
+pub async fn supplies(path: Path<String>, chains: Data<State>, query: Query<PaginationData>) -> Result<impl Responder, TNRAppError> {
     let chain = path.into_inner();
 
-    let config = PaginationConfig::new().limit(60).page(query.page.unwrap_or(1));
     let chain = extract_chain(&chain, chains)?;
-    let data = chain.get_supply_of_all_tokens(config).await?;
-    Ok(TNRAppSuccessResponse::new(data, None))
+    let data = chain.get_supply_of_all_tokens(query.into_inner()).await?;
+    Ok(TNRAppSuccessResponse::from(data))
 }
 
 #[get("{chain}/inflation")]

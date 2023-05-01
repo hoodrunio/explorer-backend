@@ -36,7 +36,12 @@ pub async fn validator_delegations(
 ) -> Result<impl Responder, TNRAppError> {
     let (chain, validator_addr) = path.into_inner();
 
-    let config = PaginationConfig::new().limit(6).page(query.page.unwrap_or(1));
+    let config = PaginationData {
+        cursor: None,
+        offset: None,
+        limit: Some(6),
+        direction: None,
+    };
 
     let chain = extract_chain(&chain, chains)?;
     let data = chain.get_validator_delegations(&validator_addr, config).await?;
@@ -51,7 +56,12 @@ pub async fn validator_unbondings(
 ) -> Result<impl Responder, TNRAppError> {
     let (chain, validator_addr) = path.into_inner();
 
-    let config = PaginationConfig::new().limit(6).page(query.page.unwrap_or(1));
+    let config = PaginationData {
+        cursor: None,
+        offset: None,
+        limit: Some(6),
+        direction: None,
+    };
 
     let chain = extract_chain(&chain, chains)?;
     let data = chain.get_validator_unbondings(&validator_addr, config).await?;
@@ -66,7 +76,12 @@ pub async fn validator_redelegations(
 ) -> Result<impl Responder, TNRAppError> {
     let (chain, validator_addr) = path.into_inner();
 
-    let config = PaginationConfig::new().limit(query.limit.unwrap_or(10)).page(query.page.unwrap_or(1));
+    let config = PaginationData {
+        cursor: None,
+        offset: None,
+        limit: Some(6),
+        direction: None,
+    };
 
     let chain = extract_chain(&chain, chains)?;
     let query_config = ValidatorRedelegationQuery {

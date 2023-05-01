@@ -83,7 +83,7 @@ impl Chain {
                 "c4e" => {
                     let (total_supply_res, share_param_res) = join!(self.get_supply_by_denom(&self.config.main_denom), self.get_share_param());
                     let inflation = TnrDecimal::from_f64(inflation).unwrap_or_default();
-                    let total_supply = total_supply_res?.value.amount;
+                    let total_supply = total_supply_res?.amount;
                     let bonded_token_amount = TnrDecimal::from_f64(bonded_token_amount).unwrap_or_default();
                     let share_param = share_param_res?;
 
