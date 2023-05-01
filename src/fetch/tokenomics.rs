@@ -108,6 +108,10 @@ impl Chain {
                 .ok_or_else(|| "Failed to parse total supply".to_string())?;
 
             Ok(annual_provision / total_supply)
+        } else if ["c4e"].contains(&chain_name) {
+            self.rest_api_request::<C4EInflationRateResp>("/c4e/minter/v1beta1/inflation", &[])
+                .await
+                .map(|res| res.inflation.parse::<f64>().unwrap_or(default_return_value))
         } else {
             self.rest_api_request::<MintingInflationResp>("/cosmos/mint/v1beta1/inflation", &[])
                 .await
@@ -169,6 +173,33 @@ impl Chain {
 
         Ok(mint_params)
     }
+
+    pub async fn get_distributor_param(&self) -> Result<DistributorParamResponse, String> {
+        let chain_name = self.config.name.clone();
+        let distributor_param = self
+            .rest_api_request::<DistributorParamResponse>(&format!("/{chain_name}/distributor/v1beta1/params"), &[])
+            .await?;
+
+        Ok(distributor_param)
+    }
+
+    pub async fn get_share_param(&self) -> Result<TnrDecimal, String> {
+        let distributor_param = self.get_distributor_param().await?;
+        let mut share_param = TnrDecimal::from_f64(1.0).unwrap_or_default();
+        if let Some(dp) = distributor_param
+            .params
+            .sub_distributors
+            .iter()
+            .find(|sd| sd.name == "inflation_and_fee_distributor")
+        {
+            for dest in dp.destinations.shares.iter() {
+                let parsed_share = TnrDecimal::from_str_exact(&dest.share).unwrap_or_default();
+                share_param = share_param.checked_sub(parsed_share).unwrap_or_default();
+            }
+        }
+
+        Ok(share_param)
+    }
 }
 
 #[derive(Deserialize, Serialize, Debug)]
@@ -181,6 +212,12 @@ pub struct MintingInflationResp {
 pub struct MintingInflationRateResp {
     /// Minting inflation rate. Eg: `"91.087708112747866100"`
     pub inflation_rate: String,
+}
+
+#[derive(Deserialize, Serialize, Debug)]
+pub struct C4EInflationRateResp {
+    /// Minting inflation rate. Eg: `"91.087708112747866100"`
+    pub inflation: String,
 }
 
 #[derive(Deserialize, Serialize, Debug)]
@@ -287,4 +324,38 @@ pub struct EvmosInflationEpochProvisionResponse {
 pub struct EvmosInflationEpochProvision {
     pub denom: String,
     pub amount: String,
+}
+
+#[derive(Deserialize, Serialize, Debug, PartialEq)]
+pub struct DistributorParamResponse {
+    pub params: DistributorParam,
+}
+#[derive(Deserialize, Serialize, Debug, PartialEq)]
+pub struct DistributorParam {
+    pub sub_distributors: Vec<SubDistributor>,
+}
+
+#[derive(Deserialize, Serialize, Debug, PartialEq)]
+pub struct IdType {
+    pub id: String,
+    #[serde(rename = "type")]
+    pub r#type: String,
+}
+#[derive(Deserialize, Serialize, Debug, PartialEq)]
+pub struct SubDistributor {
+    pub name: String,
+    pub sources: Vec<IdType>,
+    pub destinations: DistributorDestination,
+}
+#[derive(Deserialize, Serialize, Debug, PartialEq)]
+pub struct DistributorDestination {
+    pub primary_share: IdType,
+    pub burn_share: String,
+    pub shares: Vec<DistributionShare>,
+}
+#[derive(Deserialize, Serialize, Debug, PartialEq)]
+pub struct DistributionShare {
+    pub name: String,
+    pub share: String,
+    pub destination: IdType,
 }
