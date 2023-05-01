@@ -81,10 +81,11 @@ impl Chain {
                     Ok((inflation * (1.0 - community_tax)) / bonded_token_amount)
                 }
                 "c4e" => {
+                    let (total_supply_res, share_param_res) = join!(self.get_supply_by_denom(&self.config.main_denom), self.get_share_param());
                     let inflation = TnrDecimal::from_f64(inflation).unwrap_or_default();
-                    let total_supply = self.get_supply_by_denom(&self.config.main_denom).await?.value.amount;
+                    let total_supply = total_supply_res?.value.amount;
                     let bonded_token_amount = TnrDecimal::from_f64(bonded_token_amount).unwrap_or_default();
-                    let share_param = TnrDecimal::from_f64(1.0).unwrap_or_default();
+                    let share_param = share_param_res?;
 
                     Ok(inflation
                         .mul(total_supply)
