@@ -2,15 +2,18 @@ use crate::utils::Base64Convert;
 use std::collections::BTreeMap;
 use std::fmt::{Display, Formatter};
 use std::num::ParseIntError;
+use std::str::from_utf8;
 use std::sync::Arc;
-use std::time::{SystemTime, UNIX_EPOCH};
 
 use chrono::{DateTime, Utc};
 use futures::future::join_all;
 use futures::stream::select;
-use futures::{SinkExt, StreamExt};
+use futures::SinkExt;
+use futures::StreamExt;
 use mongodb::bson::doc;
 use serde::{Deserialize, Serialize};
+use tendermint::block::commit_sig::CommitSig;
+use tendermint::{Block, Time};
 use tendermint_rpc::event::EventData;
 use tendermint_rpc::query::EventType;
 use tendermint_rpc::{SubscriptionClient, WebSocketClient};
@@ -21,12 +24,12 @@ use tokio_tungstenite::{connect_async, tungstenite::Message};
 use crate::chain::Chain;
 use crate::database::{BlockForDb, DatabaseTR, EvmPollForDb, EvmPollParticipantForDb, ProposalVoteForDb, ProposalVoteOptionForDb};
 use crate::events::WsEvent;
-use crate::fetch::blocks::{Block, CosmosEvent, ResultBeginBlock, ResultEndBlock};
+use crate::fetch::blocks::{CosmosEvent, ResultBeginBlock, ResultEndBlock};
 use crate::fetch::evm::PollStatus;
 use crate::fetch::transactions::InternalTransaction;
 use crate::routes::TNRAppError;
 
-use super::blocks::CosmosEventAttribute;
+use super::blocks::{BlockLastCommitSignatures, CosmosEventAttribute};
 use super::evm_socket_handler::EvmSocketHandler;
 use super::{blocks::BlockHeader, transactions::TransactionItem};
 
@@ -480,7 +483,7 @@ impl Chain {
 
         let mut bundled = select(txs, blocks);
 
-        let previous_block = Mutex::new(None);
+        let previous_block_header_resp: Arc<Mutex<Option<Block>>> = Arc::new(Mutex::new(None));
 
         let mut heartbeat_begin_height: u64 = 0;
 
@@ -501,6 +504,7 @@ impl Chain {
                     let (Some(block), Some(result_begin_block), Some(result_end_block)) = (block, result_begin_block, result_end_block) else {
                         continue
                     };
+                    tracing::info!("wss: new block on {}", self.config.name);
 
                     if vec![String::from("axelar"), String::from("axelar-testnet")].contains(&self.config.name) {
                         let is_hearbeat_begin = result_end_block.clone().events.iter().any(|e| e.kind == "heartbeat");
@@ -535,14 +539,80 @@ impl Chain {
                         handler.new_evm_poll_from_block(evm_poll_block_info).await;
                     }
 
-                    let mut prev_block = previous_block.lock().await;
+                    let mut mutex_previous_resp = previous_block_header_resp.lock().await;
+                    match mutex_previous_resp.as_ref() {
+                        Some(previous_resp) => {
+                            let hex_res = hex::encode(previous_resp.header.proposer_address.as_bytes());
 
-                    match prev_block.as_ref() {
-                        Some(prev) => {
-                            // let proposer = self.database.find_validator_by_hex_addr(prev.header)
+                            let proposer_metadata = self
+                                .database
+                                .find_validator_by_hex_addr(&hex_res)
+                                .await
+                                .map_err(|e| format!("block+ error: {e}"))?;
+
+                            let prev_header = &previous_resp.header;
+                            let current_heder = &block.header;
+                            let signatures: Vec<BlockLastCommitSignatures> = block.last_commit().as_ref().map_or_else(Vec::new, |c| {
+                                c.signatures
+                                    .iter()
+                                    .map(|cs| {
+                                        let (block_id_flag, validator_address, timestamp, signature) = match cs {
+                                            CommitSig::BlockIdFlagAbsent => (0, String::from(""), Time::now().to_rfc3339(), None),
+                                            CommitSig::BlockIdFlagCommit {
+                                                validator_address,
+                                                timestamp,
+                                                signature,
+                                            } => (
+                                                1,
+                                                validator_address.to_string(),
+                                                timestamp.to_rfc3339(),
+                                                signature.as_ref().map(|s| base64::encode(s.as_bytes())),
+                                            ),
+                                            CommitSig::BlockIdFlagNil {
+                                                validator_address,
+                                                timestamp,
+                                                signature,
+                                            } => (
+                                                2,
+                                                validator_address.to_string(),
+                                                timestamp.to_rfc3339(),
+                                                signature.as_ref().map(|s| base64::encode(s.as_bytes())),
+                                            ),
+                                        };
+
+                                        BlockLastCommitSignatures {
+                                            block_id_flag,
+                                            validator_address,
+                                            timestamp,
+                                            signature,
+                                        }
+                                    })
+                                    .collect::<Vec<BlockLastCommitSignatures>>()
+                            });
+
+                            let block_item = BlockForDb {
+                                hash: current_heder.last_block_id.map(|id| id.hash.to_string()).unwrap_or_default(),
+                                height: prev_header.height.value(),
+                                timestamp: DateTime::parse_from_rfc3339(&prev_header.time.to_rfc3339())
+                                    .map(|dt| dt.timestamp_millis())
+                                    .unwrap_or_default(),
+                                tx_count: previous_resp.data.len() as u64,
+                                proposer_logo_url: proposer_metadata.logo_url,
+                                proposer_name: proposer_metadata.name,
+                                proposer_address: proposer_metadata.operator_address,
+                                signatures,
+                            };
+
+                            tx.send((self.config.name.clone(), WsEvent::NewBLock(block_item.clone()))).ok();
+
+                            if let Err(e) = self.database.upsert_block(block_item).await {
+                                tracing::error!("Error saving block to the database: {e} ")
+                            }
+
+                            *mutex_previous_resp = Some(block);
                         }
-                        None => *prev_block = Some(block),
-                    }
+                        None => *mutex_previous_resp = Some(block),
+                    };
                 }
                 EventData::Tx { tx_result } => {
                     let Ok((base, extra)) = parse_transaction(events) else {
@@ -584,135 +654,135 @@ impl Chain {
         Ok(())
     }
     /// Subscribes to all the events.
-    pub async fn subscribe_to_events(&self, tx: Sender<(String, WsEvent)>) -> Result<(), String> {
-        // Define the URL.
-        let clone = self.clone();
-        let chain_name = clone.config.name.clone();
-        let url = &clone.config.wss_url;
+    // pub async fn subscribe_to_events(&self, tx: Sender<(String, WsEvent)>) -> Result<(), String> {
+    //     // Define the URL.
+    //     let clone = self.clone();
+    //     let chain_name = clone.config.name.clone();
+    //     let url = &clone.config.wss_url;
 
-        // Connect to the `wss://` URL.
-        let (ws_stream, _) = connect_async(url).await.map_err(|e| format!("Failed to connect to {url}: {e}"))?;
+    //     // Connect to the `wss://` URL.
+    //     let (ws_stream, _) = connect_async(url).await.map_err(|e| format!("Failed to connect to {url}: {e}"))?;
 
-        // Split the connection into two parts.
-        let (mut write, mut read) = ws_stream.split();
+    //     // Split the connection into two parts.
+    //     let (mut write, mut read) = ws_stream.split();
 
-        let events = vec![
-            SUBSCRIBE_BLOCK, // SUBSCRIBE_HEADER
-            SUBSCRIBE_TX,
-        ];
+    //     let events = vec![
+    //         SUBSCRIBE_BLOCK, // SUBSCRIBE_HEADER
+    //         SUBSCRIBE_TX,
+    //     ];
 
-        // Subscribe to txs which are related with chain.
-        for event in events {
-            write
-                .send(event.into())
-                .await
-                .map_err(|e| format!("Can't subscribe to confirm {} for {}: {e}", event, chain_name))?;
-        }
+    //     // Subscribe to txs which are related with chain.
+    //     for event in events {
+    //         write
+    //             .send(event.into())
+    //             .await
+    //             .map_err(|e| format!("Can't subscribe to confirm {} for {}: {e}", event, chain_name))?;
+    //     }
 
-        // The variable to hold the previous block header response to have block hash value.
-        let previous_block_header_resp: Arc<Mutex<Option<NewBlockValue>>> = Arc::new(Mutex::new(None));
+    //     // The variable to hold the previous block header response to have block hash value.
+    //     let previous_block_header_resp: Arc<Mutex<Option<NewBlockValue>>> = Arc::new(Mutex::new(None));
 
-        while let Some(msg) = read.next().await {
-            // Run the function below for each message received.
-            if let Ok(Message::Text(msg)) = msg {
-                match serde_json::from_str::<SocketMessage>(&msg) {
-                    Ok(msg) => match msg.result {
-                        SocketResult::NonEmpty(SocketResultNonEmpty::Tx { events }) => {
-                            tracing::info!("wss: new tx on {}", clone.config.name);
-                            let tx_fee_denom = events.tx_fee[0].clone();
+    //     while let Some(msg) = read.next().await {
+    //         // Run the function below for each message received.
+    //         if let Ok(Message::Text(msg)) = msg {
+    //             match serde_json::from_str::<SocketMessage>(&msg) {
+    //                 Ok(msg) => match msg.result {
+    //                     SocketResult::NonEmpty(SocketResultNonEmpty::Tx { events }) => {
+    //                         tracing::info!("wss: new tx on {}", clone.config.name);
+    //                         let tx_fee_denom = events.tx_fee[0].clone();
 
-                            let tx_item = TransactionItem {
-                                amount: clone
-                                    .string_amount_parser(
-                                        events
-                                            .transfer_amount
-                                            .iter()
-                                            .filter(|str| str.to_string() != tx_fee_denom)
-                                            .map(String::from)
-                                            .collect::<Vec<String>>()
-                                            .get(0)
-                                            .map(|amount| amount.replace(clone.config.main_denom.as_str(), ""))
-                                            .unwrap_or(String::from("0.00"))
-                                            .clone(),
-                                        None,
-                                    )
-                                    .await?,
-                                fee: clone
-                                    .string_amount_parser(tx_fee_denom.replace(clone.config.main_denom.as_str(), "").clone(), None)
-                                    .await?,
-                                hash: events.tx_hash[0].clone(),
-                                height: events.tx_height[0]
-                                    .parse::<u64>()
-                                    .map_err(|e| format!("Cannot parse tx height {}: {e}", events.tx_height[0]))?,
-                                time: std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_millis() as i64,
-                                result: "Success".to_string(),
-                                tx_type: events.message_action[0]
-                                    .split_once("Msg")
-                                    .map(|(_, r)| r)
-                                    .unwrap_or(events.message_action[0].split('.').last().unwrap_or("Unknown"))
-                                    .to_string(),
-                            };
+    //                         let tx_item = TransactionItem {
+    //                             amount: clone
+    //                                 .string_amount_parser(
+    //                                     events
+    //                                         .transfer_amount
+    //                                         .iter()
+    //                                         .filter(|str| str.to_string() != tx_fee_denom)
+    //                                         .map(String::from)
+    //                                         .collect::<Vec<String>>()
+    //                                         .get(0)
+    //                                         .map(|amount| amount.replace(clone.config.main_denom.as_str(), ""))
+    //                                         .unwrap_or(String::from("0.00"))
+    //                                         .clone(),
+    //                                     None,
+    //                                 )
+    //                                 .await?,
+    //                             fee: clone
+    //                                 .string_amount_parser(tx_fee_denom.replace(clone.config.main_denom.as_str(), "").clone(), None)
+    //                                 .await?,
+    //                             hash: events.tx_hash[0].clone(),
+    //                             height: events.tx_height[0]
+    //                                 .parse::<u64>()
+    //                                 .map_err(|e| format!("Cannot parse tx height {}: {e}", events.tx_height[0]))?,
+    //                             time: std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_millis() as i64,
+    //                             result: "Success".to_string(),
+    //                             tx_type: events.message_action[0]
+    //                                 .split_once("Msg")
+    //                                 .map(|(_, r)| r)
+    //                                 .unwrap_or(events.message_action[0].split('.').last().unwrap_or("Unknown"))
+    //                                 .to_string(),
+    //                         };
 
-                            tx.send((self.config.name.clone(), WsEvent::NewTX(tx_item.clone()))).ok();
-                            let _ = self.database.add_transaction(tx_item.into()).await;
-                        }
-                        SocketResult::NonEmpty(SocketResultNonEmpty::Block { data }) => {
-                            tracing::info!("wss: new block on {}", clone.config.name);
-                            let data = data;
-                            let current_resp = data.value;
+    //                         tx.send((self.config.name.clone(), WsEvent::NewTX(tx_item.clone()))).ok();
+    //                         let _ = self.database.add_transaction(tx_item.into()).await;
+    //                     }
+    //                     SocketResult::NonEmpty(SocketResultNonEmpty::Block { data }) => {
+    //                         tracing::info!("wss: new block on {}", clone.config.name);
+    //                         let data = data;
+    //                         let current_resp = data.value;
 
-                            let mut mutex_previous_resp = previous_block_header_resp.lock().await;
-                            match mutex_previous_resp.as_ref() {
-                                Some(previous_resp) => {
-                                    let proposer_metadata = self
-                                        .database
-                                        .find_validator_by_hex_addr(&previous_resp.block.header.proposer_address.clone())
-                                        .await
-                                        .map_err(|e| format!("block+ error: {e}"))?;
+    //                         let mut mutex_previous_resp = previous_block_header_resp.lock().await;
+    //                         match mutex_previous_resp.as_ref() {
+    //                             Some(previous_resp) => {
+    //                                 let proposer_metadata = self
+    //                                     .database
+    //                                     .find_validator_by_hex_addr(&previous_resp.block.header.proposer_address.clone())
+    //                                     .await
+    //                                     .map_err(|e| format!("block+ error: {e}"))?;
 
-                                    let prev_block_data = &previous_resp.block;
-                                    let current_block_data = &current_resp.block;
+    //                                 let prev_block_data = &previous_resp.block;
+    //                                 let current_block_data = &current_resp.block;
 
-                                    let block_item = BlockForDb {
-                                        hash: current_block_data.header.last_block_id.hash.clone(),
-                                        height: prev_block_data
-                                            .header
-                                            .height
-                                            .parse::<u64>()
-                                            .map_err(|e| format!("Cannot parse block height, {}: {e}", prev_block_data.header.height))?,
-                                        timestamp: DateTime::parse_from_rfc3339(&prev_block_data.header.time)
-                                            .map(|d| d.timestamp_millis())
-                                            .map_err(|_e| format!("Cannot parse datetime, {}: e", prev_block_data.header.time))?,
-                                        tx_count: prev_block_data.data.txs.len() as u64,
-                                        proposer_logo_url: proposer_metadata.logo_url,
-                                        proposer_name: proposer_metadata.name,
-                                        proposer_address: proposer_metadata.operator_address,
-                                        signatures: current_block_data.last_commit.signatures.clone(),
-                                    };
+    //                                 let block_item = BlockForDb {
+    //                                     hash: current_block_data.header.last_block_id.hash.clone(),
+    //                                     height: prev_block_data
+    //                                         .header
+    //                                         .height
+    //                                         .parse::<u64>()
+    //                                         .map_err(|e| format!("Cannot parse block height, {}: {e}", prev_block_data.header.height))?,
+    //                                     timestamp: DateTime::parse_from_rfc3339(&prev_block_data.header.time)
+    //                                         .map(|d| d.timestamp_millis())
+    //                                         .map_err(|_e| format!("Cannot parse datetime, {}: e", prev_block_data.header.time))?,
+    //                                     tx_count: prev_block_data.data.txs.len() as u64,
+    //                                     proposer_logo_url: proposer_metadata.logo_url,
+    //                                     proposer_name: proposer_metadata.name,
+    //                                     proposer_address: proposer_metadata.operator_address,
+    //                                     signatures: current_block_data.last_commit.signatures.clone(),
+    //                                 };
 
-                                    tx.send((self.config.name.clone(), WsEvent::NewBLock(block_item.clone()))).ok();
+    //                                 tx.send((self.config.name.clone(), WsEvent::NewBLock(block_item.clone()))).ok();
 
-                                    if let Err(e) = self.database.upsert_block(block_item).await {
-                                        tracing::error!("Error saving block to the database: {e} ")
-                                    }
+    //                                 if let Err(e) = self.database.upsert_block(block_item).await {
+    //                                     tracing::error!("Error saving block to the database: {e} ")
+    //                                 }
 
-                                    *mutex_previous_resp = Some(current_resp);
-                                }
-                                None => *mutex_previous_resp = Some(current_resp),
-                            }
-                        }
-                        SocketResult::Empty {} => (),
-                        _ => {}
-                    },
-                    Err(error) => tracing::info!("Websocket JSON parse error for {}: {error}", clone.config.name),
-                }
-            } else if let Err(e) = msg {
-                return Err(format!("Websocket error for {}: {}", clone.config.name, e));
-            }
-        }
+    //                                 *mutex_previous_resp = Some(current_resp);
+    //                             }
+    //                             None => *mutex_previous_resp = Some(current_resp),
+    //                         }
+    //                     }
+    //                     SocketResult::Empty {} => (),
+    //                     _ => {}
+    //                 },
+    //                 Err(error) => tracing::info!("Websocket JSON parse error for {}: {error}", clone.config.name),
+    //             }
+    //         } else if let Err(e) = msg {
+    //             return Err(format!("Websocket error for {}: {}", clone.config.name, e));
+    //         }
+    //     }
 
-        Ok(())
-    }
+    //     Ok(())
+    // }
 
     pub async fn sub_proposal_events(&self) -> Result<(), String> {
         let clone = self.clone();
