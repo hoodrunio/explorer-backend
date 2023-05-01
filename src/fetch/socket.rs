@@ -403,7 +403,7 @@ pub fn parse_transaction(events: TXMap) -> Result<(BaseTransaction, Option<Extra
                 return Ok((tx, Some(ExtraTxEventData::NewProposalVote(sp_tx))));
             };
         }
-        other => {
+        _other => {
             if events.contains_key("axelar.vote.v1beta1.Voted.state") {
                 let sp_tx = PollVoteEvent::from_tx_events(events);
                 return Ok((tx, Some(ExtraTxEventData::PollVote(sp_tx))));
@@ -419,14 +419,14 @@ impl Chain {
             .await
             .map_err(|e| format!("Failed to connect to the websocket endpoint: {e}"))?;
 
-        let driver_handle = tokio::spawn(async move { driver.run().await });
+        tokio::spawn(async move { driver.run().await });
 
-        let mut txs = client
+        let txs = client
             .subscribe(EventType::Tx.into())
             .await
             .map_err(|e| format!("Failed to subscribe to new transactions: {e}"))?;
 
-        let mut blocks = client
+        let blocks = client
             .subscribe(EventType::NewBlock.into())
             .await
             .map_err(|e| format!("Failed to subscribe to new blocks: {e}"))?;
@@ -451,7 +451,7 @@ impl Chain {
                     result_begin_block,
                     result_end_block,
                 } => {
-                    let (Some(block), Some(result_begin_block), Some(result_end_block)) = (block, result_begin_block, result_end_block) else {
+                    let (Some(block), Some(_), Some(result_end_block)) = (block, result_begin_block, result_end_block) else {
                         continue
                     };
                     tracing::info!("wss: new block on {}", self.config.name);
@@ -564,7 +564,7 @@ impl Chain {
                         None => *mutex_previous_resp = Some(block),
                     };
                 }
-                EventData::Tx { tx_result } => {
+                EventData::Tx { .. } => {
                     let Ok((base, extra)) = parse_transaction(events) else {
                         continue
                     };

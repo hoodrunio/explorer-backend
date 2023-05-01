@@ -60,8 +60,7 @@ impl State {
     pub async fn subscribe_to_events(&self, tx: Sender<(String, WsEvent)>) {
         self.chains.clone().into_iter().for_each(|(name, chain)| {
             let tx = tx.clone();
-            let chain_clone = chain.clone();
-            let name_clone = name.clone();
+
             tokio::spawn(async move {
                 loop {
                     let tx_clone = tx.clone();
