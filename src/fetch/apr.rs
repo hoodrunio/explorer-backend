@@ -1,3 +1,5 @@
+use std::ops::{Div, Mul};
+
 use rust_decimal::prelude::{FromPrimitive, ToPrimitive};
 use serde::{Deserialize, Serialize};
 use tokio::join;
@@ -67,14 +69,29 @@ impl Chain {
                 chain_name => Err(format!("APR for {chain_name} is not implemented.")),
             }
         } else {
-            let (params_all_res, staking_pool_res) = join!(self.get_params_all(), self.get_staking_pool());
+            let (params_all_res, staking_pool_res, inflation_rate_res) =
+                join!(self.get_params_all(), self.get_staking_pool(), self.get_inflation_rate());
+
+            let inflation = inflation_rate_res?;
             let bonded_token_amount = staking_pool_res?.value.bonded as f64;
             let community_tax = params_all_res?.value.distribution.community_tax;
             match self.config.name.as_str() {
                 "axelar" => {
-                    let inflation = self.get_inflation_rate().await?;
                     let bonded_token_amount = bonded_token_amount / 1000000000.0;
                     Ok((inflation * (1.0 - community_tax)) / bonded_token_amount)
+                }
+                "c4e" => {
+                    let inflation = TnrDecimal::from_f64(inflation).unwrap_or_default();
+                    let total_supply = self.get_supply_by_denom(&self.config.main_denom).await?.value.amount;
+                    let bonded_token_amount = TnrDecimal::from_f64(bonded_token_amount).unwrap_or_default();
+                    let share_param = TnrDecimal::from_f64(1.0).unwrap_or_default();
+
+                    Ok(inflation
+                        .mul(total_supply)
+                        .div(bonded_token_amount)
+                        .mul(share_param)
+                        .to_f64()
+                        .unwrap_or_default())
                 }
                 _ => {
                     let bonded_token_amount = bonded_token_amount * (self.config.decimals_pow as f64 * 10000.0);
