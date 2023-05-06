@@ -1,6 +1,7 @@
 use crate::routes::{PaginationData, PaginationDirection, TNRAppSuccessResponse};
 use mongodb_cursor_pagination::{FindResult, PageInfo};
 use serde::{Deserialize, Serialize};
+use crate::fetch::PaginationResponse;
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct ListDbResult<T> {
@@ -8,6 +9,12 @@ pub struct ListDbResult<T> {
     pub data: Vec<T>,
     /// Pagination.
     pub pagination: PaginationData,
+}
+
+#[derive(Deserialize, Serialize, Debug, Clone)]
+pub struct PaginatedListResult<T> {
+    pub data: Vec<T>,
+    pub pagination: PaginationResponse,
 }
 
 impl<T> From<FindResult<T>> for ListDbResult<T> {

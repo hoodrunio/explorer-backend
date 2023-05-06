@@ -1,8 +1,12 @@
-use base64::decode as decode_from_base64;
-use base64::decode as from_base_64;
+use std::fmt::{Display, Formatter};
+use base64::{
+    engine::general_purpose::STANDARD,
+    Engine
+};
 use bech32::ToBase32;
 use chrono::DateTime;
 use hex::encode as to_hex;
+use prost::Message;
 use reqwest::Client;
 use serde::Deserialize;
 use sha2::{Digest, Sha256};
@@ -63,6 +67,42 @@ pub struct Primary {
     pub url: String,
 }
 
+#[derive(Debug, Clone)]
+pub enum PubKeyParseError {
+    UnknownType(String),
+    DecodeError(prost::DecodeError)
+}
+
+impl Display for PubKeyParseError {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        use PubKeyParseError::*;
+        match self {
+            UnknownType(ty) => write!(f, "Unknown type: {ty}"),
+            DecodeError(e) => write!(f, "Failed to decode: {e}")
+        }
+    }
+}
+pub fn get_key(data: prost_wkt_types::Any) -> Result<String, PubKeyParseError> {
+    match data.type_url.as_str() {
+        "cosmos.crypto.ed25519.PubKey" => {
+            use crate::fetch::cosmos::crypto::ed25519::PubKey;
+            let key = PubKey::decode(data.value.as_slice()).map_err(|e| PubKeyParseError::DecodeError(e))?;
+            Ok(STANDARD.encode(key.key.as_slice()))
+        }
+        "cosmos.crypto.secp256k1.Pubkey" => {
+            use crate::fetch::cosmos::crypto::secp256k1::PubKey;
+            let key = PubKey::decode(data.value.as_slice()).map_err(|e| PubKeyParseError::DecodeError(e))?;
+            Ok(STANDARD.encode(key.key.as_slice()))
+        }
+        "cosmos.crypto.secp256r1.Pubkey" => {
+            use crate::fetch::cosmos::crypto::secp256r1::PubKey;
+            let key = PubKey::decode(data.value.as_slice()).map_err(|e| PubKeyParseError::DecodeError(e))?;
+            Ok(STANDARD.encode(key.key.as_slice()))
+        }
+        ty => Err(PubKeyParseError::UnknownType(ty.to_string()))
+    }
+}
+
 /// Converts consensus public key to hex address for finding the associated operator address.
 pub fn convert_consensus_pubkey_to_hex_address(consensus_pubkey: &str) -> Option<String> {
     let hex = base64_to_hex(consensus_pubkey).unwrap();
@@ -81,7 +121,7 @@ pub fn convert_tx_to_hex(tx_base64: &str) -> Option<String> {
 fn base64_to_hex(base64: &str) -> Option<String> {
     let mut hasher = Sha256::new();
 
-    hasher.update(from_base_64(base64.as_bytes()).ok()?);
+    hasher.update(STANDARD.decode(base64.as_bytes()).ok()?);
 
     let hash = hasher.finalize();
     let hex = to_hex(hash);
@@ -126,7 +166,7 @@ pub trait Base64Convert {
 impl Base64Convert for String {
     fn base64_to_string(&self) -> Self {
         let default_res = String::from("");
-        match decode_from_base64(self) {
+        match STANDARD.decode(self) {
             Ok(decode) => String::from_utf8(decode).unwrap_or(default_res),
             Err(_) => default_res,
         }

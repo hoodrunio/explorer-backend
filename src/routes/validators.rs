@@ -32,14 +32,12 @@ pub async fn validator(path: Path<(String, String)>, chains: Data<State>) -> Res
 pub async fn validator_delegations(
     path: Path<(String, String)>,
     chains: Data<State>,
-    query: Query<QueryParams>,
+    query: Query<PaginationData>,
 ) -> Result<impl Responder, TNRAppError> {
     let (chain, validator_addr) = path.into_inner();
 
-    let config = PaginationConfig::new().limit(6).page(query.page.unwrap_or(1));
-
     let chain = extract_chain(&chain, chains)?;
-    let data = chain.get_validator_delegations(&validator_addr, config).await?;
+    let data = chain.get_validator_delegations(&validator_addr, query.into_inner()).await?;
     Ok(TNRAppSuccessResponse::new(data, None))
 }
 
@@ -47,14 +45,12 @@ pub async fn validator_delegations(
 pub async fn validator_unbondings(
     path: Path<(String, String)>,
     chains: Data<State>,
-    query: Query<QueryParams>,
+    query: Query<PaginationData>,
 ) -> Result<impl Responder, TNRAppError> {
     let (chain, validator_addr) = path.into_inner();
 
-    let config = PaginationConfig::new().limit(6).page(query.page.unwrap_or(1));
-
     let chain = extract_chain(&chain, chains)?;
-    let data = chain.get_validator_unbondings(&validator_addr, config).await?;
+    let data = chain.get_validator_unbondings(&validator_addr, query.into_inner()).await?;
     Ok(TNRAppSuccessResponse::new(data, None))
 }
 
@@ -66,14 +62,12 @@ pub async fn validator_redelegations(
 ) -> Result<impl Responder, TNRAppError> {
     let (chain, validator_addr) = path.into_inner();
 
-    let config = PaginationConfig::new().limit(query.limit.unwrap_or(10)).page(query.page.unwrap_or(1));
-
     let chain = extract_chain(&chain, chains)?;
     let query_config = ValidatorRedelegationQuery {
         source: query.source,
         destination: query.destination,
     };
-    let data = chain.get_validator_redelegations(&validator_addr, config, query_config).await?;
+    let data = chain.get_validator_redelegations(&validator_addr, query.pagination.clone(), query_config).await?;
     Ok(TNRAppSuccessResponse::new(data, None))
 }
 
@@ -130,7 +124,7 @@ pub async fn validators_unbonding(path: Path<String>, chains: Data<State>) -> Re
     let chain = path.into_inner();
 
     let chain = extract_chain(&chain, chains)?;
-    let data = chain.get_validators_unbonding(PaginationConfig::new()).await?;
+    let data = chain.get_validators_unbonding(PaginationData::default()).await?;
     Ok(TNRAppSuccessResponse::new(data, None))
 }
 
@@ -139,7 +133,7 @@ pub async fn validators_unspecified(path: Path<String>, chains: Data<State>) -> 
     let chain = path.into_inner();
 
     let chain = extract_chain(&chain, chains)?;
-    let data = chain.get_validators_unspecified(PaginationConfig::new()).await?;
+    let data = chain.get_validators_unspecified(PaginationData::default()).await?;
     Ok(TNRAppSuccessResponse::new(data, None))
 }
 
@@ -148,7 +142,7 @@ pub async fn validators_of_delegator(path: Path<(String, String)>, chains: Data<
     let (chain, delegator_addr) = path.into_inner();
 
     let chain = extract_chain(&chain, chains)?;
-    let data = chain.get_validators_by_delegator(&delegator_addr, PaginationConfig::new()).await?;
+    let data = chain.get_validators_by_delegator(&delegator_addr, PaginationData::default()).await?;
     Ok(TNRAppSuccessResponse::new(data, None))
 }
 
@@ -162,7 +156,7 @@ pub async fn validator_delegator_pair(path: Path<(String, String, String)>, chai
 }
 
 #[get("{chain}/validator-set/{height}")]
-pub async fn validator_set_by_height(path: Path<(String, u64)>, chains: Data<State>) -> Result<impl Responder, TNRAppError> {
+pub async fn validator_set_by_height(path: Path<(String, i64)>, chains: Data<State>) -> Result<impl Responder, TNRAppError> {
     let (chain, height) = path.into_inner();
 
     let chain = extract_chain(&chain, chains)?;
@@ -181,8 +175,8 @@ pub async fn validator_set(path: Path<String>, chains: Data<State>) -> Result<im
 
 #[derive(Deserialize)]
 pub struct ValidatorRedelegationQueryParams {
-    pub page: Option<u8>,
-    pub limit: Option<u16>,
+    #[serde(flatten)]
+    pub pagination: PaginationData,
     pub source: Option<bool>,
     pub destination: Option<bool>,
 }
