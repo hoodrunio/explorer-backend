@@ -1123,10 +1123,7 @@ fn validator_status(status: i32) -> String {
     status.to_string()
 }
 
-fn to_rfc3339(timestamp: prost_wkt_types::Timestamp) -> String {
-    let datetime: DateTime<Utc> = timestamp.into();
-    datetime.to_rfc3339()
-}
+
 
 impl From<Description> for ValidatorListValidatorDescription {
     fn from(v: Description) -> Self {
@@ -1149,7 +1146,7 @@ impl From<Commission> for ValidatorListValidatorCommission {
                max_rate: cr.max_rate,
                max_change_rate: cr.max_change_rate,
            },
-           update_time: to_rfc3339(v.update_time.unwrap()),
+           update_time: utils::to_rfc3339(v.update_time.unwrap()),
        }
     }
 }
@@ -1170,7 +1167,7 @@ impl From<Validator> for ValidatorListValidator {
             delegator_shares: v.delegator_shares,
             description: v.description.unwrap().into(),
             unbonding_height: v.unbonding_height,
-            unbonding_time: to_rfc3339(v.unbonding_time.unwrap()),
+            unbonding_time: utils::to_rfc3339(v.unbonding_time.unwrap()),
             commission: c.into(),
             min_self_delegation: v.min_self_delegation,
         }

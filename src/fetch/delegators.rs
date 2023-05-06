@@ -2,13 +2,27 @@ use super::others::DenomAmount;
 use crate::chain::Chain;
 use crate::routes::ChainAmountItem;
 use serde::{Deserialize, Serialize};
+use tonic::transport::Endpoint;
+use crate::fetch::cosmos::distribution::v1beta1::{DelegationDelegatorReward, QueryDelegationTotalRewardsResponse};
 
 impl Chain {
     /// Returns the withdraw address by given delegator address.
     pub async fn get_delegator_withdraw_address(&self, delegator_addr: &str) -> Result<String, String> {
-        let path = format!("/cosmos/distribution/v1beta1/delegators/{delegator_addr}/withdraw_address");
+        use crate::fetch::cosmos::distribution::v1beta1::{QueryDelegatorWithdrawAddressRequest, QueryDelegatorWithdrawAddressResponse, query_client::QueryClient};
 
-        let resp = self.rest_api_request::<WithdrawAddressResp>(&path, &[]).await?;
+        let endpoint = Endpoint::from_shared(self.config.grpc_url.clone().unwrap()).unwrap();
+
+        let req = QueryDelegatorWithdrawAddressRequest {
+            delegator_address: delegator_addr.to_string(),
+        };
+
+        let resp = QueryClient::connect(endpoint)
+            .await
+            .unwrap()
+            .delegator_withdraw_address(req)
+            .await
+            .map_err(|e| format!("{}", e))?
+            .into_inner();
 
         let withdraw_address = resp.withdraw_address;
 
@@ -17,11 +31,24 @@ impl Chain {
 
     /// Returns the rewards of given delegator address.
     pub async fn get_delegator_rewards(&self, delegator_addr: &str) -> Result<InternalDelegatorRewards, String> {
-        let path = format!("/cosmos/distribution/v1beta1/delegators/{delegator_addr}/rewards");
+        use crate::fetch::cosmos::distribution::v1beta1::{QueryDelegationTotalRewardsRequest, QueryDelegationTotalRewardsResponse, query_client::QueryClient};
 
-        let resp = self.rest_api_request::<DelegatorRewardsResp>(&path, &[]).await?;
+        let endpoint = Endpoint::from_shared(self.config.grpc_url.clone().unwrap()).unwrap();
 
-        let delegator_rewards = InternalDelegatorRewards::new(resp, self).await?;
+        let req = QueryDelegationTotalRewardsRequest {
+            delegator_address: delegator_addr.to_string(),
+        };
+
+        let resp = QueryClient::connect(endpoint)
+            .await
+            .unwrap()
+            .delegation_total_rewards(req)
+            .await
+            .map_err(|e| format!("{}", e))?
+            .into_inner();
+
+
+        let delegator_rewards = InternalDelegatorRewards::new(resp, &self).await?;
 
         Ok(delegator_rewards)
     }
@@ -44,7 +71,7 @@ pub struct InternalDelegatorRewards {
 }
 
 impl InternalDelegatorRewards {
-    async fn new(dlg_rwd_resp: DelegatorRewardsResp, chain: &Chain) -> Result<Self, String> {
+    async fn new(dlg_rwd_resp: QueryDelegationTotalRewardsResponse, chain: &Chain) -> Result<Self, String> {
         let default_reward = ChainAmountItem::default();
         let mut rewards = vec![];
 
@@ -83,7 +110,7 @@ pub struct InternalDelegatorReward {
 }
 
 impl InternalDelegatorReward {
-    async fn new(delegator_rwd: DelegatorReward, chain: &Chain) -> Result<Self, String> {
+    async fn new(delegator_rwd: DelegationDelegatorReward, chain: &Chain) -> Result<Self, String> {
         let default_reward = ChainAmountItem::default();
         let reward = match delegator_rwd.reward.get(0) {
             Some(denom_amount) => {
