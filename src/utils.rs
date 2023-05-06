@@ -4,7 +4,7 @@ use base64::{
     Engine
 };
 use bech32::ToBase32;
-use chrono::DateTime;
+use chrono::{DateTime, Utc};
 use hex::encode as to_hex;
 use prost::Message;
 use reqwest::Client;
@@ -177,4 +177,9 @@ pub fn ts_to_ms(ts: &String) -> Result<i64, String> {
     let date_time = DateTime::parse_from_rfc3339(ts).map_err(|_| format!("Cannot parse timestamp, '{}'.", ts))?;
 
     Ok(date_time.timestamp_millis())
+}
+
+pub fn to_rfc3339(timestamp: prost_wkt_types::Timestamp) -> String {
+    let datetime: DateTime<Utc> = timestamp.into();
+    datetime.to_rfc3339()
 }

@@ -1,39 +1,49 @@
-use chrono::DateTime;
+use chrono::{DateTime, NaiveDateTime};
 use mongodb::bson::doc;
 use serde::{Deserialize, Serialize};
 use tokio::join;
+use tonic::transport::Endpoint;
 
-use crate::routes::ChainAmountItem;
+use crate::routes::{ChainAmountItem, PaginationData};
 use crate::{
     chain::Chain,
     routes::{calc_pages, OutRestResponse},
 };
+use crate::database::ListDbResult;
+use crate::fetch::cosmos::auth::v1beta1::query_client::QueryClient;
+use crate::utils::to_rfc3339;
 
 use super::others::{DenomAmount, Pagination, PaginationConfig};
 
 impl Chain {
     /// Returns the delegations of given address.
-    pub async fn get_delegations(&self, delegator_addr: &str, config: PaginationConfig) -> Result<OutRestResponse<Vec<InternalDelegation>>, String> {
-        let path = format!("/cosmos/staking/v1beta1/delegations/{delegator_addr}");
+    pub async fn get_delegations(&self, delegator_addr: &str, config: PaginationData) -> Result<ListDbResult<InternalDelegation>, String> {
+        use crate::fetch::cosmos::staking::v1beta1::{QueryDelegatorDelegationsRequest, QueryDelegatorDelegationsResponse, query_client::QueryClient};
 
-        let mut query = vec![];
+        let endpoint = Endpoint::from_shared(self.config.grpc_url.clone().unwrap()).unwrap();
 
-        query.push(("pagination.reverse", format!("{}", config.is_reverse())));
-        query.push(("pagination.limit", format!("{}", config.get_limit())));
-        query.push(("pagination.count_total", "true".to_string()));
-        query.push(("pagination.offset", format!("{}", config.get_offset())));
+        let req = QueryDelegatorDelegationsRequest {
+            delegator_addr: delegator_addr.to_string(),
+            pagination: Some(config.into()),
+        };
 
-        let resp = self.rest_api_request::<DelagationsResp>(&path, &query).await?;
+        let resp = QueryClient::connect(endpoint)
+            .await
+            .unwrap()
+            .delegator_delegations(req)
+            .await
+            .map_err(|e| format!("{}", e))?
+            .into_inner();
 
         let mut delegations = vec![];
 
         for delegation_response in resp.delegation_responses {
             if let Ok(validator_metadata) = self
                 .database
-                .find_validator_by_operator_addr(&delegation_response.delegation.validator_address)
+                .find_validator_by_operator_addr(&delegation_response.delegation.unwrap().validator_address)
                 .await
             {
-                let amount = self.string_amount_parser(delegation_response.balance.amount.clone(), None).await?;
+                let amount = self.string_amount_parser(delegation_response.balance.unwrap().amount.clone(), None).await?;
                 delegations.push({
                     InternalDelegation {
                         amount,
@@ -45,36 +55,48 @@ impl Chain {
             }
         }
 
-        let pages = calc_pages(resp.pagination, config)?;
-
-        Ok(OutRestResponse::new(delegations, pages))
+        Ok(ListDbResult {
+            data: delegations,
+            pagination: resp.pagination.unwrap_or_default().into(),
+        })
     }
 
     /// Returns the redelegations of given address.
     pub async fn get_redelegations(
         &self,
         delegator_addr: &str,
-        config: PaginationConfig,
-    ) -> Result<OutRestResponse<Vec<InternalRedelegation>>, String> {
-        let path = format!("/cosmos/staking/v1beta1/delegators/{delegator_addr}/redelegations");
+        config: PaginationData,
+    ) -> Result<ListDbResult<InternalRedelegation>, String> {
+        use crate::fetch::cosmos::staking::v1beta1::{QueryRedelegationsRequest, QueryRedelegationsResponse, query_client::QueryClient};
 
-        let mut query = vec![];
+        let endoint = Endpoint::from_shared(self.config.grpc_url.clone().unwrap()).unwrap();
 
-        query.push(("pagination.reverse", format!("{}", config.is_reverse())));
-        query.push(("pagination.limit", format!("{}", config.get_limit())));
-        query.push(("pagination.count_total", "true".to_string()));
-        query.push(("pagination.offset", format!("{}", config.get_offset())));
+        let req = QueryRedelegationsRequest {
+            delegator_addr: "".to_string(),
+            src_validator_addr: "".to_string(),
+            dst_validator_addr: "".to_string(),
+            pagination: Some(config.into()),
+        };
 
-        let resp = self.rest_api_request::<RedelagationsResp>(&path, &query).await?;
+        let resp = QueryClient::connect(endoint)
+            .await
+            .unwrap()
+            .redelegations(req)
+            .await
+            .map_err(|e| format!("{}", e))?
+            .into_inner();
 
         let mut redelegations = vec![];
 
         for redelegation_response in resp.redelegation_responses {
+            let src_address = redelegation_response.redelegation.clone().unwrap().validator_src_address;
+            let dst_address = redelegation_response.redelegation.clone().unwrap().validator_dst_address;
+
             if let (Ok(validator_from), Ok(validator_to)) = join!(
                 self.database
-                    .find_validator_by_operator_addr(&redelegation_response.redelegation.validator_src_address),
+                    .find_validator_by_operator_addr(src_address.as_str()),
                 self.database
-                    .find_validator_by_operator_addr(&redelegation_response.redelegation.validator_dst_address),
+                    .find_validator_by_operator_addr(dst_address.as_str()),
             ) {
                 redelegations.push({
                     let redelegation_resp_entry = redelegation_response
@@ -84,13 +106,12 @@ impl Chain {
 
                     let amount = self.string_amount_parser(redelegation_resp_entry.balance.clone(), None).await?;
 
-                    let completion_time = DateTime::parse_from_rfc3339(&redelegation_resp_entry.redelegation_entry.completion_time)
-                        .map_err(|_| {
+                    let completion_time = NaiveDateTime::from_timestamp_millis((redelegation_resp_entry.redelegation_entry.clone().unwrap().completion_time.unwrap().nanos / 1_000_000) as i64)
+                        .ok_or(
                             format!(
-                                "Cannot parse redelegation completion datetime, '{}'.",
-                                redelegation_resp_entry.redelegation_entry.completion_time
+                                "Cannot parse redelegation completion datetime",
                             )
-                        })?
+                        )?
                         .timestamp_millis();
 
                     InternalRedelegation {
@@ -107,27 +128,34 @@ impl Chain {
             }
         }
 
-        let pages = calc_pages(resp.pagination, config)?;
-
-        Ok(OutRestResponse::new(redelegations, pages))
+        Ok(ListDbResult {
+            data: redelegations,
+            pagination: resp.pagination.unwrap_or_default().into(),
+        })
     }
 
     /// Returns the unbonding delegations of given address.
     pub async fn get_delegations_unbonding(
         &self,
         delegator_addr: &str,
-        config: PaginationConfig,
-    ) -> Result<OutRestResponse<Vec<InternalUnbonding>>, String> {
-        let path = format!("/cosmos/staking/v1beta1/delegators/{delegator_addr}/unbonding_delegations");
+        config: PaginationData,
+    ) -> Result<ListDbResult<InternalUnbonding>, String> {
+        use crate::fetch::cosmos::staking::v1beta1::{QueryValidatorUnbondingDelegationsRequest, QueryValidatorUnbondingDelegationsResponse, query_client::QueryClient};
 
-        let mut query = vec![];
+        let endpoint = Endpoint::from_shared(self.config.grpc_url.clone().unwrap()).unwrap();
 
-        query.push(("pagination.reverse", format!("{}", config.is_reverse())));
-        query.push(("pagination.limit", format!("{}", config.get_limit())));
-        query.push(("pagination.count_total", "true".to_string()));
-        query.push(("pagination.offset", format!("{}", config.get_offset())));
+        let req = QueryValidatorUnbondingDelegationsRequest {
+            validator_addr: delegator_addr.to_string(),
+            pagination: Some(config.into()),
+        };
 
-        let resp = self.rest_api_request::<UnbondingDelegationResp>(&path, &query).await?;
+        let resp = QueryClient::connect(endpoint)
+            .await
+            .unwrap()
+            .validator_unbonding_delegations(req)
+            .await
+            .map_err(|e| format!("{}", e))?
+            .into_inner();
 
         let mut unbondings = vec![];
 
@@ -142,13 +170,11 @@ impl Chain {
                     let amount = self.string_amount_parser(unbonding_entry.balance.clone(), None).await?;
                     InternalUnbonding {
                         balance: amount,
-                        completion_time: DateTime::parse_from_rfc3339(&unbonding_entry.completion_time)
-                            .map_err(|_| {
-                                format!(
-                                    "Cannot parse unbonding delegation completion datetime, '{}'.",
-                                    unbonding_entry.completion_time
-                                )
-                            })?
+                        completion_time: NaiveDateTime::from_timestamp_millis((&unbonding_entry.completion_time.clone().unwrap().nanos / 1_000_000) as i64)
+                            .ok_or(
+                            format!(
+                                "Cannot parse unbonding delegation completion datetime",
+                            ))?
                             .timestamp_millis(),
                         validator_logo_url: validator_metadata.logo_url,
                         validator_name: validator_metadata.name,
@@ -158,9 +184,11 @@ impl Chain {
             }
         }
 
-        let pages = calc_pages(resp.pagination, config)?;
 
-        Ok(OutRestResponse::new(unbondings, pages))
+        Ok(ListDbResult {
+            data: unbondings,
+            pagination: resp.pagination.unwrap_or_default().into(),
+        })
     }
 }
 

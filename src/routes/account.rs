@@ -5,7 +5,7 @@ use actix_web::{
     Responder,
 };
 
-use crate::routes::{extract_chain, TNRAppError, TNRAppSuccessResponse};
+use crate::routes::{extract_chain, PaginationData, TNRAppError, TNRAppSuccessResponse};
 
 // ======== Account Methods ========
 
@@ -29,7 +29,12 @@ pub async fn account_vesting(path: Path<(String, String)>, chains: Data<State>) 
 #[get("{chain}/balances/{account_address}")]
 pub async fn account_balances(path: Path<(String, String)>, chains: Data<State>, query: Query<QueryParams>) -> Result<impl Responder, TNRAppError> {
     let (chain, account_address) = path.into_inner();
-    let config = PaginationConfig::new().limit(1000).page(query.page.unwrap_or(1));
+    let config = PaginationData {
+        cursor: None,
+        offset: None,
+        limit: Some(1000),
+        direction: None,
+    };
     let chain = extract_chain(&chain, chains)?;
 
     let data = chain.get_account_balances(&account_address, config).await?;

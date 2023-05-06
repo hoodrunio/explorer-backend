@@ -17,14 +17,20 @@ use super::{
     others::{Pagination, PaginationConfig},
 };
 use prost::Message;
+use crate::routes::PaginationData;
 
 impl Chain {
     pub async fn get_account_info(&self, account_address: &String) -> Result<AccountInfo, String> {
         let main_symbol = self.config.main_symbol.clone();
-        let default_pagination_config = PaginationConfig::new().limit(10000).page(1);
+        let default_pagination_config = PaginationData {
+            cursor: None,
+            offset: None,
+            limit: Some(10000),
+            direction: None,
+        };
         let (account_balance_resp, delegation_resp, delegetor_rewards_resp, delegation_unbonding_resp, find_val_db_resp) = join!(
             self.get_account_balance_by_denom(account_address, &self.config.main_denom),
-            self.get_delegations(account_address, default_pagination_config),
+            self.get_delegations(account_address, default_pagination_config.clone()),
             self.get_delegator_rewards(account_address),
             self.get_delegations_unbonding(account_address, default_pagination_config),
             self.database.find_validator(doc! {"self_delegate_address": account_address})
@@ -32,7 +38,7 @@ impl Chain {
 
         let main_token_balance = account_balance_resp?;
 
-        let total_delegate_amount = delegation_resp?.value.iter().fold(TnrDecimal::ZERO, |mut acc, x| {
+        let total_delegate_amount = delegation_resp?.data.iter().fold(TnrDecimal::ZERO, |mut acc, x| {
             if let Some(total) = acc.checked_add(x.amount.amount) {
                 acc = total;
             }
@@ -46,7 +52,7 @@ impl Chain {
             acc
         });
 
-        let total_unbonding_amount = delegation_unbonding_resp?.value.iter().fold(TnrDecimal::ZERO, |mut acc, x| {
+        let total_unbonding_amount = delegation_unbonding_resp?.data.iter().fold(TnrDecimal::ZERO, |mut acc, x| {
             if let Some(total) = acc.checked_add(x.balance.amount) {
                 acc = total;
             }
@@ -89,16 +95,24 @@ impl Chain {
         })
     }
 
-    pub async fn get_account_balances(&self, account_address: &String, config: PaginationConfig) -> Result<Vec<ChainAmountItem>, String> {
-        let path = format!("/cosmos/bank/v1beta1/balances/{account_address}");
-        let mut query = vec![];
+    pub async fn get_account_balances(&self, account_address: &str, config: PaginationData) -> Result<Vec<ChainAmountItem>, String> {
+        use crate::fetch::cosmos::bank::v1beta1::{QueryAllBalancesRequest, QueryAllBalancesResponse, query_client::QueryClient};
 
-        query.push(("pagination.reverse", format!("{}", config.is_reverse())));
-        query.push(("pagination.limit", format!("{}", 1000)));
-        query.push(("pagination.count_total", "true".to_string()));
-        query.push(("pagination.offset", format!("{}", config.get_offset())));
+        let endpoint = Endpoint::from_shared(self.config.grpc_url.clone().unwrap()).unwrap();
 
-        let resp = self.rest_api_request::<AccountBalances>(&path, &[]).await?;
+        let req = QueryAllBalancesRequest {
+            address: account_address.to_string(),
+            pagination: Some(config.into()),
+            resolve_denom: false,
+        };
+
+        let resp = QueryClient::connect(endpoint)
+            .await
+            .unwrap()
+            .all_balances(req)
+            .await
+            .map_err(|e| format!("{}", e))?
+            .into_inner();
 
         let mut balances: Vec<ChainAmountItem> = vec![];
 
@@ -110,14 +124,26 @@ impl Chain {
         Ok(balances)
     }
 
-    pub async fn get_account_balance_by_denom(&self, account_address: &String, denom: &String) -> Result<ChainAmountItem, String> {
-        // let query = vec![("denom", format!("{}", denom))];
+    pub async fn get_account_balance_by_denom(&self, account_address: &str, denom: &str) -> Result<ChainAmountItem, String> {
+        use crate::fetch::cosmos::bank::v1beta1::{QuerySpendableBalanceByDenomRequest, QuerySpendableBalanceByDenomResponse, query_client::QueryClient};
 
-        let path = format!("/cosmos/bank/v1beta1/balances/{account_address}/by_denom?denom={denom}");
+        let endpoint = Endpoint::from_shared(self.config.grpc_url.clone().unwrap()).unwrap();
 
-        let resp = self.rest_api_request::<AccountDenomBalance>(&path, &[]).await?;
+        let req = QuerySpendableBalanceByDenomRequest {
+            address: account_address.to_string(),
+            denom: denom.to_string(),
+        };
 
-        let amount = self.string_amount_parser(resp.balance.amount, Some(resp.balance.denom)).await?;
+        let resp = QueryClient::connect(endpoint)
+            .await
+            .unwrap()
+            .spendable_balance_by_denom(req)
+            .await
+            .map_err(|e| format!("{}", e))?
+            .into_inner();
+
+        let balance = resp.balance.ok_or(format!("Denom not found: {}", denom))?;
+        let amount = self.string_amount_parser(balance.amount, Some(balance.denom)).await?;
 
         Ok(amount)
     }
