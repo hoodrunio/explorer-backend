@@ -13,13 +13,19 @@ use crate::fetch::others::InternalStakingPool;
 use crate::fetch::validators::{ValidatorListValidator, ValidatorListValidatorCommission, ValidatorStatus};
 use crate::utils::{convert_consensus_pubkey_to_consensus_address, convert_consensus_pubkey_to_hex_address, get_validator_logo};
 use crate::{chain::Chain, fetch::others::PaginationConfig};
+use crate::routes::PaginationData;
 
 impl Chain {
     pub async fn cron_job_validator(&self) -> Result<(), String> {
-        let resp = self.get_validators_unspecified(PaginationConfig::new().limit(10000)).await?;
+        let resp = self.get_validators_unspecified(PaginationData {
+            cursor: None,
+            offset: None,
+            limit: Some(10000),
+            direction: None,
+        }).await?;
         let staking_pool = self.get_staking_pool().await?.value;
 
-        let validators = resp.validators;
+        let validators = resp.data;
         let mut jobs = vec![];
 
         for validator in validators {

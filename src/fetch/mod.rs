@@ -20,7 +20,31 @@ pub mod transactions;
 pub mod utils;
 pub mod validators;
 
+use crate::fetch::cosmos::base::query::v1beta1::PageResponse;
+use base64::{
+    Engine,
+    engine::general_purpose::STANDARD,
+};
+use serde::{Deserialize, Serialize};
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct PaginationResponse {
+    pub next_key: String,
+    pub total: u64,
+}
+
+impl From<PageResponse> for PaginationResponse {
+    fn from(value: PageResponse) -> Self {
+        PaginationResponse {
+            next_key: STANDARD.encode(value.next_key.as_slice()),
+            total: value.total,
+        }
+    }
+}
+
 pub mod axelar {
+    use sha2::digest::typenum::op;
+
     pub mod evm {
         pub mod v1beta1 {
             tonic::include_proto!("axelar.evm.v1beta1");
@@ -52,6 +76,12 @@ pub mod axelar {
             }
         }
     }
+
+    pub mod snapshot {
+        pub mod v1beta1 {
+            tonic::include_proto!("axelar.snapshot.v1beta1");
+        }
+    }
 }
 
 pub mod ibc {
@@ -80,6 +110,7 @@ pub mod cosmos {
             tonic::include_proto!("cosmos.vesting.v1beta1");
         }
     }
+
     pub mod upgrade {
         pub mod v1beta1 {
             tonic::include_proto!("cosmos.upgrade.v1beta1");
@@ -123,6 +154,12 @@ pub mod cosmos {
                 tonic::include_proto!("cosmos.base.abci.v1beta1");
             }
         }
+
+        pub mod tendermint {
+            pub mod v1beta1 {
+                tonic::include_proto!("cosmos.base.tendermint.v1beta1");
+            }
+        }
     }
 
     pub mod staking {
@@ -148,6 +185,18 @@ pub mod cosmos {
             pub mod v1beta1 {
                 tonic::include_proto!("cosmos.crypto.multisig.v1beta1");
             }
+        }
+
+        pub mod ed25519 {
+            tonic::include_proto!("cosmos.crypto.ed25519");
+        }
+
+        pub mod secp256k1 {
+            tonic::include_proto!("cosmos.crypto.secp256k1");
+        }
+
+        pub mod secp256r1 {
+            tonic::include_proto!("cosmos.crypto.secp256r1");
         }
     }
 
@@ -278,5 +327,9 @@ pub mod tendermint {
 
     pub mod version {
         tonic::include_proto!("tendermint.version");
+    }
+
+    pub mod p2p {
+        tonic::include_proto!("tendermint.p2p");
     }
 }
