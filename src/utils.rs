@@ -84,17 +84,17 @@ impl Display for PubKeyParseError {
 }
 pub fn get_key(data: prost_wkt_types::Any) -> Result<String, PubKeyParseError> {
     match data.type_url.as_str() {
-        "cosmos.crypto.ed25519.PubKey" => {
+        "/cosmos.crypto.ed25519.PubKey" => {
             use crate::fetch::cosmos::crypto::ed25519::PubKey;
             let key = PubKey::decode(data.value.as_slice()).map_err(|e| PubKeyParseError::DecodeError(e))?;
             Ok(STANDARD.encode(key.key.as_slice()))
         }
-        "cosmos.crypto.secp256k1.Pubkey" => {
+        "/cosmos.crypto.secp256k1.Pubkey" => {
             use crate::fetch::cosmos::crypto::secp256k1::PubKey;
             let key = PubKey::decode(data.value.as_slice()).map_err(|e| PubKeyParseError::DecodeError(e))?;
             Ok(STANDARD.encode(key.key.as_slice()))
         }
-        "cosmos.crypto.secp256r1.Pubkey" => {
+        "/cosmos.crypto.secp256r1.Pubkey" => {
             use crate::fetch::cosmos::crypto::secp256r1::PubKey;
             let key = PubKey::decode(data.value.as_slice()).map_err(|e| PubKeyParseError::DecodeError(e))?;
             Ok(STANDARD.encode(key.key.as_slice()))

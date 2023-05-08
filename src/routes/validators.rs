@@ -38,7 +38,7 @@ pub async fn validator_delegations(
 
     let chain = extract_chain(&chain, chains)?;
     let data = chain.get_validator_delegations(&validator_addr, query.into_inner()).await?;
-    Ok(TNRAppSuccessResponse::new(data, None))
+    Ok(TNRAppSuccessResponse::from(data))
 }
 
 #[get("{chain}/validator-unbondings/{address}")]
@@ -68,7 +68,7 @@ pub async fn validator_redelegations(
         destination: query.destination,
     };
     let data = chain.get_validator_redelegations(&validator_addr, query.pagination.clone(), query_config).await?;
-    Ok(TNRAppSuccessResponse::new(data, None))
+    Ok(data.into())
 }
 
 #[get("{chain}/validator-commission/{address}")]

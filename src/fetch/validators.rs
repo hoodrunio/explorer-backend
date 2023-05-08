@@ -69,13 +69,13 @@ impl Chain {
         validator_addr: &str,
         config: PaginationData,
     ) -> Result<ListDbResult<InternalDelegation>, String> {
-        use crate::fetch::cosmos::staking::v1beta1::{QueryDelegatorDelegationsRequest, QueryDelegatorDelegationsResponse, query_client::QueryClient};
+        use crate::fetch::cosmos::staking::v1beta1::{QueryValidatorDelegationsRequest, QueryValidatorDelegationsResponse, query_client::QueryClient};
         let endpoint = Endpoint::from_shared(self.config.grpc_url.clone().unwrap()).unwrap();
 
         let pagination = config.into();
 
-        let req = QueryDelegatorDelegationsRequest {
-            delegator_addr: validator_addr.to_string(),
+        let req = QueryValidatorDelegationsRequest {
+            validator_addr: validator_addr.to_string(),
             pagination: Some(pagination),
         };
 
@@ -83,7 +83,7 @@ impl Chain {
         let resp = QueryClient::connect(endpoint)
             .await
             .unwrap()
-            .delegator_delegations(req)
+            .validator_delegations(req)
             .await
             .map_err(|e| format!("{e}"))?;
 
@@ -174,14 +174,17 @@ impl Chain {
         let is_source = query_config.source.unwrap_or(false);
 
         let mut querys = vec![];
+        let mut events = vec![];
 
         if is_source {
-            querys.push(format!("redelegate.source_validator='{}'", validator_addr));
+            events.push(format!("redelegate.source_validator='{}'", validator_addr));
         };
 
         if is_destination {
-            querys.push(format!("redelegate.source_validator='{}'", validator_addr));
+            events.push(format!("redelegate.destination_validator='{}'", validator_addr));
         };
+
+        dbg!(is_destination, is_source);
 
         querys.push("message.action='/cosmos.staking.v1beta1.MsgBeginRedelegate'".to_string());
 
@@ -193,18 +196,26 @@ impl Chain {
             OrderBy::Unspecified
         };
 
-        let query = querys.join(",");
+        // let query = querys.join(",");
+
+
 
         let limit = config.limit.unwrap_or_else(|| 50);
         let page = config.offset.map(|o| o / limit).unwrap_or_else(|| 1);
 
+        let pagination = PaginationData {
+            cursor: None,
+            offset: config.offset,
+            limit: Some(limit),
+            direction: None,
+        };
         let req = GetTxsEventRequest {
-            events: vec![],
-            pagination: None,
+            events,
+            pagination: Some(pagination.into()),
             order_by: order_by as i32,
             page,
             limit,
-            query,
+            query: "".to_string(),
         };
 
 
