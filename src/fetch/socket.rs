@@ -199,13 +199,19 @@ impl Chain {
                         if let Some(extra_data) = extra {
                             match extra_data {
                                 ExtraTxEventData::NewPoll(p) => {
-                                    handler.new_evm_poll_from_tx(p).await;
+                                    tokio::spawn(async move {
+                                        handler.new_evm_poll_from_tx(p).await;
+                                    });
                                 }
                                 ExtraTxEventData::PollVote(v) => {
-                                    handler.evm_poll_status_handler(v).await;
+                                    tokio::spawn(async move {
+                                        handler.evm_poll_status_handler(v).await;
+                                    });
                                 }
                                 ExtraTxEventData::NewProposalVote(np) => {
-                                    handler.new_proposal_vote(np).await;
+                                    tokio::spawn(async move {
+                                        handler.new_proposal_vote(np).await;
+                                    });
                                 }
                             }
                         }
