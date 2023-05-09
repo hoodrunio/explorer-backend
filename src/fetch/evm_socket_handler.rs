@@ -1,14 +1,18 @@
 use crate::{
     chain::Chain,
-    database::{EvmPollForDb, EvmPollParticipantForDb},
+    database::{EvmPollForDb, EvmPollParticipantForDb, HeartbeatForDb, HeartbeatRawForDb, ProposalVoteForDb, ProposalVoteOptionForDb},
     events::WsEvent,
 };
+use chrono::Utc;
+use futures::future::join_all;
 use mongodb::bson::doc;
 use tokio::sync::broadcast::Sender;
 
 use super::{
+    chain_socket::{EvmPollBlockInfo, NewPollEvent, NewProposalVoteEvent, PollVoteEvent, ProposalVoteOption},
     evm::PollStatus,
-    socket::{NewBlockData, SocketResultNonEmpty, VotedTxEvents},
+    heartbeats::HeartbeatStatus,
+    socket::HeartbeatStateParams,
     transactions::{AxelarKnownVote, AxelarVote, InnerMessage, InnerMessageKnown, InternalTransactionContent, InternalTransactionContentKnowns},
 };
 
@@ -21,8 +25,8 @@ impl EvmSocketHandler {
     pub fn new(chain: Chain, ws_tx_sender: Sender<(String, WsEvent)>) -> Self {
         Self { chain, ws_tx_sender }
     }
-    pub async fn handle_evm_poll(&self, evm_poll_block_data: NewBlockData) {
-        if let Some(polls) = &evm_poll_block_data.value.extract_evm_poll_completed_events() {
+    pub async fn new_evm_poll_from_block(&self, evm_poll_block_info: EvmPollBlockInfo) {
+        if let Some(polls) = &evm_poll_block_info.extract_evm_poll_completed_events() {
             if !polls.is_empty() {
                 for completed_poll in polls.clone() {
                     match self
@@ -40,9 +44,36 @@ impl EvmSocketHandler {
             };
         }
     }
-    pub async fn handle_evm_poll_status(&self, voted_tx: VotedTxEvents) {
-        let tx_hash = voted_tx.get_tx_hash();
-        let tx = match voted_tx.fetch_tx(&self.chain).await {
+    pub async fn new_evm_poll_from_tx(&self, new_poll_event: NewPollEvent) {
+        let evm_poll_item = match new_poll_event.get_evm_poll_item(&self.chain).await {
+            Ok(res) => res,
+            Err(e) => {
+                tracing::error!("Could not get evm poll item {}", e);
+                return;
+            }
+        };
+
+        let _ = evm_poll_item.upsert_participants(&self.chain.database).await;
+
+        let evm_poll: EvmPollForDb = evm_poll_item.clone().into();
+        if let Err(e) = self
+            .ws_tx_sender
+            .send((self.chain.config.name.clone(), WsEvent::NewEvmPoll(evm_poll.clone())))
+        {
+            tracing::error!("Error dispatching evm poll event: {e}");
+        }
+        match self.chain.database.upsert_evm_poll(evm_poll).await {
+            Ok(_) => {
+                tracing::info!("evm poll successfully created by poll id {}", &evm_poll_item.poll_id);
+            }
+            Err(e) => {
+                tracing::error!("evm poll could not created {}, Error: {}", &evm_poll_item.poll_id, e);
+            }
+        };
+    }
+    pub async fn evm_poll_status_handler(&self, poll_vote_event: PollVoteEvent) {
+        let tx_hash = poll_vote_event.hash.clone();
+        let tx = match poll_vote_event.fetch_tx(&self.chain, tx_hash.clone()).await {
             Ok(res) => res,
             Err(e) => {
                 tracing::error!("Axelar evm poll vote tx fetcher error {}", &e);
@@ -151,31 +182,118 @@ impl EvmSocketHandler {
             }
         };
     }
-    pub async fn handle_evm_poll_any_message(&self, non_empty_message: SocketResultNonEmpty) {
-        let evm_poll_item = match non_empty_message.get_evm_poll_item(&self.chain).await {
-            Ok(res) => res,
-            Err(e) => {
-                tracing::error!("Could not get evm poll item {}", e);
-                return;
-            }
+    pub async fn heartbeat_handler(&self, params: HeartbeatStateParams) {
+        let HeartbeatStateParams {
+            current_height,
+            is_heartbeat_begin,
+            period_height,
+            is_in_period,
+        } = params;
+
+        if is_heartbeat_begin {
+            if let Ok(res) = self
+                .chain
+                .database
+                .find_validators(Some(doc! {"$match":{"voter_address":{"$exists":true}}}))
+                .await
+            {
+                let mut initial_period_heartbeats = vec![];
+                for validator in res.into_iter() {
+                    match validator.voter_address.clone() {
+                        None => {}
+                        Some(sender_address) => {
+                            let generated_id = self.chain.generate_heartbeat_id(sender_address.clone(), period_height);
+                            let heartbeat = HeartbeatForDb {
+                                heartbeat_raw: None,
+                                period_height,
+                                status: HeartbeatStatus::Fail,
+                                sender: sender_address.clone(),
+                                id: generated_id,
+                            };
+                            initial_period_heartbeats.push(heartbeat);
+                        }
+                    };
+                }
+
+                match self.chain.database.add_heartbeat_many(initial_period_heartbeats).await {
+                    Ok(_) => {
+                        tracing::info!("Current period initial heartbeats inserted");
+                    }
+                    Err(_) => {
+                        tracing::info!("Current period initial heartbeats could not inserted");
+                    }
+                };
+            };
         };
 
-        let _ = evm_poll_item.upsert_participants(&self.chain.database).await;
+        if is_in_period {
+            let block_result = self.chain.get_block_result_by_height(Some(current_height)).await;
 
-        let evm_poll: EvmPollForDb = evm_poll_item.clone().into();
-        if let Err(e) = self
-            .ws_tx_sender
-            .send((self.chain.config.name.clone(), WsEvent::NewEvmPoll(evm_poll.clone())))
-        {
-            tracing::error!("Error dispatching evm poll event: {e}");
+            if let Ok(block_result) = block_result {
+                let mut block_res_txs_handler_futures = vec![];
+                for block_res_tx_res in block_result.value.txs_results {
+                    let sender_address = block_res_tx_res.get_sender_address().unwrap_or(String::from("")).clone();
+                    block_res_txs_handler_futures.push(async move {
+                        let heartbeat_info = self.chain.get_axelar_sender_heartbeat_info(&sender_address, current_height).await;
+                        if let Ok(info) = heartbeat_info {
+                            let generated_id = self.chain.generate_heartbeat_id(info.sender.clone(), period_height);
+                            let sender = info.sender.clone();
+                            let heartbeat_raw = HeartbeatRawForDb {
+                                height: current_height,
+                                tx_hash: info.tx_hash.clone(),
+                                timestamp: info.timestamp as u64,
+                                signatures: info.signatures.clone(),
+                                key_ids: info.key_ids.clone(),
+                                sender: sender.clone(),
+                                period_height,
+                            };
+
+                            let db_heartbeat = HeartbeatForDb {
+                                id: generated_id.clone(),
+                                status: HeartbeatStatus::Success,
+                                heartbeat_raw: Some(heartbeat_raw),
+                                sender,
+                                period_height,
+                            };
+                            match self.chain.database.upsert_heartbeat(db_heartbeat).await {
+                                Ok(_) => {
+                                    tracing::info!("Successfully inserted heartbeat id {}", &generated_id)
+                                }
+                                Err(_) => {
+                                    tracing::error!("Could not inserted heartbeat id {}", &generated_id)
+                                }
+                            };
+                        };
+                    });
+                }
+
+                join_all(block_res_txs_handler_futures).await;
+            }
         }
-        match self.chain.database.upsert_evm_poll(evm_poll).await {
-            Ok(_) => {
-                tracing::info!("evm poll successfully created by poll id {}", &evm_poll_item.poll_id);
-            }
-            Err(e) => {
-                tracing::error!("evm poll could not created {}, Error: {}", &evm_poll_item.poll_id, e);
-            }
+    }
+    pub async fn new_proposal_vote(&self, new_proposal: NewProposalVoteEvent) {
+        let NewProposalVoteEvent {
+            vote_option,
+            proposal_id,
+            voter,
+            tx_hash,
+        } = new_proposal;
+
+        let ProposalVoteOption { option, weight } = vote_option;
+
+        let proposal_vote_option_db = ProposalVoteOptionForDb {
+            option,
+            weight: weight.parse::<f32>().unwrap_or(0.0),
         };
+
+        let proposal_vote = ProposalVoteForDb {
+            proposal_id,
+            voter,
+            option: proposal_vote_option_db,
+            tx_hash,
+            timestamp: Utc::now().timestamp_millis(),
+        };
+
+        let _ = self.chain.database.add_propsal_vote(proposal_vote).await;
     }
 }

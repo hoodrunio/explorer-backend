@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::chain::Chain;
 use crate::database::{EvmPollForDb, EvmPollParticipantForDb, ListDbResult, ValidatorForDb};
-use crate::fetch::socket::EvmPollVote;
+use crate::fetch::chain_socket::EvmPollVote;
 use crate::routes::{PaginationData, TNRAppError};
 
 impl Chain {

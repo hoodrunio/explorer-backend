@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use crate::fetch::socket::EvmPollVote;
+use crate::fetch::chain_socket::EvmPollVote;
 
 #[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
 pub struct EvmPoll {

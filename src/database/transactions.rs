@@ -5,7 +5,8 @@ use crate::{fetch::transactions::TransactionItem, routes::ChainAmountItem};
 #[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
 pub struct Transaction {
     pub height: u64,
-    pub r#type: String,
+    #[serde(rename = "type")]
+    pub tx_type: String,
     pub hash: String,
     pub amount: ChainAmountItem,
     pub fee: ChainAmountItem,
@@ -17,7 +18,7 @@ impl From<TransactionItem> for Transaction {
     fn from(value: TransactionItem) -> Self {
         Self {
             height: value.height,
-            r#type: value.r#type.clone(),
+            tx_type: value.tx_type.clone(),
             hash: value.hash.clone(),
             amount: value.amount.clone(),
             fee: value.fee.clone(),

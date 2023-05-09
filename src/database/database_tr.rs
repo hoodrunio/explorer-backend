@@ -387,7 +387,7 @@ impl DatabaseTR {
     /// let validator = database.find_validator_by_hex_addr(hex_address).await;
     /// ```
     pub async fn find_validator_by_hex_addr(&self, hex_address: &str) -> Result<Validator, String> {
-        self.find_validator(doc! {"hex_address": hex_address}).await
+        self.find_validator(doc! {"hex_address": hex_address.to_ascii_uppercase()}).await
     }
 
     /// Updates validator on to the validators collection
@@ -425,7 +425,7 @@ impl DatabaseTR {
     pub async fn find_paginated_evm_polls(&self, pipe: Option<Document>, config: PaginationData) -> Result<ListDbResult<EvmPollForDb>, String> {
         let options = FindOptions::builder()
             .limit(config.limit.map(|l| l as i64))
-            .sort(doc! { "poll_id": -1})
+            .sort(doc! { "timestamp": -1})
             .build();
 
         let results: FindResult<EvmPollForDb> = PaginatedCursor::new(Some(options), config.cursor, config.direction.map(|d| d.into()))

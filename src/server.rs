@@ -7,7 +7,6 @@ use tokio::sync::broadcast::channel;
 use tracing_actix_web::TracingLogger;
 use web::Data;
 
-use crate::chain::Chain;
 use crate::events::{run_ws, WsEvent};
 use crate::routes;
 use crate::state::State;
@@ -47,21 +46,6 @@ pub async fn start_web_server() -> std::io::Result<()> {
             tracing::error!("Error spawning the websocket task {e}");
         };
     });
-
-    if let Ok(axelar) = state.get("axelar") {
-        let tx_clone = tx.clone();
-        tokio::spawn(async move {
-            loop {
-                let tx_clone = tx_clone.clone();
-                let axelar_clone = axelar.clone();
-                match Chain::sub_axelar_events(axelar_clone, tx_clone).await {
-                    Ok(_) => {}
-                    Err(e) => tracing::info!("Error axelar evm polls flow {}", e),
-                };
-                tokio::time::sleep(tokio::time::Duration::from_secs(10)).await;
-            }
-        });
-    };
 
     HttpServer::new(move || {
         // Build a CORS middleware.
