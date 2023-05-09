@@ -166,9 +166,12 @@ impl Chain {
 
                             tx.send((self.config.name.clone(), WsEvent::NewBLock(block_item.clone()))).ok();
 
-                            if let Err(e) = self.database.upsert_block(block_item).await {
-                                tracing::error!("Error saving block to the database: {e} ")
-                            }
+                            let self_clone = self.clone();
+                            tokio::spawn(async move {
+                                if let Err(e) = self_clone.database.upsert_block(block_item).await {
+                                    tracing::error!("Error saving block to the database: {e} ")
+                                }
+                            });
 
                             *mutex_previous_resp = Some(block);
                         }
