@@ -6,7 +6,7 @@ use actix_web::{
 use mongodb::bson::doc;
 use serde::Deserialize;
 
-use crate::routes::{extract_chain, PaginationData, TNRAppError, TNRAppSuccessResponse};
+use crate::{routes::{extract_chain, PaginationData, TNRAppError, TNRAppSuccessResponse}, fetch::validators::InternalRedelegation};
 use crate::{
     fetch::{
         others::PaginationConfig,
@@ -59,7 +59,7 @@ pub async fn validator_redelegations(
     path: Path<(String, String)>,
     chains: Data<State>,
     query: Query<ValidatorRedelegationQueryParams>,
-) -> Result<impl Responder, TNRAppError> {
+) -> Result<TNRAppSuccessResponse<Vec<InternalRedelegation>>, TNRAppError> {
     let (chain, validator_addr) = path.into_inner();
 
     let chain = extract_chain(&chain, chains)?;

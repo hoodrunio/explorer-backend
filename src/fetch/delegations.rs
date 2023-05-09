@@ -4,21 +4,23 @@ use serde::{Deserialize, Serialize};
 use tokio::join;
 use tonic::transport::Endpoint;
 
+use crate::database::ListDbResult;
+use crate::fetch::cosmos::auth::v1beta1::query_client::QueryClient;
 use crate::routes::{ChainAmountItem, PaginationData};
+use crate::utils::to_rfc3339;
 use crate::{
     chain::Chain,
     routes::{calc_pages, OutRestResponse},
 };
-use crate::database::ListDbResult;
-use crate::fetch::cosmos::auth::v1beta1::query_client::QueryClient;
-use crate::utils::to_rfc3339;
 
 use super::others::{DenomAmount, Pagination, PaginationConfig};
 
 impl Chain {
     /// Returns the delegations of given address.
     pub async fn get_delegations(&self, delegator_addr: &str, config: PaginationData) -> Result<ListDbResult<InternalDelegation>, String> {
-        use crate::fetch::cosmos::staking::v1beta1::{QueryDelegatorDelegationsRequest, QueryDelegatorDelegationsResponse, query_client::QueryClient};
+        use crate::fetch::cosmos::staking::v1beta1::{
+            query_client::QueryClient, QueryDelegatorDelegationsRequest, QueryDelegatorDelegationsResponse,
+        };
 
         let endpoint = Endpoint::from_shared(self.config.grpc_url.clone().unwrap()).unwrap();
 
@@ -43,7 +45,9 @@ impl Chain {
                 .find_validator_by_operator_addr(&delegation_response.delegation.unwrap().validator_address)
                 .await
             {
-                let amount = self.string_amount_parser(delegation_response.balance.unwrap().amount.clone(), None).await?;
+                let amount = self
+                    .string_amount_parser(delegation_response.balance.unwrap().amount.clone(), None)
+                    .await?;
                 delegations.push({
                     InternalDelegation {
                         amount,
@@ -62,17 +66,13 @@ impl Chain {
     }
 
     /// Returns the redelegations of given address.
-    pub async fn get_redelegations(
-        &self,
-        delegator_addr: &str,
-        config: PaginationData,
-    ) -> Result<ListDbResult<InternalRedelegation>, String> {
-        use crate::fetch::cosmos::staking::v1beta1::{QueryRedelegationsRequest, QueryRedelegationsResponse, query_client::QueryClient};
+    pub async fn get_redelegations(&self, delegator_addr: &str, config: PaginationData) -> Result<ListDbResult<InternalRedelegation>, String> {
+        use crate::fetch::cosmos::staking::v1beta1::{query_client::QueryClient, QueryRedelegationsRequest, QueryRedelegationsResponse};
 
         let endoint = Endpoint::from_shared(self.config.grpc_url.clone().unwrap()).unwrap();
 
         let req = QueryRedelegationsRequest {
-            delegator_addr: "".to_string(),
+            delegator_addr: delegator_addr.to_string(),
             src_validator_addr: "".to_string(),
             dst_validator_addr: "".to_string(),
             pagination: Some(config.into()),
@@ -93,10 +93,8 @@ impl Chain {
             let dst_address = redelegation_response.redelegation.clone().unwrap().validator_dst_address;
 
             if let (Ok(validator_from), Ok(validator_to)) = join!(
-                self.database
-                    .find_validator_by_operator_addr(src_address.as_str()),
-                self.database
-                    .find_validator_by_operator_addr(dst_address.as_str()),
+                self.database.find_validator_by_operator_addr(src_address.as_str()),
+                self.database.find_validator_by_operator_addr(dst_address.as_str()),
             ) {
                 redelegations.push({
                     let redelegation_resp_entry = redelegation_response
@@ -106,13 +104,11 @@ impl Chain {
 
                     let amount = self.string_amount_parser(redelegation_resp_entry.balance.clone(), None).await?;
 
-                    let completion_time = NaiveDateTime::from_timestamp_millis((redelegation_resp_entry.redelegation_entry.clone().unwrap().completion_time.unwrap().nanos / 1_000_000) as i64)
-                        .ok_or(
-                            format!(
-                                "Cannot parse redelegation completion datetime",
-                            )
-                        )?
-                        .timestamp_millis();
+                    let completion_time = NaiveDateTime::from_timestamp_millis(
+                        (redelegation_resp_entry.redelegation_entry.clone().unwrap().completion_time.unwrap().nanos / 1_000_000) as i64,
+                    )
+                    .ok_or(format!("Cannot parse redelegation completion datetime",))?
+                    .timestamp_millis();
 
                     InternalRedelegation {
                         amount,
@@ -135,24 +131,22 @@ impl Chain {
     }
 
     /// Returns the unbonding delegations of given address.
-    pub async fn get_delegations_unbonding(
-        &self,
-        delegator_addr: &str,
-        config: PaginationData,
-    ) -> Result<ListDbResult<InternalUnbonding>, String> {
-        use crate::fetch::cosmos::staking::v1beta1::{QueryValidatorUnbondingDelegationsRequest, QueryValidatorUnbondingDelegationsResponse, query_client::QueryClient};
+    pub async fn get_delegations_unbonding(&self, delegator_addr: &str, config: PaginationData) -> Result<ListDbResult<InternalUnbonding>, String> {
+        use crate::fetch::cosmos::staking::v1beta1::{
+            query_client::QueryClient, QueryDelegatorUnbondingDelegationsRequest, QueryDelegatorUnbondingDelegationsResponse,
+        };
 
         let endpoint = Endpoint::from_shared(self.config.grpc_url.clone().unwrap()).unwrap();
 
-        let req = QueryValidatorUnbondingDelegationsRequest {
-            validator_addr: delegator_addr.to_string(),
+        let req = QueryDelegatorUnbondingDelegationsRequest {
+            delegator_addr: delegator_addr.to_string(),
             pagination: Some(config.into()),
         };
 
         let resp = QueryClient::connect(endpoint)
             .await
             .unwrap()
-            .validator_unbonding_delegations(req)
+            .delegator_unbonding_delegations(req)
             .await
             .map_err(|e| format!("{}", e))?
             .into_inner();
@@ -170,12 +164,11 @@ impl Chain {
                     let amount = self.string_amount_parser(unbonding_entry.balance.clone(), None).await?;
                     InternalUnbonding {
                         balance: amount,
-                        completion_time: NaiveDateTime::from_timestamp_millis((&unbonding_entry.completion_time.clone().unwrap().nanos / 1_000_000) as i64)
-                            .ok_or(
-                            format!(
-                                "Cannot parse unbonding delegation completion datetime",
-                            ))?
-                            .timestamp_millis(),
+                        completion_time: NaiveDateTime::from_timestamp_millis(
+                            (&unbonding_entry.completion_time.clone().unwrap().nanos / 1_000_000) as i64,
+                        )
+                        .ok_or(format!("Cannot parse unbonding delegation completion datetime",))?
+                        .timestamp_millis(),
                         validator_logo_url: validator_metadata.logo_url,
                         validator_name: validator_metadata.name,
                         validator_address: validator_metadata.operator_address,
@@ -183,7 +176,6 @@ impl Chain {
                 })
             }
         }
-
 
         Ok(ListDbResult {
             data: unbondings,
