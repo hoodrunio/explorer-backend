@@ -16,8 +16,8 @@ use super::{
     amount_util::TnrDecimal,
     others::{Pagination, PaginationConfig},
 };
-use prost::Message;
 use crate::routes::PaginationData;
+use prost::Message;
 
 impl Chain {
     pub async fn get_account_info(&self, account_address: &String) -> Result<AccountInfo, String> {
@@ -96,7 +96,7 @@ impl Chain {
     }
 
     pub async fn get_account_balances(&self, account_address: &str, config: PaginationData) -> Result<Vec<ChainAmountItem>, String> {
-        use crate::fetch::cosmos::bank::v1beta1::{QueryAllBalancesRequest, QueryAllBalancesResponse, query_client::QueryClient};
+        use crate::fetch::cosmos::bank::v1beta1::{query_client::QueryClient, QueryAllBalancesRequest, QueryAllBalancesResponse};
 
         let endpoint = Endpoint::from_shared(self.config.grpc_url.clone().unwrap()).unwrap();
 
@@ -125,11 +125,11 @@ impl Chain {
     }
 
     pub async fn get_account_balance_by_denom(&self, account_address: &str, denom: &str) -> Result<ChainAmountItem, String> {
-        use crate::fetch::cosmos::bank::v1beta1::{QuerySpendableBalanceByDenomRequest, QuerySpendableBalanceByDenomResponse, query_client::QueryClient};
+        use crate::fetch::cosmos::bank::v1beta1::{query_client::QueryClient, QueryBalanceRequest, QueryBalanceResponse};
 
         let endpoint = Endpoint::from_shared(self.config.grpc_url.clone().unwrap()).unwrap();
 
-        let req = QuerySpendableBalanceByDenomRequest {
+        let req = QueryBalanceRequest {
             address: account_address.to_string(),
             denom: denom.to_string(),
         };
@@ -137,7 +137,7 @@ impl Chain {
         let resp = QueryClient::connect(endpoint)
             .await
             .unwrap()
-            .spendable_balance_by_denom(req)
+            .balance(req)
             .await
             .map_err(|e| format!("{}", e))?
             .into_inner();
