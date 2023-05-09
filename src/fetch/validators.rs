@@ -228,27 +228,14 @@ impl Chain {
 
         let txs = resp.into_inner();
 
-
-        for i in 0..txs.txs.len() {
-            let tx = txs
-                .txs
-                .get(i)
-                .ok_or_else(|| "The count of transactions and transaction responses aren't same".to_string())?;
-
-            let tx_response = txs
-                .tx_responses
-                .get(i)
-                .ok_or_else(|| "The count of transactions and transaction responses aren't same".to_string())?;
-        }
-
         let mut redelegations = vec![];
 
         for (tx, tx_response) in txs.txs.iter().zip(txs.tx_responses.iter()) {
-            redelegations.push(InternalRedelegation::from_tx(tx, tx_response, &self));
+            redelegations.push(InternalRedelegation::from_tx(tx, tx_response, &self).await.unwrap());
         }
 
         Ok(ListDbResult {
-            data: vec![],
+            data: redelegations,
             pagination: Default::default(),
         })
     }
