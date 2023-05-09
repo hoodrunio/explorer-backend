@@ -20,12 +20,12 @@ pub async fn supply(path: Path<(String, String)>, chains: Data<State>) -> Result
 }
 
 #[get("{chain}/supplies")]
-pub async fn supplies(path: Path<String>, chains: Data<State>, query: Query<PaginationData>) -> Result<impl Responder, TNRAppError> {
+pub async fn supplies(path: Path<String>, chains: Data<State>, query: Query<PaginationConfig>) -> Result<impl Responder, TNRAppError> {
     let chain = path.into_inner();
 
     let chain = extract_chain(&chain, chains)?;
     let data = chain.get_supply_of_all_tokens(query.into_inner()).await?;
-    Ok(TNRAppSuccessResponse::from(data))
+    Ok(TNRAppSuccessResponse::new(data, None))
 }
 
 #[get("{chain}/inflation")]
