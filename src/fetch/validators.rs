@@ -1,5 +1,6 @@
 use base64::Engine;
-use std::ops::{Div, Rem};
+use std::ops::{Div, Mul, Rem};
+use std::str::FromStr;
 
 use chrono::{DateTime, Duration, Utc};
 use futures::future::join_all;
@@ -145,6 +146,8 @@ impl Chain {
 
         let endpoint = Endpoint::from_shared(self.config.grpc_url.clone().unwrap()).unwrap();
 
+        query_config.validate()?;
+
         let is_destination = query_config.destination.unwrap_or(false);
         let is_source = query_config.source.unwrap_or(false);
 
@@ -158,8 +161,6 @@ impl Chain {
         if is_destination {
             events.push(format!("redelegate.destination_validator='{}'", validator_addr));
         };
-
-        dbg!(is_destination, is_source);
 
         querys.push("message.action='/cosmos.staking.v1beta1.MsgBeginRedelegate'".to_string());
 
@@ -260,17 +261,21 @@ impl Chain {
         let uptime = self.get_validator_uptime(&consensus_address, Some(val_status_enum.clone())).await?;
         let status = val_status_enum.as_str().to_string();
 
+        let cosmos_decimal_cons = TnrDecimal::ONE_HUNDRED.mul(TnrDecimal::from_u64(u64::pow(10, 16)).unwrap_or_default());
+
         let commission_rates = validator.commission.unwrap().commission_rates.unwrap();
+        let comission_d = TnrDecimal::from_str(commission_rates.rate.as_str())
+            .unwrap_or_default()
+            .div(cosmos_decimal_cons);
+
+        let max_comission_d = TnrDecimal::from_str(commission_rates.max_rate.as_str())
+            .unwrap_or_default()
+            .div(cosmos_decimal_cons);
+
         let validator = InternalValidator {
             logo_url: validator_metadata.logo_url,
-            commission: commission_rates
-                .rate
-                .parse()
-                .map_err(|_| format!("Cannot parse commission rate, '{}'.", commission_rates.rate))?,
-            max_commission: commission_rates
-                .max_rate
-                .parse()
-                .map_err(|_| format!("Cannot parse maximum commission rate, '{}'.", commission_rates.rate))?,
+            commission: comission_d.to_f64().unwrap_or_default(),
+            max_commission: max_comission_d.to_f64().unwrap_or_default(),
             self_delegation_amount: validator_metadata.self_delegation_amount.unwrap_or(0.0),
             self_delegate_address: self
                 .convert_valoper_to_self_delegate_address(&validator.operator_address)
@@ -1314,7 +1319,7 @@ impl ValidatorStatus {
     }
 }
 
-#[derive(Deserialize, Serialize)]
+#[derive(Deserialize, Serialize, Debug)]
 pub struct ValidatorRedelegationQuery {
     pub source: Option<bool>,
     pub destination: Option<bool>,
