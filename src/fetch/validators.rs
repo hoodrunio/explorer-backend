@@ -1,47 +1,35 @@
-use std::io::SeekFrom::End;
-use std::ops::{Div, Rem};
 use base64::Engine;
+use std::ops::{Div, Rem};
 
-use chrono::{DateTime, Duration, ParseResult, Utc};
-use cosmrs::proto::cosmos::tx::v1beta1::GetTxsEventRequest;
+use chrono::{DateTime, Duration, Utc};
 use futures::future::join_all;
 use mongodb::bson::doc;
 use prost::Message;
-use prost_wkt_types::Any;
 use rust_decimal::prelude::{FromPrimitive, ToPrimitive};
 use serde::{Deserialize, Serialize};
 use tokio::join;
 use tonic::transport::Endpoint;
 
 use crate::database::{ListDbResult, PaginatedListResult, ValidatorForDb};
-use crate::fetch::cosmos::tx::v1beta1::{OrderBy, service_client};
-use crate::fetch::transactions::{InternalTransactionContent, InternalTransactionContentKnowns};
+use crate::fetch::cosmos::slashing::v1beta1::{QuerySigningInfoRequest, QuerySigningInfoResponse};
+use crate::fetch::cosmos::tx::v1beta1::OrderBy;
 use crate::routes::ChainAmountItem;
 use crate::routes::{PaginationData, TNRAppError};
 use crate::utils::{convert_consensus_pubkey_to_consensus_address, get_key};
-use crate::{chain::Chain, routes::{calc_pages, OutRestResponse}, utils};
-use crate::fetch::cosmos::auth::v1beta1::query_client::QueryClient;
-use crate::fetch::cosmos::base::query::v1beta1::PageRequest;
+use crate::{chain::Chain, routes::OutRestResponse, utils};
 
-use crate::fetch::cosmos::slashing::v1beta1::QuerySigningInfoResponse;
-
-use crate::fetch::cosmos::tx::v1beta1::Tx as GrpcTx;
-use crate::fetch::cosmos::base::abci::v1beta1::{AbciMessageLog, TxResponse as GrpcTxResponse};
+use crate::fetch::cosmos::base::abci::v1beta1::TxResponse as GrpcTxResponse;
 use crate::fetch::cosmos::staking::v1beta1::{Commission, Description, Validator};
-use crate::fetch::PaginationResponse;
+use crate::fetch::cosmos::tx::v1beta1::Tx as GrpcTx;
 
 use super::amount_util::TnrDecimal;
-use super::delegations::SelfDelagationResp;
-use super::{
-    others::{DenomAmount, Pagination, PaginationConfig},
-    transactions::{Tx, TxResponse, TxsResp, TxsTransactionMessage, TxsTransactionMessageKnowns},
-};
+use super::others::{DenomAmount, Pagination};
 use base64::engine::general_purpose::STANDARD;
 
 impl Chain {
     /// Returns the signing info by given cons address.
     pub async fn get_validator_signing_info(&self, cons_addr: &str) -> Result<InternalSlashingSigningInfoItem, String> {
-        use crate::fetch::cosmos::slashing::v1beta1::{QuerySigningInfoRequest, QuerySigningInfoResponse, query_client::QueryClient};
+        use crate::fetch::cosmos::slashing::v1beta1::query_client::QueryClient;
 
         let endpoint = Endpoint::from_shared(self.config.grpc_url.clone().unwrap()).unwrap();
 
@@ -64,12 +52,8 @@ impl Chain {
     }
 
     /// Returns the delegations to given validator address.
-    pub async fn get_validator_delegations(
-        &self,
-        validator_addr: &str,
-        config: PaginationData,
-    ) -> Result<ListDbResult<InternalDelegation>, String> {
-        use crate::fetch::cosmos::staking::v1beta1::{QueryValidatorDelegationsRequest, QueryValidatorDelegationsResponse, query_client::QueryClient};
+    pub async fn get_validator_delegations(&self, validator_addr: &str, config: PaginationData) -> Result<ListDbResult<InternalDelegation>, String> {
+        use crate::fetch::cosmos::staking::v1beta1::{query_client::QueryClient, QueryValidatorDelegationsRequest};
         let endpoint = Endpoint::from_shared(self.config.grpc_url.clone().unwrap()).unwrap();
 
         let pagination = config.into();
@@ -78,7 +62,6 @@ impl Chain {
             validator_addr: validator_addr.to_string(),
             pagination: Some(pagination),
         };
-
 
         let resp = QueryClient::connect(endpoint)
             .await
@@ -90,7 +73,6 @@ impl Chain {
         let delegations = resp.into_inner();
 
         let mut int_dels = vec![];
-
 
         for delegation in delegations.delegation_responses {
             let amount = self.string_amount_parser(delegation.balance.unwrap().amount.clone(), None).await?;
@@ -109,15 +91,10 @@ impl Chain {
     }
 
     /// Returns the unbonding delegations to given validator address.
-    pub async fn get_validator_unbondings(
-        &self,
-        validator_addr: &str,
-        config: PaginationData,
-    ) -> Result<ListDbResult<InternalUnbonding>, String> {
-        use crate::fetch::cosmos::staking::v1beta1::{QueryValidatorUnbondingDelegationsRequest, QueryValidatorUnbondingDelegationsResponse, query_client::QueryClient};
+    pub async fn get_validator_unbondings(&self, validator_addr: &str, config: PaginationData) -> Result<ListDbResult<InternalUnbonding>, String> {
+        use crate::fetch::cosmos::staking::v1beta1::{query_client::QueryClient, QueryValidatorUnbondingDelegationsRequest};
 
         let endpoint = Endpoint::from_shared(self.config.grpc_url.clone().unwrap()).unwrap();
-        let path = format!("/cosmos/staking/v1beta1/validators/{validator_addr}/unbonding_delegations");
 
         let req = QueryValidatorUnbondingDelegationsRequest {
             validator_addr: validator_addr.to_string(),
@@ -130,7 +107,6 @@ impl Chain {
             .validator_unbonding_delegations(req)
             .await
             .map_err(|e| format!("{}", e))?;
-
 
         let resp_unboundings = resp.into_inner();
 
@@ -165,10 +141,9 @@ impl Chain {
         config: PaginationData,
         query_config: ValidatorRedelegationQuery,
     ) -> Result<ListDbResult<InternalRedelegation>, String> {
-        use crate::fetch::cosmos::tx::v1beta1::{GetTxsEventRequest, GetTxsEventResponse, service_client::ServiceClient};
+        use crate::fetch::cosmos::tx::v1beta1::{service_client::ServiceClient, GetTxsEventRequest};
 
         let endpoint = Endpoint::from_shared(self.config.grpc_url.clone().unwrap()).unwrap();
-
 
         let is_destination = query_config.destination.unwrap_or(false);
         let is_source = query_config.source.unwrap_or(false);
@@ -198,8 +173,6 @@ impl Chain {
 
         // let query = querys.join(",");
 
-
-
         let limit = config.limit.unwrap_or_else(|| 50);
         let page = config.offset.map(|o| o / limit).unwrap_or_else(|| 1);
 
@@ -217,7 +190,6 @@ impl Chain {
             limit,
             query: "".to_string(),
         };
-
 
         let resp = ServiceClient::connect(endpoint)
             .await
@@ -242,7 +214,7 @@ impl Chain {
 
     /// Returns validator info by given validator address.
     pub async fn get_validator_info(&self, validator_addr: &str) -> Result<InternalValidator, String> {
-        use crate::fetch::cosmos::staking::v1beta1::{QueryValidatorRequest, QueryValidatorResponse, query_client::QueryClient};
+        use crate::fetch::cosmos::staking::v1beta1::{query_client::QueryClient, QueryValidatorRequest};
 
         let endpoint = Endpoint::from_shared(self.config.grpc_url.clone().unwrap()).unwrap();
 
@@ -250,9 +222,7 @@ impl Chain {
             validator_addr: validator_addr.to_string(),
         };
 
-        let mut client = QueryClient::connect(endpoint)
-            .await
-            .unwrap();
+        let mut client = QueryClient::connect(endpoint).await.unwrap();
 
         let (resp, bonded_height, staking_pool_resp) = join!(
             client.validator(req),
@@ -261,7 +231,11 @@ impl Chain {
         );
 
         let bonded_height = bonded_height.unwrap_or(0);
-        let validator = resp.map_err(|e| format!("{}", e))?.into_inner().validator.ok_or(format!("No validator data on response: {}", validator_addr))?;
+        let validator = resp
+            .map_err(|e| format!("{}", e))?
+            .into_inner()
+            .validator
+            .ok_or(format!("No validator data on response: {}", validator_addr))?;
         let bonded_tokens = staking_pool_resp?.value.bonded as f64;
 
         let validator_metadata = self.database.find_validator_by_operator_addr(&validator.operator_address.clone()).await?;
@@ -275,8 +249,12 @@ impl Chain {
             .await
             .unwrap_or(0.0);
 
-        let consensus_address =
-            convert_consensus_pubkey_to_consensus_address(utils::get_key(validator.consensus_pubkey.clone().unwrap()).map_err(|e| format!("{e}"))?.as_str(), &format!("{}valcons", self.config.base_prefix));
+        let consensus_address = convert_consensus_pubkey_to_consensus_address(
+            utils::get_key(validator.consensus_pubkey.clone().unwrap())
+                .map_err(|e| format!("{e}"))?
+                .as_str(),
+            &format!("{}valcons", self.config.base_prefix),
+        );
 
         let val_status_enum = self.get_validator_status(&validator, &consensus_address).await?;
         let uptime = self.get_validator_uptime(&consensus_address, Some(val_status_enum.clone())).await?;
@@ -314,8 +292,12 @@ impl Chain {
     }
 
     /// Returns all the validators by given delegator address.
-    pub async fn get_validators_by_delegator(&self, delegator_addr: &str, pagination: PaginationData) -> Result<ListDbResult<ValidatorListValidator>, String> {
-        use crate::fetch::cosmos::staking::v1beta1::{QueryDelegatorValidatorsRequest, QueryValidatorsResponse, query_client::QueryClient};
+    pub async fn get_validators_by_delegator(
+        &self,
+        delegator_addr: &str,
+        pagination: PaginationData,
+    ) -> Result<ListDbResult<ValidatorListValidator>, String> {
+        use crate::fetch::cosmos::staking::v1beta1::{query_client::QueryClient, QueryDelegatorValidatorsRequest};
 
         let endpoint = Endpoint::from_shared(self.config.grpc_url.clone().unwrap()).unwrap();
 
@@ -323,7 +305,6 @@ impl Chain {
             delegator_addr: delegator_addr.to_string(),
             pagination: Some(pagination.into()),
         };
-
 
         let resp = QueryClient::connect(endpoint)
             .await
@@ -343,12 +324,12 @@ impl Chain {
 
     /// Returns accumulated commission of given validator.
     pub async fn get_validator_commission(&self, validator_addr: &str) -> Result<ValidatorCommisionResp, String> {
-        use crate::fetch::cosmos::distribution::v1beta1::{QueryValidatorCommissionRequest, QueryValidatorCommissionResponse, query_client::QueryClient};
+        use crate::fetch::cosmos::distribution::v1beta1::{query_client::QueryClient, QueryValidatorCommissionRequest};
 
         let endpoint = Endpoint::from_shared(self.config.grpc_url.clone().unwrap()).unwrap();
 
-        let req= QueryValidatorCommissionRequest {
-            validator_address: validator_addr.to_string()
+        let req = QueryValidatorCommissionRequest {
+            validator_address: validator_addr.to_string(),
         };
 
         let resp = QueryClient::connect(endpoint)
@@ -359,27 +340,32 @@ impl Chain {
             .map_err(|e| format!("{e}"))?
             .into_inner();
 
+        let commission = resp
+            .commission
+            .map(|c| ValidatorCommision {
+                commission: c
+                    .commission
+                    .into_iter()
+                    .map(|c| DenomAmount {
+                        denom: c.denom,
+                        amount: c.amount,
+                    })
+                    .collect(),
+            })
+            .unwrap();
 
-        let commission = resp.commission.map(|c| ValidatorCommision {
-            commission: c.commission.into_iter().map(|c| DenomAmount {
-                denom: c.denom,
-                amount: c.amount,
-            }).collect(),
-        }).unwrap();
-
-
-        Ok(ValidatorCommisionResp {
-            commission
-        })
+        Ok(ValidatorCommisionResp { commission })
     }
 
     /// Returns rewards of given validator.
     pub async fn get_validator_rewards(&self, validator_addr: &str) -> Result<ValidatorRewardsResp, String> {
-        use crate::fetch::cosmos::distribution::v1beta1::{QueryValidatorOutstandingRewardsRequest, QueryValidatorOutstandingRewardsResponse, query_client::QueryClient};
+        use crate::fetch::cosmos::distribution::v1beta1::{query_client::QueryClient, QueryValidatorOutstandingRewardsRequest};
 
         let endpoint = Endpoint::from_shared(self.config.grpc_url.clone().unwrap()).unwrap();
 
-        let req = QueryValidatorOutstandingRewardsRequest { validator_address: validator_addr.to_string() };
+        let req = QueryValidatorOutstandingRewardsRequest {
+            validator_address: validator_addr.to_string(),
+        };
 
         let resp = QueryClient::connect(endpoint)
             .await
@@ -389,23 +375,29 @@ impl Chain {
             .map_err(|e| format!("{}", e))?
             .into_inner();
 
+        let resp = resp
+            .rewards
+            .map(|r| {
+                r.rewards
+                    .into_iter()
+                    .map(|c| DenomAmount {
+                        denom: c.denom,
+                        amount: c.amount,
+                    })
+                    .collect()
+            })
+            .unwrap();
 
-        let resp = resp.rewards.map(|r| r.rewards.into_iter().map(|c| {
-            DenomAmount {
-                denom: c.denom,
-                amount: c.amount,
-            }
-        }).collect()).unwrap();
-
-        let resp = ValidatorRewardsResp { rewards: ValidatorCommision { commission: resp } };
-
+        let resp = ValidatorRewardsResp {
+            rewards: ValidatorCommision { commission: resp },
+        };
 
         Ok(resp)
     }
 
     /// Returns the list of validators with unbonding status.
     pub async fn get_validators_unbonding(&self, pagination_config: PaginationData) -> Result<ListDbResult<ValidatorListValidator>, String> {
-        use crate::fetch::cosmos::staking::v1beta1::{QueryValidatorsRequest, QueryValidatorsResponse, query_client::QueryClient};
+        use crate::fetch::cosmos::staking::v1beta1::{query_client::QueryClient, QueryValidatorsRequest};
 
         let endpoint = Endpoint::from_shared(self.config.grpc_url.clone().unwrap()).unwrap();
 
@@ -432,7 +424,7 @@ impl Chain {
 
     /// Returns the list of validators with unspecified status.
     pub async fn get_validators_unspecified(&self, pagination_config: PaginationData) -> Result<ListDbResult<ValidatorListValidator>, String> {
-        use crate::fetch::cosmos::staking::v1beta1::{QueryValidatorsRequest, QueryValidatorsResponse, query_client::QueryClient};
+        use crate::fetch::cosmos::staking::v1beta1::{query_client::QueryClient, QueryValidatorsRequest};
 
         let endpoint = Endpoint::from_shared(self.config.grpc_url.clone().unwrap()).unwrap();
 
@@ -459,7 +451,7 @@ impl Chain {
 
     /// Returns validator information by given delegator validator pair.
     pub async fn get_delegator_validator_pair_info(&self, delegator_addr: &str, validator_addr: &str) -> Result<ValidatorResp, String> {
-        use crate::fetch::cosmos::staking::v1beta1::{QueryDelegatorValidatorRequest, QueryValidatorResponse, query_client::QueryClient};
+        use crate::fetch::cosmos::staking::v1beta1::{query_client::QueryClient, QueryDelegatorValidatorRequest};
 
         let endpoint = Endpoint::from_shared(self.config.grpc_url.clone().unwrap()).unwrap();
 
@@ -475,7 +467,6 @@ impl Chain {
             .await
             .map_err(|e| format!("{}", e))?
             .into_inner();
-
 
         Ok(ValidatorResp {
             validator: resp.validator.unwrap().into(),
@@ -519,7 +510,7 @@ impl Chain {
                 cursor: None,
                 offset: Some((pages_to_request + 1) * limit),
                 limit: Some(rem),
-                direction: None
+                direction: None,
             }))
         }
 
@@ -536,7 +527,7 @@ impl Chain {
 
     /// Returns the latest validator set.
     async fn _get_validator_set(&self, page: PaginationData) -> Result<PaginatedListResult<ValidatorSetValidator>, String> {
-        use crate::fetch::cosmos::base::tendermint::v1beta1::{GetLatestValidatorSetRequest, GetLatestValidatorSetResponse, service_client::ServiceClient};
+        use crate::fetch::cosmos::base::tendermint::v1beta1::{service_client::ServiceClient, GetLatestValidatorSetRequest};
 
         let endpoint = Endpoint::from_shared(self.config.grpc_url.clone().unwrap()).unwrap();
 
@@ -552,17 +543,16 @@ impl Chain {
             .map_err(|e| format!("{}", e))?
             .into_inner();
 
-
-
         let validators = resp
             .validators
             .into_iter()
             .map(|v| ValidatorSetValidator {
                 address: v.address,
-                pub_key: ValidatorSetPubKey { key: get_key(v.pub_key.unwrap()).unwrap() },
+                pub_key: ValidatorSetPubKey {
+                    key: get_key(v.pub_key.unwrap()).unwrap(),
+                },
             })
             .collect();
-
 
         Ok(PaginatedListResult {
             data: validators,
@@ -581,40 +571,43 @@ impl Chain {
             direction: None,
         };
 
-
         let mut first_resp = self._get_validator_set_by_height(height, config).await?;
 
         let mut validator_set = vec![];
 
         validator_set.append(&mut first_resp.data);
 
-
-        let mut pages_to_request = first_resp.pagination.total / limit;
+        let pages_to_request = first_resp.pagination.total / limit;
 
         let mut jobs = vec![];
 
         // tracing!("{}", pages_to_request);
 
         for page in 2..=pages_to_request {
-            jobs.push(self._get_validator_set_by_height(height, PaginationData {
-                cursor: None,
-                offset: Some(page * limit),
-                limit: Some(limit),
-                direction: None,
-            }))
+            jobs.push(self._get_validator_set_by_height(
+                height,
+                PaginationData {
+                    cursor: None,
+                    offset: Some(page * limit),
+                    limit: Some(limit),
+                    direction: None,
+                },
+            ))
         }
 
         let rem = (first_resp.pagination.total / limit).rem(limit);
 
         if rem > 0 {
-            jobs.push(self._get_validator_set_by_height(height, PaginationData {
-                cursor: None,
-                offset: Some((pages_to_request + 1) * limit),
-                limit: Some(rem),
-                direction: None
-            }))
+            jobs.push(self._get_validator_set_by_height(
+                height,
+                PaginationData {
+                    cursor: None,
+                    offset: Some((pages_to_request + 1) * limit),
+                    limit: Some(rem),
+                    direction: None,
+                },
+            ))
         }
-
 
         let resps = join_all(jobs).await;
 
@@ -633,7 +626,7 @@ impl Chain {
         height: i64,
         config: PaginationData,
     ) -> Result<PaginatedListResult<ValidatorSetValidator>, String> {
-        use crate::fetch::cosmos::base::tendermint::v1beta1::{GetValidatorSetByHeightRequest, GetValidatorSetByHeightResponse, service_client::ServiceClient};
+        use crate::fetch::cosmos::base::tendermint::v1beta1::{service_client::ServiceClient, GetValidatorSetByHeightRequest};
 
         let endpoint = Endpoint::from_shared(self.config.grpc_url.clone().unwrap()).unwrap();
 
@@ -650,10 +643,16 @@ impl Chain {
             .map_err(|e| format!("{}", e))?
             .into_inner();
 
-        let validators = resp.validators.into_iter().map(|v| ValidatorSetValidator {
-            address: v.address,
-            pub_key: ValidatorSetPubKey { key: get_key(v.pub_key.unwrap()).unwrap() },
-        }).collect();
+        let validators = resp
+            .validators
+            .into_iter()
+            .map(|v| ValidatorSetValidator {
+                address: v.address,
+                pub_key: ValidatorSetPubKey {
+                    key: get_key(v.pub_key.unwrap()).unwrap(),
+                },
+            })
+            .collect();
 
         Ok(PaginatedListResult {
             data: validators,
@@ -663,7 +662,7 @@ impl Chain {
 
     /// Returns the validator set at given height.
     async fn get_validator_bonded_height(&self, valoper_addr: &str) -> Result<i64, String> {
-        use crate::fetch::cosmos::tx::v1beta1::{GetTxsEventRequest, GetTxsEventResponse, service_client::ServiceClient};
+        use crate::fetch::cosmos::tx::v1beta1::{service_client::ServiceClient, GetTxsEventRequest};
 
         let endpoint = Endpoint::from_shared(self.config.grpc_url.clone().unwrap()).unwrap();
 
@@ -760,7 +759,7 @@ impl Chain {
     }
 
     pub async fn get_validator_voter_address(&self, operator_address: &String) -> Result<Option<String>, TNRAppError> {
-        use crate::fetch::cosmos::tx::v1beta1::{GetTxsEventRequest, GetTxsEventResponse, service_client::ServiceClient};
+        use crate::fetch::cosmos::tx::v1beta1::{service_client::ServiceClient, GetTxsEventRequest};
         let mut result = None;
         if self.config.name != "axelar" {
             return Ok(result);
@@ -774,7 +773,8 @@ impl Chain {
 
         let mut query = vec![];
         query.push(format!("message.sender='{}'", operator_address));
-        query.push(format!("message.action='{}'", "RegisterProxy")); let endpoint = Endpoint::from_shared(self.config.grpc_url.clone().unwrap()).unwrap();
+        query.push(format!("message.action='{}'", "RegisterProxy"));
+        let endpoint = Endpoint::from_shared(self.config.grpc_url.clone().unwrap()).unwrap();
 
         let query = query.join(",");
 
@@ -802,7 +802,6 @@ impl Chain {
                     let msg = RegisterProxyRequest::decode(message.value.as_slice()).unwrap();
 
                     result = Some(STANDARD.encode(msg.proxy_addr))
-
                 }
             }
         }
@@ -815,7 +814,7 @@ impl Chain {
         let val = self.database.find_validator(doc! {"operator_address": operator_address.clone()}).await?;
         let self_delegate_address = val.self_delegate_address;
 
-        use crate::fetch::cosmos::staking::v1beta1::{QueryDelegationRequest, QueryDelegationResponse, query_client::QueryClient};
+        use crate::fetch::cosmos::staking::v1beta1::{query_client::QueryClient, QueryDelegationRequest};
 
         let endpoint = Endpoint::from_shared(self.config.grpc_url.clone().unwrap()).unwrap();
 
@@ -832,19 +831,15 @@ impl Chain {
             .map_err(|e| format!("{}", e))?
             .into_inner();
 
-        let amount = self.string_amount_parser(resp.delegation_response.unwrap().delegation.unwrap().shares, None).await?;
+        let amount = self
+            .string_amount_parser(resp.delegation_response.unwrap().delegation.unwrap().shares, None)
+            .await?;
         let internal_delegation = InternalDelegation {
             address: self_delegate_address,
             amount,
         };
         Ok(internal_delegation)
     }
-}
-
-#[derive(Deserialize, Serialize, Debug)]
-pub struct ValidatorSetResp {
-    pub validators: Vec<ValidatorSetValidator>,
-    pub pagination: Pagination,
 }
 
 #[derive(Deserialize, Serialize, Debug)]
@@ -866,36 +861,6 @@ pub struct InternalUnbonding {
     pub address: String,
     pub balance: ChainAmountItem,
     pub completion_time: i32,
-}
-
-#[derive(Deserialize, Serialize, Debug)]
-pub struct ValidatorUnbondingsResp {
-    /// Array of delegation responses.
-    pub unbonding_responses: Vec<ValidatorUnbonding>,
-    /// Pagination.
-    pagination: Pagination,
-}
-
-#[derive(Deserialize, Serialize, Debug)]
-pub struct ValidatorUnbonding {
-    /// Delegator address. Eg: `"evmos1q9f3hdrm5fmllf53ne5yxcytjmhelpyuf06vtj"`
-    delegator_address: String,
-    /// Delegator address. Eg: `"evmosvaloper1zwr06uz8vrwkcnd05e5yddamvghn93a4hsyewa"`
-    validator_address: String,
-    /// Entries.
-    entries: Vec<ValidatorUnbondingEntry>,
-}
-
-#[derive(Deserialize, Serialize, Debug)]
-pub struct ValidatorUnbondingEntry {
-    /// Unbonding entry creation height. Eg: `"6883291"`
-    creation_height: String,
-    /// Unbonding entry completion time. Eg: `"2022-11-22T16:06:08.996987184Z"`
-    completion_time: String,
-    /// Unbonding entry initial balance. Eg: `"300000000000000000"`
-    initial_balance: String,
-    /// Unbonding entry initial balance. Eg: `"300000000000000000"`
-    balance: String,
 }
 
 #[derive(Deserialize, Serialize, Debug)]
@@ -1121,8 +1086,6 @@ fn validator_status(status: i32) -> String {
     status.to_string()
 }
 
-
-
 impl From<Description> for ValidatorListValidatorDescription {
     fn from(v: Description) -> Self {
         Self {
@@ -1138,14 +1101,14 @@ impl From<Description> for ValidatorListValidatorDescription {
 impl From<Commission> for ValidatorListValidatorCommission {
     fn from(v: Commission) -> Self {
         let cr = v.commission_rates.unwrap();
-       Self {
-           commission_rates: ValidatorListValidatorCommissionRates {
-               rate: cr.rate,
-               max_rate: cr.max_rate,
-               max_change_rate: cr.max_change_rate,
-           },
-           update_time: utils::to_rfc3339(v.update_time.unwrap()),
-       }
+        Self {
+            commission_rates: ValidatorListValidatorCommissionRates {
+                rate: cr.rate,
+                max_rate: cr.max_rate,
+                max_change_rate: cr.max_change_rate,
+            },
+            update_time: utils::to_rfc3339(v.update_time.unwrap()),
+        }
     }
 }
 
@@ -1156,7 +1119,7 @@ impl From<Validator> for ValidatorListValidator {
         Self {
             operator_address: v.operator_address,
             consensus_pubkey: ConsensusPubkey {
-                key_type:pubkey.type_url.clone(),
+                key_type: pubkey.type_url.clone(),
                 key: utils::get_key(pubkey).unwrap(),
             },
             jailed: v.jailed,
@@ -1234,19 +1197,6 @@ pub struct InternalRedelegation {
     pub validator_to_name: String,
 }
 
-// #[serde(rename = "")]
-#[derive(Serialize, Deserialize, Debug, Clone)]
-struct Redelegate {
-    /// Delegator address. Eg: `"evmos1a37y062zjspzrcaxhz76lskwnvm0xlsymdfgg0"`
-    delegator_address: String,
-    /// Source validator address. Eg: `"evmosvaloper1v4crs2adgcu2cdm2jxq07mw7ugzx0z4x6alxeg"`
-    validator_src_address: String,
-    /// Destination validator address. Eg: `"evmosvaloper1sp9frqwep52chwavv3xd776myy8gyyvkv5uysl"`
-    validator_dst_address: String,
-    /// Amount.
-    amount: DenomAmount,
-}
-
 impl InternalRedelegation {
     pub async fn from_tx(tx: &GrpcTx, tx_response: &GrpcTxResponse, chain: &Chain) -> Result<Self, String> {
         let (delegator_address, validator_dst_address, amount) = match tx.body.clone().map(|b| b.messages.get(0).cloned()).flatten() {
@@ -1262,7 +1212,7 @@ impl InternalRedelegation {
                     return Err(format!("Message is not the correct type, {}", tx_response.txhash));
                 }
             }
-            None => return Err(format!("Tx doesn't have a redelegation message, {}.", tx_response.txhash))
+            None => return Err(format!("Tx doesn't have a redelegation message, {}.", tx_response.txhash)),
         };
 
         let validator = chain.database.find_validator_by_operator_addr(&validator_dst_address).await?;
@@ -1294,7 +1244,7 @@ impl InternalRedelegation {
                     ts
                 }
             }
-            Err(e) => return Err(format!("Cannot parse datetetime {}: {}", attr.value, e))
+            Err(e) => return Err(format!("Cannot parse datetetime {}: {}", attr.value, e)),
         };
 
         Ok(Self {
@@ -1306,28 +1256,6 @@ impl InternalRedelegation {
             validator_to_name: validator.name,
         })
     }
-}
-
-#[derive(Deserialize, Serialize, Debug)]
-pub struct SlashingSigningInfo {
-    pub info: Vec<SlashingSigningInfoItem>,
-    pub pagination: Pagination,
-}
-
-#[derive(Deserialize, Serialize, Debug)]
-pub struct SlashingSigningInfoItem {
-    /// Validator address. Eg: `"evmosvalcons1qx4hehfny66jfzymzn6d5t38m0ely3cvw6zn06"`
-    pub address: String,
-    /// The block height slashing is started at. Eg: `"0"`
-    pub start_height: String,
-    /// Unknown. Eg: `"5888077"`
-    pub index_offset: String,
-    /// The time jailed until. Eg: `"2022-05-14T04:31:49.705643236Z"`
-    pub jailed_until: String,
-    /// Tombstoned state. Eg: `false`
-    pub tombstoned: bool,
-    /// The count of missed blocks. Eg: `"16433"`
-    pub missed_blocks_counter: String,
 }
 
 #[derive(Deserialize, Serialize, Debug)]
@@ -1346,7 +1274,6 @@ pub struct InternalSlashingSigningInfoItem {
     pub missed_blocks_counter: i64,
 }
 
-
 impl TryFrom<QuerySigningInfoResponse> for InternalSlashingSigningInfoItem {
     type Error = String;
     fn try_from(value: QuerySigningInfoResponse) -> Result<Self, Self::Error> {
@@ -1355,17 +1282,15 @@ impl TryFrom<QuerySigningInfoResponse> for InternalSlashingSigningInfoItem {
             address: value.address,
             start_height: value.start_height,
             index_offset: value.start_height,
-            jailed_until: value.jailed_until.map(|ju| ju.nanos / 1_000_0000).ok_or_else(|| "Cannot parse jailed until datetime")?.into(),
+            jailed_until: value
+                .jailed_until
+                .map(|ju| ju.nanos / 10_000_000)
+                .ok_or_else(|| "Cannot parse jailed until datetime")?
+                .into(),
             tombstoned: value.tombstoned,
             missed_blocks_counter: value.missed_blocks_counter,
         })
     }
-}
-
-#[derive(Deserialize, Serialize, Debug)]
-pub struct SigningInfoResp {
-    /// Validator signing info.
-    pub val_signing_info: SlashingSigningInfoItem,
 }
 
 #[derive(Deserialize, Serialize, Debug, PartialEq, Eq, Clone)]
