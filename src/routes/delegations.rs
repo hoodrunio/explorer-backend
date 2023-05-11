@@ -44,7 +44,7 @@ pub async fn unbonding_delegations(
 
     let chain = extract_chain(&chain, chains)?;
     let data = chain.get_delegations_unbonding(&delegator_addr, config).await?;
-    Ok(TNRAppSuccessResponse::new(data, None))
+    Ok(TNRAppSuccessResponse::from(data))
 }
 
 #[get("{chain}/redelegations/{delegator_address}")]
