@@ -6,7 +6,10 @@ use actix_web::{
 use mongodb::bson::doc;
 use serde::Deserialize;
 
-use crate::{routes::{extract_chain, PaginationData, TNRAppError, TNRAppSuccessResponse}, fetch::validators::InternalRedelegation};
+use crate::{
+    fetch::validators::InternalRedelegation,
+    routes::{extract_chain, PaginationData, TNRAppError, TNRAppSuccessResponse},
+};
 use crate::{
     fetch::{
         others::PaginationConfig,
@@ -51,7 +54,7 @@ pub async fn validator_unbondings(
 
     let chain = extract_chain(&chain, chains)?;
     let data = chain.get_validator_unbondings(&validator_addr, query.into_inner()).await?;
-    Ok(TNRAppSuccessResponse::new(data, None))
+    Ok(TNRAppSuccessResponse::from(data))
 }
 
 #[get("{chain}/validator-redelegations/{address}")]
@@ -67,7 +70,9 @@ pub async fn validator_redelegations(
         source: query.source,
         destination: query.destination,
     };
-    let data = chain.get_validator_redelegations(&validator_addr, query.pagination.clone(), query_config).await?;
+    let data = chain
+        .get_validator_redelegations(&validator_addr, query.pagination.clone(), query_config)
+        .await?;
     Ok(data.into())
 }
 
