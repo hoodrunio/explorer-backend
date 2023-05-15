@@ -1,8 +1,4 @@
-use std::fmt::{Display, Formatter};
-use base64::{
-    engine::general_purpose::STANDARD,
-    Engine
-};
+use base64::{engine::general_purpose::STANDARD, Engine};
 use bech32::ToBase32;
 use chrono::{DateTime, Utc};
 use hex::encode as to_hex;
@@ -10,6 +6,7 @@ use prost::Message;
 use reqwest::Client;
 use serde::Deserialize;
 use sha2::{Digest, Sha256};
+use std::fmt::{Display, Formatter};
 
 /// Returns the prices of coins with given Coin Gecko IDs.
 // pub async fn get_prices(client: Client, coin_ids: &[&'static str]) -> HashMap<String, f64> {
@@ -70,7 +67,7 @@ pub struct Primary {
 #[derive(Debug, Clone)]
 pub enum PubKeyParseError {
     UnknownType(String),
-    DecodeError(prost::DecodeError)
+    DecodeError(prost::DecodeError),
 }
 
 impl Display for PubKeyParseError {
@@ -78,7 +75,7 @@ impl Display for PubKeyParseError {
         use PubKeyParseError::*;
         match self {
             UnknownType(ty) => write!(f, "Unknown type: {ty}"),
-            DecodeError(e) => write!(f, "Failed to decode: {e}")
+            DecodeError(e) => write!(f, "Failed to decode: {e}"),
         }
     }
 }
@@ -99,7 +96,7 @@ pub fn get_key(data: prost_wkt_types::Any) -> Result<String, PubKeyParseError> {
             let key = PubKey::decode(data.value.as_slice()).map_err(|e| PubKeyParseError::DecodeError(e))?;
             Ok(STANDARD.encode(key.key.as_slice()))
         }
-        ty => Err(PubKeyParseError::UnknownType(ty.to_string()))
+        ty => Err(PubKeyParseError::UnknownType(ty.to_string())),
     }
 }
 
@@ -189,12 +186,12 @@ const LEGACY_PRECISION: usize = 18;
 pub fn bytes_to_dec(input: Vec<u8>) -> String {
     let st = String::from_utf8(input).unwrap();
 
-    string_to_dec(st.as_str())
+    str_to_dec(st.as_str())
 }
 
 pub fn str_to_dec(input: &str) -> String {
     if input.len() <= LEGACY_PRECISION {
-        return format!("0.{:0>width$}", input, width=LEGACY_PRECISION);
+        return format!("0.{:0>width$}", input, width = LEGACY_PRECISION);
     }
 
     let dec_point_place = input.len() - LEGACY_PRECISION;
