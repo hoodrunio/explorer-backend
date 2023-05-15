@@ -11,14 +11,9 @@ use crate::{
     routes::{extract_chain, PaginationData, TNRAppError, TNRAppSuccessResponse},
 };
 use crate::{
-    fetch::{
-        others::PaginationConfig,
-        validators::{ValidatorListResp, ValidatorRedelegationQuery},
-    },
+    fetch::validators::{ValidatorListResp, ValidatorRedelegationQuery},
     state::State,
 };
-
-use super::QueryParams;
 
 // ======== Validator Methods ========
 
