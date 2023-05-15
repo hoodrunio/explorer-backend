@@ -16,7 +16,7 @@ use crate::fetch::cosmos::slashing::v1beta1::{QuerySigningInfoRequest, QuerySign
 use crate::fetch::cosmos::tx::v1beta1::OrderBy;
 use crate::routes::ChainAmountItem;
 use crate::routes::{PaginationData, TNRAppError};
-use crate::utils::{convert_consensus_pubkey_to_consensus_address, get_key, string_to_dec};
+use crate::utils::{convert_consensus_pubkey_to_consensus_address, get_key, str_to_dec};
 use crate::{chain::Chain, routes::OutRestResponse, utils};
 
 use crate::fetch::cosmos::base::abci::v1beta1::TxResponse as GrpcTxResponse;
@@ -263,8 +263,8 @@ impl Chain {
 
         let commission_rates = validator.commission.unwrap().commission_rates.unwrap();
 
-        let comission_d = TnrDecimal::from_str(&string_to_dec(commission_rates.rate.as_str())).unwrap_or_default();
-        let max_comission_d = TnrDecimal::from_str(&string_to_dec(commission_rates.max_rate.as_str())).unwrap_or_default();
+        let comission_d = TnrDecimal::from_str(&str_to_dec(commission_rates.rate.as_str())).unwrap_or_default();
+        let max_comission_d = TnrDecimal::from_str(&str_to_dec(commission_rates.max_rate.as_str())).unwrap_or_default();
 
         let validator = InternalValidator {
             logo_url: validator_metadata.logo_url,
