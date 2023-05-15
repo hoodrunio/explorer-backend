@@ -183,3 +183,22 @@ pub fn to_rfc3339(timestamp: prost_wkt_types::Timestamp) -> String {
     let datetime: DateTime<Utc> = timestamp.into();
     datetime.to_rfc3339()
 }
+
+const LEGACY_PRECISION: usize = 18;
+
+pub fn str_to_dec(input: Vec<u8>) -> String {
+    let st = String::from_utf8(input).unwrap();
+
+    string_to_dec(st.as_str())
+}
+
+fn string_to_dec(input: &str) -> String {
+    if input.len() <= LEGACY_PRECISION {
+        return format!("0.{:0>width$}", input, width=LEGACY_PRECISION);
+    }
+
+    let dec_point_place = input.len() - LEGACY_PRECISION;
+    let (bef, aft) = input.split_at(dec_point_place);
+
+    format!("{}.{}", bef, aft)
+}
