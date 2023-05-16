@@ -12,10 +12,7 @@ use crate::{
     routes::ChainAmountItem,
 };
 
-use super::{
-    amount_util::TnrDecimal,
-    others::{Pagination, PaginationConfig},
-};
+use super::{amount_util::TnrDecimal, others::Pagination};
 use crate::routes::PaginationData;
 use prost::Message;
 
@@ -96,7 +93,7 @@ impl Chain {
     }
 
     pub async fn get_account_balances(&self, account_address: &str, config: PaginationData) -> Result<Vec<ChainAmountItem>, String> {
-        use crate::fetch::cosmos::bank::v1beta1::{query_client::QueryClient, QueryAllBalancesRequest, QueryAllBalancesResponse};
+        use crate::fetch::cosmos::bank::v1beta1::{query_client::QueryClient, QueryAllBalancesRequest};
 
         let endpoint = Endpoint::from_shared(self.config.grpc_url.clone().unwrap()).unwrap();
 
@@ -125,7 +122,7 @@ impl Chain {
     }
 
     pub async fn get_account_balance_by_denom(&self, account_address: &str, denom: &str) -> Result<ChainAmountItem, String> {
-        use crate::fetch::cosmos::bank::v1beta1::{query_client::QueryClient, QueryBalanceRequest, QueryBalanceResponse};
+        use crate::fetch::cosmos::bank::v1beta1::{query_client::QueryClient, QueryBalanceRequest};
 
         let endpoint = Endpoint::from_shared(self.config.grpc_url.clone().unwrap()).unwrap();
 

@@ -1,5 +1,5 @@
 use base64::Engine;
-use std::ops::{Div, Mul, Rem};
+use std::ops::{Div, Rem};
 use std::str::FromStr;
 
 use chrono::{DateTime, Duration, Utc};

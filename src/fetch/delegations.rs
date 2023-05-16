@@ -4,23 +4,16 @@ use serde::{Deserialize, Serialize};
 use tokio::join;
 use tonic::transport::Endpoint;
 
+use crate::chain::Chain;
 use crate::database::ListDbResult;
-use crate::fetch::cosmos::auth::v1beta1::query_client::QueryClient;
 use crate::routes::{ChainAmountItem, PaginationData};
-use crate::utils::to_rfc3339;
-use crate::{
-    chain::Chain,
-    routes::{calc_pages, OutRestResponse},
-};
 
-use super::others::{DenomAmount, Pagination, PaginationConfig};
+use super::others::{DenomAmount, Pagination};
 
 impl Chain {
     /// Returns the delegations of given address.
     pub async fn get_delegations(&self, delegator_addr: &str, config: PaginationData) -> Result<ListDbResult<InternalDelegation>, String> {
-        use crate::fetch::cosmos::staking::v1beta1::{
-            query_client::QueryClient, QueryDelegatorDelegationsRequest, QueryDelegatorDelegationsResponse,
-        };
+        use crate::fetch::cosmos::staking::v1beta1::{query_client::QueryClient, QueryDelegatorDelegationsRequest};
 
         let endpoint = Endpoint::from_shared(self.config.grpc_url.clone().unwrap()).unwrap();
 
@@ -132,9 +125,7 @@ impl Chain {
 
     /// Returns the unbonding delegations of given address.
     pub async fn get_delegations_unbonding(&self, delegator_addr: &str, config: PaginationData) -> Result<ListDbResult<InternalUnbonding>, String> {
-        use crate::fetch::cosmos::staking::v1beta1::{
-            query_client::QueryClient, QueryDelegatorUnbondingDelegationsRequest, QueryDelegatorUnbondingDelegationsResponse,
-        };
+        use crate::fetch::cosmos::staking::v1beta1::{query_client::QueryClient, QueryDelegatorUnbondingDelegationsRequest};
 
         let endpoint = Endpoint::from_shared(self.config.grpc_url.clone().unwrap()).unwrap();
 
