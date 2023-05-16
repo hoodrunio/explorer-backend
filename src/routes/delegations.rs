@@ -12,7 +12,7 @@ use super::QueryParams;
 // ======== Delegation Methods ========
 
 #[get("{chain}/delegations/{delegator_address}")]
-pub async fn delegations(path: Path<(String, String)>, chains: Data<State>, query: Query<QueryParams>) -> Result<impl Responder, TNRAppError> {
+pub async fn delegations(path: Path<(String, String)>, chains: Data<State>, _query: Query<QueryParams>) -> Result<impl Responder, TNRAppError> {
     let (chain, delegator_addr) = path.into_inner();
 
     let config = PaginationData {
@@ -31,7 +31,7 @@ pub async fn delegations(path: Path<(String, String)>, chains: Data<State>, quer
 pub async fn unbonding_delegations(
     path: Path<(String, String)>,
     chains: Data<State>,
-    query: Query<QueryParams>,
+    _query: Query<QueryParams>,
 ) -> Result<impl Responder, TNRAppError> {
     let (chain, delegator_addr) = path.into_inner();
 
@@ -48,7 +48,7 @@ pub async fn unbonding_delegations(
 }
 
 #[get("{chain}/redelegations/{delegator_address}")]
-pub async fn redelegations(path: Path<(String, String)>, chains: Data<State>, query: Query<QueryParams>) -> Result<impl Responder, TNRAppError> {
+pub async fn redelegations(path: Path<(String, String)>, chains: Data<State>, _query: Query<QueryParams>) -> Result<impl Responder, TNRAppError> {
     let (chain, delegator_addr) = path.into_inner();
 
     let config = PaginationData {
