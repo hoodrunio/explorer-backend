@@ -1,13 +1,10 @@
 use std::collections::HashMap;
-use std::env::VarError;
 use std::fs::File;
-use std::io;
 use std::io::Read;
 
 use futures::{stream, StreamExt};
 use serde::{Deserialize, Serialize};
 use tokio::sync::broadcast::Sender;
-use tracing_subscriber::fmt::format;
 
 use crate::chain::{Chain, IntermediateChainConfig};
 use crate::database::DatabaseTR;
@@ -29,16 +26,30 @@ impl State {
         let chain_configs = match std::env::var("OFFLINE") {
             Ok(var) if var == "true" => {
                 let mut yml = String::new();
-                File::open("Chains.yml").expect("Missing Chains.yml file").read_to_string(&mut yml).unwrap();
+                File::open("Chains.yml")
+                    .expect("Missing Chains.yml file")
+                    .read_to_string(&mut yml)
+                    .unwrap();
                 let chain_configs: HashMap<String, IntermediateChainConfig> = serde_yaml::from_str(yml.as_str()).expect("Invalid Chains.yml format");
                 chain_configs
             }
             _ => {
-                let manifest: AssetsManifest = reqwest::get(format!("{}/chains.json", std::env::var("TNR_EXPLORER_ASSETS_URI").unwrap())).await.unwrap().json().await.unwrap();
+                let manifest: AssetsManifest = reqwest::get(format!("{}/chains.json", std::env::var("TNR_EXPLORER_ASSETS_URI").unwrap()))
+                    .await
+                    .unwrap()
+                    .json()
+                    .await
+                    .unwrap();
                 let mut chains = HashMap::new();
                 for file in manifest.files {
-                    let content = reqwest::get(format!("{}/{file}", std::env::var("TNR_EXPLORER_ASSETS_URI").unwrap())).await.unwrap().text().await.unwrap();
-                    let current_config: HashMap<String, IntermediateChainConfig> = serde_yaml::from_str(content.as_str()).expect("Invalid Chains.yml format");
+                    let content = reqwest::get(format!("{}/{file}", std::env::var("TNR_EXPLORER_ASSETS_URI").unwrap()))
+                        .await
+                        .unwrap()
+                        .text()
+                        .await
+                        .unwrap();
+                    let current_config: HashMap<String, IntermediateChainConfig> =
+                        serde_yaml::from_str(content.as_str()).expect("Invalid Chains.yml format");
                     current_config.into_iter().for_each(|(name, config)| {
                         chains.entry(name).or_insert(config);
                     });

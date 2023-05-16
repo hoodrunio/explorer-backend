@@ -60,7 +60,7 @@ impl Chain {
 
     /// Returns the redelegations of given address.
     pub async fn get_redelegations(&self, delegator_addr: &str, config: PaginationData) -> Result<ListDbResult<InternalRedelegation>, String> {
-        use crate::fetch::cosmos::staking::v1beta1::{query_client::QueryClient, QueryRedelegationsRequest, QueryRedelegationsResponse};
+        use crate::fetch::cosmos::staking::v1beta1::{query_client::QueryClient, QueryRedelegationsRequest};
 
         let endoint = Endpoint::from_shared(self.config.grpc_url.clone().unwrap()).unwrap();
 

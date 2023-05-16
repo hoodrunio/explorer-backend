@@ -5,7 +5,7 @@ use actix_web::{
 };
 
 use crate::routes::{extract_chain, PaginationData, TNRAppError, TNRAppSuccessResponse};
-use crate::{fetch::others::PaginationConfig, state::State};
+use crate::state::State;
 
 use super::QueryParams;
 

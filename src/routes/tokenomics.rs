@@ -4,10 +4,8 @@ use actix_web::{
     Responder,
 };
 
-use crate::routes::{extract_chain, PaginationData, TNRAppError, TNRAppSuccessResponse};
+use crate::routes::{extract_chain, TNRAppError, TNRAppSuccessResponse};
 use crate::{fetch::others::PaginationConfig, state::State};
-
-use super::QueryParams;
 
 // ======== Tokenomic Methods ========
 

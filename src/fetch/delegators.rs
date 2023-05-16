@@ -1,14 +1,14 @@
 use super::others::DenomAmount;
 use crate::chain::Chain;
+use crate::fetch::cosmos::distribution::v1beta1::{DelegationDelegatorReward, QueryDelegationTotalRewardsResponse};
 use crate::routes::ChainAmountItem;
 use serde::{Deserialize, Serialize};
 use tonic::transport::Endpoint;
-use crate::fetch::cosmos::distribution::v1beta1::{DelegationDelegatorReward, QueryDelegationTotalRewardsResponse};
 
 impl Chain {
     /// Returns the withdraw address by given delegator address.
     pub async fn get_delegator_withdraw_address(&self, delegator_addr: &str) -> Result<String, String> {
-        use crate::fetch::cosmos::distribution::v1beta1::{QueryDelegatorWithdrawAddressRequest, QueryDelegatorWithdrawAddressResponse, query_client::QueryClient};
+        use crate::fetch::cosmos::distribution::v1beta1::{query_client::QueryClient, QueryDelegatorWithdrawAddressRequest};
 
         let endpoint = Endpoint::from_shared(self.config.grpc_url.clone().unwrap()).unwrap();
 
@@ -31,7 +31,7 @@ impl Chain {
 
     /// Returns the rewards of given delegator address.
     pub async fn get_delegator_rewards(&self, delegator_addr: &str) -> Result<InternalDelegatorRewards, String> {
-        use crate::fetch::cosmos::distribution::v1beta1::{QueryDelegationTotalRewardsRequest, QueryDelegationTotalRewardsResponse, query_client::QueryClient};
+        use crate::fetch::cosmos::distribution::v1beta1::{query_client::QueryClient, QueryDelegationTotalRewardsRequest};
 
         let endpoint = Endpoint::from_shared(self.config.grpc_url.clone().unwrap()).unwrap();
 
@@ -46,7 +46,6 @@ impl Chain {
             .await
             .map_err(|e| format!("{}", e))?
             .into_inner();
-
 
         let delegator_rewards = InternalDelegatorRewards::new(resp, &self).await?;
 

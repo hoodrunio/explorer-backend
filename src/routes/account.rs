@@ -1,4 +1,4 @@
-use crate::{fetch::others::PaginationConfig, routes::QueryParams, state::State};
+use crate::{routes::QueryParams, state::State};
 use actix_web::{
     get,
     web::{Data, Path, Query},
