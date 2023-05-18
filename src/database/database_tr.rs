@@ -10,7 +10,8 @@ use mongodb_cursor_pagination::{FindResult, PaginatedCursor};
 use crate::database::blocks::Block;
 use crate::database::params::{HistoricalValidatorData, VotingPower};
 use crate::database::{
-    EvmPollForDb, EvmPollParticipantForDb, HeartbeatForDb, ListDbResult, TokenMarketPriceHistoriesForDb, TransactionForDb, ValidatorForDb,
+    ChainDashboardInfoForDb, EvmPollForDb, EvmPollParticipantForDb, HeartbeatForDb, ListDbResult, TokenMarketPriceHistoriesForDb, TransactionForDb,
+    ValidatorForDb,
 };
 use crate::fetch::evm::{EvmSupportedChains, PollStatus};
 use crate::routes::PaginationData;
@@ -86,6 +87,15 @@ impl DatabaseTR {
     /// ```
     fn historical_data_collection(&self) -> Collection<HistoricalValidatorData> {
         self.db().collection("historical_data")
+    }
+
+    /// Returns the chain dashboard info.
+    /// # Usage
+    /// ```rs
+    /// let collection = database.dashboard_info_collection();
+    /// ```
+    fn dashboard_info_collection(&self) -> Collection<ChainDashboardInfoForDb> {
+        self.db().collection("dashboard")
     }
 
     /// Returns the params collection.
@@ -686,5 +696,34 @@ impl DatabaseTR {
     /// ```
     pub async fn find_historical_data_by_operator_address(&self, operator_address: &str) -> Result<HistoricalValidatorData, String> {
         self.find_historical_data(doc! {"operator_address":operator_address}).await
+    }
+
+    /// Finds a chain dashboard info data.
+    /// # Usage
+    /// ```rs
+    /// database.find_chain_dashboard_info(operator_address).await;
+    /// ```
+    pub async fn find_chain_dashboard_info(&self) -> Result<ChainDashboardInfoForDb, String> {
+        match self.dashboard_info_collection().find_one(doc! {}, None).await {
+            Ok(potential_dashboard) => match potential_dashboard {
+                Some(dashboard) => Ok(dashboard),
+                None => Err("No dashboard is found.".into()),
+            },
+            Err(_) => Err("Cannot make request to DB.".into()),
+        }
+    }
+
+    /// Finds a chain dashboard info data.
+    /// # Usage
+    /// ```rs
+    /// database.find_chain_dashboard_info(operator_address).await;
+    /// ```
+    pub async fn upsert_chain_dashboard_info(&self, info: ChainDashboardInfoForDb) -> Result<(), String> {
+        let doc = to_document(&info).unwrap();
+        let command = doc! {"update":"dashboard","updates":[{"q":{"total_supply":{"$exists":true}},"u":doc,"upsert":true}]};
+        match self.db().run_command(command, None).await {
+            Ok(_) => Ok(()),
+            Err(e) => Err(format!("Cannot save the dashboard: {e}")),
+        }
     }
 }
