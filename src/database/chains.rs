@@ -12,3 +12,13 @@ pub struct Chain {
     pub inflation_rate: f64,
     pub unbonded_tokens_amount: f64,
 }
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct ChainDashboardInfo {
+    pub inflation_rate: f64,
+    pub apr: f64,
+    pub total_unbonded: f64,
+    pub total_bonded: f64,
+    pub total_supply: String,
+    pub community_pool: u64,
+}
