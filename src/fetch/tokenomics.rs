@@ -1,29 +1,21 @@
-use bech32::ToBase32;
-use cosmrs::bip32::secp256k1::elliptic_curve::weierstrass::add;
 use rust_decimal::prelude::{FromPrimitive, ToPrimitive};
 use serde::{Deserialize, Serialize};
-use std::str::FromStr;
 use tokio::join;
 use tonic::transport::Endpoint;
 
 use super::{
     amount_util::TnrDecimal,
-    others::{DenomAmount, Pagination, PaginationConfig},
+    others::{DenomAmount, Pagination},
 };
 use crate::database::ListDbResult;
-use crate::fetch::axelar::nexus::v1beta1::ChainMaintainersRequest;
-use crate::fetch::cosmos::auth::v1beta1::query_client::QueryClient;
 use crate::routes::PaginationData;
 use crate::utils::{bytes_to_dec, str_to_dec, val_address_to_bech32};
-use crate::{
-    chain::Chain,
-    routes::{calc_pages, ChainAmountItem, OutRestResponse},
-};
+use crate::{chain::Chain, routes::ChainAmountItem};
 
 impl Chain {
     /// Returns the total supply of all tokens.
     pub async fn get_supply_of_all_tokens(&self, config: PaginationData) -> Result<ListDbResult<ChainAmountItem>, String> {
-        use crate::fetch::cosmos::bank::v1beta1::{query_client::QueryClient, QueryTotalSupplyRequest, QueryTotalSupplyResponse};
+        use crate::fetch::cosmos::bank::v1beta1::{query_client::QueryClient, QueryTotalSupplyRequest};
 
         let endpoint = Endpoint::from_shared(self.config.grpc_url.clone().unwrap()).unwrap();
 
@@ -159,9 +151,7 @@ impl Chain {
                 .into_inner();
 
             let rate = str_to_dec(resp.inflation_rate.as_str());
-            let rate = rate.parse::<f64>().unwrap_or(default_return_value) / 100.0;
-
-            rate
+            rate.parse::<f64>().unwrap_or(default_return_value) / 100.0
         } else if ["quicksilver", "osmosis"].contains(&chain_name) {
             let (epoch_provision_res, total_supply_res) = join!(self.get_epoch_provision(), self.get_supply_by_denom(&self.config.main_denom));
             let epoch_provision_number = epoch_provision_res?;
@@ -192,9 +182,7 @@ impl Chain {
                 .into_inner();
 
             let rate = str_to_dec(resp.inflation.as_str());
-            let rate = rate.parse::<f64>().unwrap_or(default_return_value) / 100.0;
-
-            rate
+            rate.parse::<f64>().unwrap_or(default_return_value) / 100.0
         } else {
             use crate::fetch::cosmos::mint::v1beta1::{query_client::QueryClient, QueryInflationRequest};
 
@@ -209,9 +197,7 @@ impl Chain {
                 .into_inner();
 
             let rate = bytes_to_dec(resp.inflation);
-            let rate = rate.parse::<f64>().unwrap_or(default_return_value) / 100.0;
-
-            rate
+            rate.parse::<f64>().unwrap_or(default_return_value) / 100.0
         };
 
         //Axelar calculation different than others. That is why we are overriding inflation variable here.
@@ -354,27 +340,6 @@ pub struct SupplyOfAllTokensResp {
     pub supply: Vec<DenomAmount>,
     /// Paginations
     pub pagination: Pagination,
-}
-
-#[derive(Deserialize, Serialize, Debug, PartialEq)]
-pub struct AxelarExternalChainVotingInflationRateResponse {
-    param: AxelarExternalChainVotingInflationRateParam,
-}
-
-#[derive(Deserialize, Serialize, Debug, PartialEq)]
-pub struct AxelarExternalChainVotingInflationRateParam {
-    pub subspace: String,
-    pub key: String,
-    pub value: String,
-}
-
-impl AxelarExternalChainVotingInflationRateParam {
-    pub fn get_parsed_value(&self) -> Result<f64, String> {
-        match self.value.replace('\"', "").parse::<f64>() {
-            Ok(parsed_value) => Ok(parsed_value),
-            Err(_) => Err("Parsed value error on AxelarExternalChainVotingInflationRateParam".to_string()),
-        }
-    }
 }
 
 #[derive(Deserialize, Serialize, Debug, PartialEq)]
