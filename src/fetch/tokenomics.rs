@@ -1,8 +1,8 @@
-use std::str::FromStr;
 use bech32::ToBase32;
 use cosmrs::bip32::secp256k1::elliptic_curve::weierstrass::add;
 use rust_decimal::prelude::{FromPrimitive, ToPrimitive};
 use serde::{Deserialize, Serialize};
+use std::str::FromStr;
 use tokio::join;
 use tonic::transport::Endpoint;
 
@@ -10,20 +10,20 @@ use super::{
     amount_util::TnrDecimal,
     others::{DenomAmount, Pagination, PaginationConfig},
 };
-use crate::{
-    chain::Chain,
-    routes::{calc_pages, ChainAmountItem, OutRestResponse},
-};
 use crate::database::ListDbResult;
 use crate::fetch::axelar::nexus::v1beta1::ChainMaintainersRequest;
 use crate::fetch::cosmos::auth::v1beta1::query_client::QueryClient;
 use crate::routes::PaginationData;
 use crate::utils::{bytes_to_dec, str_to_dec, val_address_to_bech32};
+use crate::{
+    chain::Chain,
+    routes::{calc_pages, ChainAmountItem, OutRestResponse},
+};
 
 impl Chain {
     /// Returns the total supply of all tokens.
     pub async fn get_supply_of_all_tokens(&self, config: PaginationData) -> Result<ListDbResult<ChainAmountItem>, String> {
-        use crate::fetch::cosmos::bank::v1beta1::{QueryTotalSupplyRequest, QueryTotalSupplyResponse, query_client::QueryClient};
+        use crate::fetch::cosmos::bank::v1beta1::{query_client::QueryClient, QueryTotalSupplyRequest, QueryTotalSupplyResponse};
 
         let endpoint = Endpoint::from_shared(self.config.grpc_url.clone().unwrap()).unwrap();
 
@@ -39,7 +39,6 @@ impl Chain {
             .map_err(|e| format!("{}", e))?
             .into_inner();
 
-
         let mut supplies = vec![];
 
         for supply in resp.supply {
@@ -54,13 +53,11 @@ impl Chain {
 
     /// Returns the supply of given token.
     pub async fn get_supply_by_denom(&self, denom: &str) -> Result<ChainAmountItem, String> {
-        use crate::fetch::cosmos::bank::v1beta1::{QuerySupplyOfRequest, query_client::QueryClient};
+        use crate::fetch::cosmos::bank::v1beta1::{query_client::QueryClient, QuerySupplyOfRequest};
 
         let endpoint = Endpoint::from_shared(self.config.grpc_url.clone().unwrap()).unwrap();
 
-        let mut client = QueryClient::connect(endpoint)
-            .await
-            .unwrap();
+        let mut client = QueryClient::connect(endpoint).await.unwrap();
 
         let from_supply_list_chains = vec!["evmos", "umee", "quicksilver", "kyve", "c4e", "babylon-testnet"];
         if from_supply_list_chains.contains(&self.config.name.as_str()) {
@@ -78,8 +75,7 @@ impl Chain {
                 .find(|s| s.denom == denom)
                 .cloned();
 
-
-            if let Some(supply) =resp {
+            if let Some(supply) = resp {
                 let supply = self.string_amount_parser(supply.amount.clone(), Some(supply.denom.clone())).await?;
 
                 return Ok(supply);
@@ -88,16 +84,9 @@ impl Chain {
             return Err("Token not found".to_string());
         };
 
+        let req = QuerySupplyOfRequest { denom: denom.to_string() };
 
-        let req = QuerySupplyOfRequest {
-            denom: denom.to_string(),
-        };
-
-        let resp = client
-            .supply_of(req)
-            .await
-            .map_err(|e| format!("{}", e))?
-            .into_inner();
+        let resp = client.supply_of(req).await.map_err(|e| format!("{}", e))?.into_inner();
 
         let amount = resp.amount.unwrap();
         let supply = self.string_amount_parser(amount.amount, Some(amount.denom)).await?;
@@ -106,7 +95,7 @@ impl Chain {
     }
 
     pub async fn get_evm_supported_chains(&self) -> Result<Vec<String>, String> {
-        use crate::fetch::axelar::evm::v1beta1::{ChainsRequest, query_service_client::QueryServiceClient};
+        use crate::fetch::axelar::evm::v1beta1::{query_service_client::QueryServiceClient, ChainsRequest};
 
         let endpoint = Endpoint::from_shared(self.config.grpc_url.clone().unwrap()).unwrap();
 
@@ -124,7 +113,7 @@ impl Chain {
     }
 
     pub async fn get_evm_chain_maintainers(&self, chain_name: &str) -> Result<Vec<String>, String> {
-        use crate::fetch::axelar::nexus::v1beta1::{ChainMaintainersRequest, query_service_client::QueryServiceClient};
+        use crate::fetch::axelar::nexus::v1beta1::{query_service_client::QueryServiceClient, ChainMaintainersRequest};
 
         let endpoint = Endpoint::from_shared(self.config.grpc_url.clone().unwrap()).unwrap();
 
@@ -147,7 +136,6 @@ impl Chain {
             maintainers.push(bech32);
         }
 
-
         Ok(maintainers)
     }
     /// Returns the minting inflation rate of native coin of the chain.
@@ -158,7 +146,7 @@ impl Chain {
         let endpoint = Endpoint::from_shared(self.config.grpc_url.clone().unwrap()).unwrap();
 
         let mut inflation = if ["evmos", "echelon"].contains(&chain_name) {
-            use crate::fetch::evmos::inflation::v1::{QueryInflationRateRequest, query_client::QueryClient};
+            use crate::fetch::evmos::inflation::v1::{query_client::QueryClient, QueryInflationRateRequest};
 
             let req = QueryInflationRateRequest {};
 
@@ -191,7 +179,7 @@ impl Chain {
 
             annual_provision / total_supply
         } else if ["c4e"].contains(&chain_name) {
-            use crate::fetch::c4e::minter::v1beta1::{QueryInflationRequest, query_client::QueryClient};
+            use crate::fetch::c4e::minter::v1beta1::{query_client::QueryClient, QueryInflationRequest};
 
             let req = QueryInflationRequest {};
 
@@ -203,13 +191,12 @@ impl Chain {
                 .map_err(|e| format!("{}", e))?
                 .into_inner();
 
-
             let rate = str_to_dec(resp.inflation.as_str());
             let rate = rate.parse::<f64>().unwrap_or(default_return_value) / 100.0;
 
             rate
         } else {
-            use crate::fetch::cosmos::mint::v1beta1::{QueryInflationRequest, query_client::QueryClient};
+            use crate::fetch::cosmos::mint::v1beta1::{query_client::QueryClient, QueryInflationRequest};
 
             let req = QueryInflationRequest {};
 
@@ -229,7 +216,7 @@ impl Chain {
 
         //Axelar calculation different than others. That is why we are overriding inflation variable here.
         if self.config.name == "axelar" {
-            use crate::fetch::cosmos::params::v1beta1::{QueryParamsRequest, query_client::QueryClient};
+            use crate::fetch::cosmos::params::v1beta1::{query_client::QueryClient, QueryParamsRequest};
 
             let req = QueryParamsRequest {
                 subspace: "reward".to_string(),
@@ -270,7 +257,7 @@ impl Chain {
 
         let epoch_provision = match chain_name.as_str() {
             "evmos" => {
-                use crate::fetch::evmos::inflation::v1::{QueryEpochMintProvisionRequest, query_client::QueryClient};
+                use crate::fetch::evmos::inflation::v1::{query_client::QueryClient, QueryEpochMintProvisionRequest};
 
                 let req = QueryEpochMintProvisionRequest {};
 
@@ -282,23 +269,19 @@ impl Chain {
                     .map_err(|e| format!("{}", e))?
                     .into_inner();
 
-                let resp = resp
-                    .epoch_mint_provision
-                    .map(|e| e.amount)
-                    .map(|a| a.parse::<f64>().ok())
-                    .flatten()
-                    .unwrap_or(default_return_value);
+                let epoch_mint_provision_amount = resp.epoch_mint_provision.map_or_else(|| "0".to_string(), |e| e.amount);
 
-                resp
+                let res = str_to_dec(epoch_mint_provision_amount.as_str());
+                let parsed = self.string_amount_parser(res, None).await.unwrap_or_default();
+
+                parsed.amount.to_f64().unwrap_or(default_return_value)
             }
-            _ => {
-                self
-                    .rest_api_request::<EpochProvisionResponse>(&format!("/{chain_name}/mint/v1beta1/epoch_provisions"), &[])
-                    .await?
-                    .epoch_provisions
-                    .parse::<f64>()
-                    .map_err(|e| e.to_string())?
-            }
+            _ => self
+                .rest_api_request::<EpochProvisionResponse>(&format!("/{chain_name}/mint/v1beta1/epoch_provisions"), &[])
+                .await?
+                .epoch_provisions
+                .parse::<f64>()
+                .map_err(|e| e.to_string())?,
         };
 
         Ok(epoch_provision)
