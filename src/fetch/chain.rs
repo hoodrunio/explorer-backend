@@ -9,8 +9,6 @@ use crate::{
     routes::TNRAppError,
 };
 
-use super::amount_util::TnrDecimal;
-
 impl Chain {
     pub async fn get_dashboard_info(&self) -> Result<ChainDashboardInfoResponse, TNRAppError> {
         let (dashboard_info_res, market_history) = join!(self.database.find_chain_dashboard_info(), self.get_chain_market_chart_history());
