@@ -1,11 +1,14 @@
-use std::ops::{Div, Mul};
+use std::{
+    ops::{Div, Mul},
+    str::FromStr,
+};
 
 use rust_decimal::prelude::{FromPrimitive, ToPrimitive};
 use serde::{Deserialize, Serialize};
 use tokio::join;
 use tonic::transport::Endpoint;
 
-use crate::{chain::Chain, fetch::amount_util::TnrDecimal};
+use crate::{chain::Chain, fetch::amount_util::TnrDecimal, utils::str_to_dec};
 
 impl Chain {
     /// Returns the APR rate of the chain.
@@ -29,16 +32,13 @@ impl Chain {
                     Ok(apr)
                 }
                 "evmos" => {
-                    use crate::fetch::evmos::inflation::v1::{QueryParamsRequest, query_client::QueryClient};
+                    use crate::fetch::evmos::inflation::v1::{query_client::QueryClient, QueryParamsRequest};
 
                     let endpoint = Endpoint::from_shared(self.config.grpc_url.clone().unwrap()).unwrap();
 
                     let req = QueryParamsRequest {};
 
-                    let evmos_decimal = self.config.decimals_pow as f64 * 10000.0;
-
-
-                    let staking_rewards_factor = QueryClient::connect(endpoint)
+                    let inflation_dist = QueryClient::connect(endpoint)
                         .await
                         .unwrap()
                         .params(req)
@@ -46,15 +46,14 @@ impl Chain {
                         .map_err(|e| format!("{}", e))?
                         .into_inner()
                         .params
-                        .ok_or_else(|| format!("Missing params"))?
+                        .ok_or_else(|| "Missing params".to_string())?
                         .inflation_distribution
-                        .ok_or_else(|| format!("Missing inflation distribution param"))?
-                        .staking_rewards
-                        .parse::<f64>()
-                        .map_err(|_| "Float parsing error")?;
+                        .ok_or_else(|| "Missing inflation distribution param".to_string())?;
 
-
-                    let epoch_provisions = epoch_provisions / evmos_decimal;
+                    let staking_rewards_factor = TnrDecimal::from_str(str_to_dec(inflation_dist.staking_rewards.as_str()).as_str())
+                        .unwrap_or_default()
+                        .to_f64()
+                        .unwrap_or_default();
 
                     let annual_provisions = epoch_provisions * ANNUAL_PROVISION_MUL_RATIO;
                     let apr = annual_provisions * staking_rewards_factor / bonded_tokens_amount;
