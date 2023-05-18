@@ -3,37 +3,30 @@ use serde::{Deserialize, Serialize};
 use serde_json::Number;
 use tokio::join;
 
-use crate::{chain::Chain, database::TokenMarketPriceHistoriesForDb, routes::TNRAppError};
+use crate::{
+    chain::Chain,
+    database::{ChainDashboardInfoForDb, TokenMarketPriceHistoriesForDb},
+    routes::TNRAppError,
+};
 
 use super::amount_util::TnrDecimal;
 
 impl Chain {
     pub async fn get_dashboard_info(&self) -> Result<ChainDashboardInfoResponse, TNRAppError> {
-        let (inflation_rate, apr, staking_poll, total_supply, community_poll, market_history) = join!(
-            self.get_inflation_rate(),
-            self.get_apr(),
-            self.get_staking_pool(),
-            self.get_supply_by_denom(&self.config.main_denom),
-            self.get_community_pool(),
-            self.get_chain_market_chart_history()
-        );
+        let (dashboard_info_res, market_history) = join!(self.database.find_chain_dashboard_info(), self.get_chain_market_chart_history());
 
         let mut market_cap = 0.0;
         let mut price = 0.0;
 
-        let inflation_rate = inflation_rate.unwrap_or(0.0);
-        let apr = apr.unwrap_or(0.0);
+        let ChainDashboardInfoForDb {
+            inflation_rate,
+            apr,
+            total_unbonded,
+            total_bonded,
+            total_supply,
+            community_pool,
+        } = dashboard_info_res?;
 
-        let mut total_unbonded = 0.0;
-        let mut total_bonded = 0.0;
-        if let Ok(result) = staking_poll {
-            total_unbonded = result.value.unbonded as f64;
-            total_bonded = result.value.bonded as f64;
-        };
-
-        let total_supply = total_supply.map(|res| res.amount).unwrap_or(TnrDecimal::ZERO);
-
-        let community_pool = community_poll.map(|res| res.value).unwrap_or(0);
         let market_history = match market_history {
             Ok(res) => {
                 market_cap = res.market_caps.last().cloned().unwrap_or_default().value;
@@ -125,7 +118,7 @@ pub struct ChainDashboardInfoResponse {
     pub apr: f64,
     pub total_unbonded: f64,
     pub total_bonded: f64,
-    pub total_supply: TnrDecimal,
+    pub total_supply: String,
     pub community_pool: u64,
     pub market_history: Option<TokenMarketHistory>,
 }
