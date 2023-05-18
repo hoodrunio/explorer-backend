@@ -12,22 +12,33 @@ impl Chain {
         let clone_chain = self.clone();
         spawn(async move {
             loop {
-                if let Err(error) = clone_chain.cron_job_validator().await {
-                    tracing::error!("validator cronjob error: {error}")
-                };
-
-                if let Err(error) = clone_chain.cron_job_params().await {
-                    tracing::error!("params cronjob error: {error}")
-                };
-
-                if let Err(error) = clone_chain.cron_job_val_supported_chains().await {
-                    tracing::error!("validator supported chains error: {error}")
-                };
-
-                if let Err(error) = clone_chain.cron_job_chain_price_history().await {
-                    tracing::error!("chain price history cronjob error: {error}")
-                };
-
+                tokio::join!(
+                    async {
+                        if let Err(error) = clone_chain.cron_job_validator().await {
+                            tracing::error!("validator cronjob error: {error}")
+                        };
+                    },
+                    async {
+                        if let Err(error) = clone_chain.cron_job_params().await {
+                            tracing::error!("params cronjob error: {error}")
+                        };
+                    },
+                    async {
+                        if let Err(error) = clone_chain.cron_job_val_supported_chains().await {
+                            tracing::error!("validator supported chains error: {error}")
+                        };
+                    },
+                    async {
+                        if let Err(error) = clone_chain.cron_job_chain_price_history().await {
+                            tracing::error!("chain price history cronjob error: {error}")
+                        };
+                    },
+                    async {
+                        if let Err(error) = clone_chain.cron_job_chain_dashboard().await {
+                            tracing::error!("chain dashboard info cronjob error: {error}")
+                        };
+                    },
+                );
                 sleep(duration).await;
             }
         });
