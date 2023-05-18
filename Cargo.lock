@@ -1953,8 +1953,9 @@ dependencies = [
 
 [[package]]
 name = "mongodb-cursor-pagination"
-version = "0.2.9"
-source = "git+https://github.com/testnetrunn/mongodb-cursor-pagination#f2cc4f12ee3a82b72399d715d1fa776879b85a21"
+version = "0.3.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6f644d8ee8feefd20adb59bd951e7379df28fa064f28e36c11657080570dd73d"
 dependencies = [
  "base64 0.21.0",
  "bson",

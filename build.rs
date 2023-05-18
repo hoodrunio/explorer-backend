@@ -23,6 +23,7 @@ fn main() {
                 "axelar/nexus/v1beta1/service.proto",
                 "axelar/nexus/exported/v1beta1/types.proto",
                 "axelar/snapshot/v1beta1/tx.proto",
+                "c4echain/cfeminter/query.proto",
                 "cosmos/gov/v1beta1/gov.proto",
                 "cosmos/gov/v1beta1/query.proto",
                 "cosmos/gov/v1/query.proto",

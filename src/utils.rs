@@ -1,5 +1,5 @@
 use base64::{engine::general_purpose::STANDARD, Engine};
-use bech32::ToBase32;
+use bech32::{ToBase32, Variant};
 use chrono::{DateTime, Utc};
 use hex::encode as to_hex;
 use prost::Message;
@@ -198,4 +198,8 @@ pub fn str_to_dec(input: &str) -> String {
     let (bef, aft) = input.split_at(dec_point_place);
 
     format!("{}.{}", bef, aft)
+}
+
+pub fn val_address_to_bech32(addr: &[u8], prefix: String) -> String {
+    bech32::encode(prefix.as_str(), addr.to_base32(), Variant::Bech32).unwrap()
 }

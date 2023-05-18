@@ -5,6 +5,7 @@ use actix_web::{
 };
 use mongodb::bson::doc;
 use serde::Deserialize;
+use tendermint::evidence::List;
 
 use crate::{
     fetch::validators::InternalRedelegation,
@@ -14,6 +15,7 @@ use crate::{
     fetch::validators::{ValidatorListResp, ValidatorRedelegationQuery},
     state::State,
 };
+use crate::database::ListDbResult;
 
 // ======== Validator Methods ========
 

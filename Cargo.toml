@@ -46,7 +46,7 @@ tendermint-rpc = { version = "0.32.0", features = ["websocket-client"] }
 anyhow = "1.0.70"
 tonic = "0.9.1"
 rust_decimal = "1.29.1"
-mongodb-cursor-pagination = { git = "https://github.com/testnetrunn/mongodb-cursor-pagination"}
+mongodb-cursor-pagination = "0.3.2"
 
 
 [build-dependencies]

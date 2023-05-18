@@ -93,6 +93,15 @@ pub mod ibc {
         }
     }
 }
+
+pub mod c4e {
+    pub mod minter {
+        pub mod v1beta1 {
+            tonic::include_proto!("chain4energy.c4echain.cfeminter");
+        }
+    }
+}
+
 pub mod cosmos {
     pub mod auth {
         pub mod v1beta1 {

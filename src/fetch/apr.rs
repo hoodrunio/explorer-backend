@@ -3,6 +3,7 @@ use std::ops::{Div, Mul};
 use rust_decimal::prelude::{FromPrimitive, ToPrimitive};
 use serde::{Deserialize, Serialize};
 use tokio::join;
+use tonic::transport::Endpoint;
 
 use crate::{chain::Chain, fetch::amount_util::TnrDecimal};
 
@@ -28,18 +29,30 @@ impl Chain {
                     Ok(apr)
                 }
                 "evmos" => {
+                    use crate::fetch::evmos::inflation::v1::{QueryParamsRequest, query_client::QueryClient};
+
+                    let endpoint = Endpoint::from_shared(self.config.grpc_url.clone().unwrap()).unwrap();
+
+                    let req = QueryParamsRequest {};
+
                     let evmos_decimal = self.config.decimals_pow as f64 * 10000.0;
 
-                    let evmos_inflation_params_res = self
-                        .rest_api_request::<EvmosInflationParamsResponse>("/evmos/inflation/v1/params", &[])
-                        .await?;
 
-                    let staking_rewards_factor = evmos_inflation_params_res
+                    let staking_rewards_factor = QueryClient::connect(endpoint)
+                        .await
+                        .unwrap()
+                        .params(req)
+                        .await
+                        .map_err(|e| format!("{}", e))?
+                        .into_inner()
                         .params
+                        .ok_or_else(|| format!("Missing params"))?
                         .inflation_distribution
+                        .ok_or_else(|| format!("Missing inflation distribution param"))?
                         .staking_rewards
                         .parse::<f64>()
-                        .map_err(|_| "FLOAT_PARSING_ERROR")?;
+                        .map_err(|_| "Float parsing error")?;
+
 
                     let epoch_provisions = epoch_provisions / evmos_decimal;
 
@@ -83,7 +96,7 @@ impl Chain {
                 "c4e" => {
                     let (total_supply_res, share_param_res) = join!(self.get_supply_by_denom(&self.config.main_denom), self.get_share_param());
                     let inflation = TnrDecimal::from_f64(inflation).unwrap_or_default();
-                    let total_supply = total_supply_res?.value.amount;
+                    let total_supply = total_supply_res?.amount;
                     let bonded_token_amount = TnrDecimal::from_f64(bonded_token_amount).unwrap_or_default();
                     let share_param = share_param_res?;
 
