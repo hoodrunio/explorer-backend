@@ -13,9 +13,6 @@ impl Chain {
     pub async fn get_dashboard_info(&self) -> Result<ChainDashboardInfoResponse, TNRAppError> {
         let (dashboard_info_res, market_history) = join!(self.database.find_chain_dashboard_info(), self.get_chain_market_chart_history());
 
-        let mut market_cap = 0.0;
-        let mut price = 0.0;
-
         let ChainDashboardInfoForDb {
             inflation_rate,
             apr,
@@ -23,7 +20,10 @@ impl Chain {
             total_bonded,
             total_supply,
             community_pool,
-        } = dashboard_info_res?;
+        } = dashboard_info_res.unwrap_or_default();
+
+        let mut market_cap = 0.0;
+        let mut price = 0.0;
 
         let market_history = match market_history {
             Ok(res) => {

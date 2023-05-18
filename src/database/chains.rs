@@ -22,3 +22,16 @@ pub struct ChainDashboardInfo {
     pub total_supply: String,
     pub community_pool: u64,
 }
+
+impl Default for ChainDashboardInfo {
+    fn default() -> Self {
+        Self {
+            inflation_rate: 0.0,
+            apr: 0.0,
+            total_unbonded: 0.0,
+            total_bonded: 0.0,
+            total_supply: "0".to_string(),
+            community_pool: 0,
+        }
+    }
+}
