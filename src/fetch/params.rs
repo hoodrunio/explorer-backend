@@ -1,8 +1,17 @@
+use actix::fut::ok;
 use serde::{Deserialize, Serialize};
 use tokio::join;
+use tonic::transport::Endpoint;
 
 use super::others::DenomAmount;
 use crate::{chain::Chain, routes::OutRestResponse};
+use crate::fetch::c4e::minter::v1beta1::query_client::QueryClient;
+use crate::fetch::cosmos::slashing::v1beta1::{Params as SlashingParams};
+use crate::fetch::cosmos::staking::v1beta1::{Params as StakingParams};
+use crate::fetch::cosmos::distribution::v1beta1::{Params as DistributionParams};
+use crate::fetch::cosmos::gov::v1beta1::TallyParams;
+use crate::fetch::cosmos::gov::v1beta1::VotingParams;
+use crate::utils::bytes_to_dec;
 
 impl Chain {
     /// Returns the all parameters of the chain.
@@ -60,109 +69,150 @@ impl Chain {
 
     /// Returns the slashing parameters of the chain.
     pub async fn get_slashing_params(&self) -> Result<OutRestResponse<InternalSlashingParams>, String> {
-        let resp = self
-            .rest_api_request::<ParamsResp<SlashingParams>>("/cosmos/slashing/v1beta1/params", &[])
-            .await?;
+        use crate::fetch::cosmos::slashing::v1beta1::{QueryParamsRequest, query_client::QueryClient};
 
-        let slashing_params = resp.params.try_into()?;
+        let endpoint = Endpoint::from_shared(self.config.clone().grpc_url.unwrap()).unwrap();
+
+        let req = QueryParamsRequest {};
+
+        let resp = QueryClient::connect(endpoint)
+            .await
+            .unwrap()
+            .params(req)
+            .await
+            .map_err(|e| format!("{}", e))?
+            .into_inner();
+
+        let slashing_params = resp.params.unwrap().try_into()?;
 
         Ok(OutRestResponse::new(slashing_params, 0))
     }
 
     /// Returns the staking parameters.
     async fn get_staking_params(&self) -> Result<OutRestResponse<InternalStakingParams>, String> {
-        let resp = self
-            .rest_api_request::<ParamsResp<StakingParams>>("/cosmos/staking/v1beta1/params", &[])
-            .await?;
+        use crate::fetch::cosmos::staking::v1beta1::{QueryParamsRequest, query_client::QueryClient};
 
-        let staking_params = resp.params.try_into()?;
+        let endpoint = Endpoint::from_shared(self.config.grpc_url.clone().unwrap()).unwrap();
+
+        let req = QueryParamsRequest {};
+
+        let resp = QueryClient::connect(endpoint)
+            .await
+            .unwrap()
+            .params(req)
+            .await
+            .map_err(|e| format!("{}", e))?
+            .into_inner();
+
+        let staking_params = resp.params.unwrap().try_into()?;
 
         Ok(OutRestResponse::new(staking_params, 0))
     }
 
     /// Returns the voting parameters.
     async fn get_voting_params(&self) -> Result<OutRestResponse<InternalVotingParams>, String> {
-        let resp = self
-            .rest_api_request::<VotingParamsResp>("/cosmos/gov/v1beta1/params/voting", &[])
-            .await?;
+        use crate::fetch::cosmos::gov::v1beta1::{QueryParamsRequest, query_client::QueryClient};
 
-        let voting_params = resp.voting_params.try_into()?;
+        let endpoint = Endpoint::from_shared(self.config.grpc_url.clone().unwrap()).unwrap();
+
+        let req = QueryParamsRequest { params_type: "voting".to_string() };
+
+        let resp = QueryClient::connect(endpoint)
+            .await
+            .unwrap()
+            .params(req)
+            .await
+            .map_err(|e| format!("{}", e))?
+            .into_inner();
+
+        let voting_params = resp.voting_params.unwrap().try_into()?;
 
         Ok(OutRestResponse::new(voting_params, 0))
     }
 
     /// Returns the distribution parameters.
     async fn get_distribution_params(&self) -> Result<OutRestResponse<InternalDistributionParams>, String> {
-        let resp = self
-            .rest_api_request::<ParamsResp<DistributionParams>>("/cosmos/distribution/v1beta1/params", &[])
-            .await?;
+        use crate::fetch::cosmos::distribution::v1beta1::{QueryParamsRequest, query_client::QueryClient};
 
-        let distribution_params = resp.params.try_into()?;
+        let endpoint = Endpoint::from_shared(self.config.grpc_url.clone().unwrap()).unwrap();
+
+        let req = QueryParamsRequest {};
+
+        let resp = QueryClient::connect(endpoint)
+            .await
+            .unwrap()
+            .params(req)
+            .await
+            .map_err(|e| format!("{}", e))?
+            .into_inner();
+
+        let distribution_params = resp.params.unwrap().try_into()?;
 
         Ok(OutRestResponse::new(distribution_params, 0))
     }
 
     /// Returns the deposit parameters.
     async fn get_deposit_params(&self) -> Result<OutRestResponse<InternalDepositParams>, String> {
-        let resp = self
-            .rest_api_request::<DepositParamsResp>("/cosmos/gov/v1beta1/params/deposit", &[])
-            .await?;
+        use crate::fetch::cosmos::gov::v1beta1::{QueryParamsRequest, query_client::QueryClient};
 
-        let deposit_params = InternalDepositParams {
-            max_deposit_period: if resp.deposit_params.max_deposit_period.ends_with('s') {
-                match resp.deposit_params.max_deposit_period[..resp.deposit_params.max_deposit_period.len() - 1].parse() {
-                    Ok(v) => v,
-                    Err(_) => {
-                        return Err(format!(
-                            "Cannot parse maximum deposit period, '{}'.",
-                            resp.deposit_params.max_deposit_period
-                        ))
-                    }
-                }
-            } else {
-                return Err(format!(
-                    "Maximum deposit params couldn't be parsed, {}.",
-                    resp.deposit_params.max_deposit_period
-                ));
-            },
-            min_deposit: match resp.deposit_params.min_deposit.get(0) {
-                Some(den) => match den.amount.parse::<u128>() {
-                    Ok(amount) => self.calc_amount_u128_to_f64(amount),
-                    Err(_) => return Err(format!("Cannor parse amount, '{}'.", den.amount)),
-                },
-                None => return Err("There is no min deposit amount.".to_string()),
-            },
+        let endpoint = Endpoint::from_shared(self.config.grpc_url.clone().unwrap()).unwrap();
+
+        let req = QueryParamsRequest { params_type: "deposit".to_string() };
+
+        let resp = QueryClient::connect(endpoint)
+            .await
+            .unwrap()
+            .params(req)
+            .await
+            .map_err(|e| format!("{}", e))?
+            .into_inner();
+
+        let val = resp.deposit_params.unwrap();
+
+        let Some(max_deposit_period) = val.max_deposit_period.map(|d| d.seconds) else {
+            return Err(format!(
+                "Cannot parse maximum deposit period",
+            ));
         };
 
+        let Some(den) = val.min_deposit.get(0) else {
+            return Err("There is no min deposit amount.".to_string());
+        };
+
+        let Ok(amount) = den.amount.parse::<u128>() else {
+            return Err(format!("Cannor parse amount, '{}'.", den.amount))
+        };
+
+        let min_deposit = self.calc_amount_u128_to_f64(amount);
+
+
+        let deposit_params = InternalDepositParams {
+            min_deposit,
+            max_deposit_period,
+        };
         Ok(OutRestResponse::new(deposit_params, 0))
     }
 
     /// Returns the tallying parameters.
     async fn get_tally_params(&self) -> Result<OutRestResponse<InternalTallyParams>, String> {
-        let resp = self
-            .rest_api_request::<TallyingParamsResp>("/cosmos/gov/v1beta1/params/tallying", &[])
-            .await?;
+        use crate::fetch::cosmos::gov::v1beta1::{QueryParamsRequest, query_client::QueryClient};
 
-        let tally_params = resp.tally_params.try_into()?;
+        let endpoint = Endpoint::from_shared(self.config.grpc_url.clone().unwrap()).unwrap();
+
+        let req = QueryParamsRequest { params_type: "tallying".to_string() };
+
+        let resp = QueryClient::connect(endpoint)
+            .await
+            .unwrap()
+            .params(req)
+            .await
+            .map_err(|e| format!("{}", e))?
+            .into_inner();
+
+        let tally_params = resp.tally_params.unwrap().try_into()?;
 
         Ok(OutRestResponse::new(tally_params, 0))
     }
-}
-
-#[derive(Deserialize, Serialize, Debug)]
-pub struct TallyingParamsResp {
-    /// Tally parameters.
-    pub tally_params: TallyParams,
-}
-
-#[derive(Deserialize, Serialize, Debug)]
-pub struct TallyParams {
-    /// Quorum. Eg: `"0.400000000000000000"`
-    pub quorum: String,
-    /// Threshold. Eg: `"0.500000000000000000"`
-    pub threshold: String,
-    /// Veto threshold. Eg: `"0.334000000000000000"`
-    pub veto_threshold: String,
 }
 
 #[derive(Deserialize, Serialize, Debug)]
@@ -178,17 +228,19 @@ pub struct InternalTallyParams {
 impl TryFrom<TallyParams> for InternalTallyParams {
     type Error = String;
     fn try_from(value: TallyParams) -> Result<Self, Self::Error> {
-        let quorum: f64 = match value.quorum.parse() {
-            Ok(v) => v,
-            Err(_) => return Err(format!("Cannot parse quorum, '{}'.", value.quorum)),
+        let dec = bytes_to_dec(value.quorum);
+        let Ok(quorum) = dec.parse::<f64>() else {
+            return Err(format!("Cannot parse quorum, '{}'.", dec));
         };
-        let threshold: f64 = match value.threshold.parse() {
-            Ok(v) => v,
-            Err(_) => return Err(format!("Cannot parse threshold, '{}'.", value.threshold)),
+
+        let dec = bytes_to_dec(value.threshold);
+        let Ok(threshold) = dec.parse::<f64>() else {
+            return Err(format!("Cannot parse threshold, '{}'.", dec));
         };
-        let veto_threshold: f64 = match value.veto_threshold.parse() {
-            Ok(v) => v,
-            Err(_) => return Err(format!("Cannot parse veto threshold, '{}'.", value.veto_threshold)),
+
+        let dec = bytes_to_dec(value.veto_threshold);
+        let Ok(veto_threshold) = dec.parse::<f64>() else {
+            return Err(format!("Cannot parse veto_threshold, '{}'.", dec));
         };
 
         Ok(Self {
@@ -200,70 +252,28 @@ impl TryFrom<TallyParams> for InternalTallyParams {
 }
 
 #[derive(Deserialize, Serialize, Debug)]
-pub struct DepositParamsResp {
-    /// Deposit parameters.
-    pub deposit_params: DepositParams,
-}
-
-#[derive(Deserialize, Serialize, Debug)]
-pub struct DepositParams {
-    /// Array of denoms and amounts.
-    pub min_deposit: Vec<DenomAmount>,
-    /// Maximum deposit period. Eg: `"0s"`
-    pub max_deposit_period: String,
-}
-
-#[derive(Deserialize, Serialize, Debug)]
 pub struct InternalDepositParams {
     /// Min deposit amount.
     pub min_deposit: f64,
     /// Maximum deposit period in seconds. Eg: `0`
-    pub max_deposit_period: u32,
-}
-
-#[derive(Deserialize, Serialize, Debug)]
-pub struct VotingParamsResp {
-    /// Voting parameters.
-    pub voting_params: VotingParams,
-}
-
-#[derive(Deserialize, Serialize, Debug)]
-pub struct VotingParams {
-    /// Voting period. Eg: `"1209600s"`
-    pub voting_period: String,
+    pub max_deposit_period: i64,
 }
 
 #[derive(Deserialize, Serialize, Debug)]
 pub struct InternalVotingParams {
     /// Voting period in seconds. Eg: `1209600`
-    pub voting_period: u32,
+    pub voting_period: i64,
 }
 
 impl TryFrom<VotingParams> for InternalVotingParams {
     type Error = String;
     fn try_from(value: VotingParams) -> Result<Self, Self::Error> {
-        let voting_period: u32 = if value.voting_period.ends_with('s') {
-            match value.voting_period[..value.voting_period.len() - 1].parse() {
-                Ok(v) => v,
-                Err(_) => return Err(format!("Cannot parse voting period, '{}'.", value.voting_period)),
-            }
-        } else {
-            return Err(format!("Voting period couldn't be parsed, {}.", value.voting_period));
+        let Some(voting_period) = value.voting_period.map(|d| d.seconds) else {
+            return Err(format!("Missing voting period"));
         };
+
         Ok(Self { voting_period })
     }
-}
-
-#[derive(Deserialize, Serialize, Debug)]
-pub struct DistributionParams {
-    /// Community tax. Eg: `"0.000000000000000000"`
-    community_tax: String,
-    /// Base proposer reward. Eg: `"0.000000000000000000"`
-    base_proposer_reward: String,
-    /// Bonus proposer reward. Eg: `"0.000000000000000000"`
-    bonus_proposer_reward: String,
-    /// Withdraw addrress enabled. Eg: `true`
-    withdraw_addr_enabled: bool,
 }
 
 #[derive(Deserialize, Serialize, Debug)]
@@ -300,23 +310,9 @@ impl TryFrom<DistributionParams> for InternalDistributionParams {
 }
 
 #[derive(Deserialize, Serialize, Debug)]
-pub struct StakingParams {
-    /// Unbonding time. Eg: `"1814400s"`
-    pub unbonding_time: String,
-    /// Maximum number of validators. Eg: `175`
-    pub max_validators: u32,
-    /// Maximum number of entries. Eg: `7`
-    pub max_entries: u32,
-    /// Historical number of entries. Eg: `10000`
-    pub historical_entries: u32,
-    /// Bonding denom. Eg: `"uatom"`
-    pub bond_denom: String,
-}
-
-#[derive(Deserialize, Serialize, Debug)]
 pub struct InternalStakingParams {
     /// Unbonding time in seconds. Eg: `1814400`
-    pub unbonding_time: u32,
+    pub unbonding_time: i64,
     /// Maximum number of validators. Eg: `175`
     pub max_validators: u32,
     /// Maximum number of entries. Eg: `7`
@@ -330,13 +326,8 @@ pub struct InternalStakingParams {
 impl TryFrom<StakingParams> for InternalStakingParams {
     type Error = String;
     fn try_from(value: StakingParams) -> Result<Self, Self::Error> {
-        let unbonding_time: u32 = if value.unbonding_time.ends_with('s') {
-            match value.unbonding_time[..value.unbonding_time.len() - 1].parse() {
-                Ok(v) => v,
-                Err(_) => return Err(format!("Cannot parse unbonding time, '{}'.", value.unbonding_time)),
-            }
-        } else {
-            return Err(format!("Unbonding time couldn't be parsed, {}.", value.unbonding_time));
+        let Some(unbonding_time) = value.unbonding_time.map(|s| s.seconds) else {
+            return Err(format!("Missing unbonding time"))
         };
 
         Ok(Self {
@@ -350,27 +341,13 @@ impl TryFrom<StakingParams> for InternalStakingParams {
 }
 
 #[derive(Deserialize, Serialize, Debug)]
-pub struct SlashingParams {
-    /// Slashing, signed blocks window. Eg: `"10000"`
-    pub signed_blocks_window: String,
-    /// Slashing, minimum signed per window. Eg: `"0.050000000000000000"`
-    pub min_signed_per_window: String,
-    /// Slashing, downtime jail duration. Eg: `"600s"`
-    pub downtime_jail_duration: String,
-    /// Slash fraction double sign. Eg: `"0.050000000000000000"`
-    pub slash_fraction_double_sign: String,
-    /// Slash fraction downtime. Eg: `"0.000100000000000000"`
-    pub slash_fraction_downtime: String,
-}
-
-#[derive(Deserialize, Serialize, Debug)]
 pub struct InternalSlashingParams {
     /// Slashing, signed blocks window. Eg: `10000`
-    pub signed_blocks_window: u32,
+    pub signed_blocks_window: i64,
     /// Slashing, minimum signed per window. Eg: `0.050000000000000000`
     pub min_signed_per_window: f64,
     /// Slashing, downtime jail duration in seconds. Eg: `600`
-    pub downtime_jail_duration: u32,
+    pub downtime_jail_duration: i64,
     /// Slash fraction double sign. Eg: `0.050000000000000000`
     pub slash_fraction_double_sign: f64,
     /// Slash fraction downtime. Eg: `.000100000000000000`
@@ -380,42 +357,30 @@ pub struct InternalSlashingParams {
 impl TryFrom<SlashingParams> for InternalSlashingParams {
     type Error = String;
     fn try_from(value: SlashingParams) -> Result<Self, Self::Error> {
-        let downtime_jail_duration: u32 = if value.downtime_jail_duration.ends_with('s') {
-            match value.downtime_jail_duration[..value.downtime_jail_duration.len() - 1].parse() {
-                Ok(v) => v,
-                Err(_) => return Err(format!("Cannot parse downtime jail time, '{}'.", value.downtime_jail_duration)),
-            }
-        } else {
-            return Err(format!("Downtime jail couldn't be parsed, {}.", value.downtime_jail_duration));
+        let Some(downtime_jail_duration)  = value.downtime_jail_duration.map(|d| d.seconds) else {
+            return Err(format!("Missing downtime jail duration."));
         };
 
-        let signed_blocks_window = match value.signed_blocks_window.parse() {
-            Ok(v) => v,
-            Err(_) => return Err(format!("Cannot parse signed blocks window, '{}'.", value.signed_blocks_window)),
+        let dec = bytes_to_dec(value.min_signed_per_window.clone());
+        let Ok(min_signed_per_window) = dec.parse::<f64>() else {
+            return Err(format!("Cannot parse minimum signed per window, '{}'.", dec))
         };
 
-        let min_signed_per_window = match value.min_signed_per_window.parse() {
-            Ok(v) => v,
-            Err(_) => return Err(format!("Cannot parse minimum signed per window, '{}'.", value.min_signed_per_window)),
+        let dec = bytes_to_dec(value.slash_fraction_double_sign.clone());
+        let Ok(slash_fraction_double_sign) = dec.parse::<f64>() else {
+            return Err(format!(
+                "Cannot parse slash fraction double sign, '{}'.",
+                dec
+            ))
         };
 
-        let slash_fraction_double_sign = match value.slash_fraction_double_sign.parse() {
-            Ok(v) => v,
-            Err(_) => {
-                return Err(format!(
-                    "Cannot parse slash fraction double sign, '{}'.",
-                    value.slash_fraction_double_sign
-                ))
-            }
-        };
-
-        let slash_fraction_downtime = match value.slash_fraction_downtime.parse() {
-            Ok(v) => v,
-            Err(_) => return Err(format!("Cannot parse slash fraction downtime, '{}'.", value.slash_fraction_downtime)),
+        let dec = bytes_to_dec(value.slash_fraction_downtime.clone());
+        let Ok(slash_fraction_downtime) = dec.parse::<f64>() else {
+            return Err(format!("Cannot parse slash fraction downtime, '{}'.", dec))
         };
 
         Ok(Self {
-            signed_blocks_window,
+            signed_blocks_window: value.signed_blocks_window,
             min_signed_per_window,
             downtime_jail_duration,
             slash_fraction_double_sign,
@@ -423,13 +388,6 @@ impl TryFrom<SlashingParams> for InternalSlashingParams {
         })
     }
 }
-
-#[derive(Deserialize, Serialize, Debug)]
-pub struct ParamsResp<T> {
-    /// The parameters.
-    pub params: T,
-}
-
 /// The chain params.
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct ChainParams {
@@ -443,7 +401,7 @@ pub struct ChainParams {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct ChainParamsStaking {
-    pub unbonding_time: u32,
+    pub unbonding_time: i64,
     pub max_validators: u32,
     pub max_entries: u32,
     pub historical_entries: u32,
@@ -454,9 +412,9 @@ pub struct ChainParamsStaking {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct ChainParamsSlashing {
-    pub signed_blocks_window: u32,
+    pub signed_blocks_window: i64,
     pub min_signed_per_window: f64,
-    pub downtime_jail_duration: u32,
+    pub downtime_jail_duration: i64,
     pub slash_fraction_double_sign: f64,
     pub slash_fraction_downtime: f64,
 }
@@ -468,8 +426,8 @@ pub struct ChainParamsGov {
     pub quorum: f64,
     pub threshold: f64,
     pub min_deposit: f64,
-    pub voting_period: u32,
-    pub max_deposit_period: u32,
+    pub voting_period: i64,
+    pub max_deposit_period: i64,
 }
 
 /// The governance params.

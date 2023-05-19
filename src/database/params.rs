@@ -14,7 +14,7 @@ pub struct Params {
 /// The staking params.
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct StakingParams {
-    pub unbonding_time: u32,
+    pub unbonding_time: i64,
     pub max_validators: u32,
     pub max_entries: u32,
     pub historical_entries: u32,
@@ -24,9 +24,9 @@ pub struct StakingParams {
 /// The slashing params.
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct SlashingParams {
-    pub signed_blocks_window: u32,
+    pub signed_blocks_window: i64,
     pub min_signed_per_window: f64,
-    pub downtime_jail_duration: u32,
+    pub downtime_jail_duration: i64,
     pub slash_fraction_double_sign: f64,
     pub slash_fraction_downtime: f64,
 }
@@ -37,8 +37,8 @@ pub struct GovParams {
     pub quorum: f64,
     pub threshold: f64,
     pub min_deposit: f64,
-    pub voting_period: u32,
-    pub max_deposit_period: u32,
+    pub voting_period: i64,
+    pub max_deposit_period: i64,
 }
 
 /// The governance params.
