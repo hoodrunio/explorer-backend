@@ -197,7 +197,7 @@ impl Chain {
                 .into_inner();
 
             let rate = bytes_to_dec(resp.inflation);
-            rate.parse::<f64>().unwrap_or(default_return_value) / 100.0
+            rate.parse::<f64>().unwrap_or(default_return_value)
         };
 
         //Axelar calculation different than others. That is why we are overriding inflation variable here.
@@ -209,7 +209,7 @@ impl Chain {
                 key: "ExternalChainVotingInflationRate".to_string(),
             };
 
-            let external_chain_voting_inflation_rate = QueryClient::connect(endpoint)
+            let rate_string = QueryClient::connect(endpoint)
                 .await
                 .unwrap()
                 .params(req)
@@ -219,8 +219,9 @@ impl Chain {
                 .param
                 .ok_or_else(|| "Missing param".to_string())?
                 .value
-                .parse::<f64>()
-                .map_err(|_| "Parse float error".to_string())?;
+                .replace('\"', "");
+
+            let external_chain_voting_inflation_rate = rate_string.parse::<f64>().unwrap_or(default_return_value);
 
             let external_chain_inflation = self
                 .get_evm_supported_chains()
