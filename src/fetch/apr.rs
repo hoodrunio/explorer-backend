@@ -86,7 +86,7 @@ impl Chain {
 
             let inflation = inflation_rate_res?;
             let bonded_token_amount = staking_pool_res?.value.bonded as f64;
-            let community_tax = params_all_res?.value.distribution.community_tax;
+            let community_tax = params_all_res?.distribution.community_tax;
             match self.config.name.as_str() {
                 "axelar" => {
                     let bonded_token_amount = bonded_token_amount / 1000000000.0;

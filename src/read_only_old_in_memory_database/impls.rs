@@ -19,7 +19,7 @@ impl Chain {
 
             // Update params data.
             if let Ok(mut params) = chain.inner.data.params.lock() {
-                *params = params_resp.value;
+                *params = params_resp;
             };
 
             // Update community pool data.

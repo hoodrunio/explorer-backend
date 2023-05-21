@@ -13,7 +13,7 @@ use crate::{chain::Chain, routes::OutRestResponse};
 
 impl Chain {
     /// Returns the all parameters of the chain.
-    pub async fn get_params_all(&self) -> Result<OutRestResponse<ChainParams>, String> {
+    pub async fn get_params_all(&self) -> Result<ChainParams, String> {
         let (tally, voting, deposit, distribution, staking, slashing) = join!(
             self.get_tally_params(),
             self.get_voting_params(),
@@ -62,7 +62,7 @@ impl Chain {
             },
         };
 
-        Ok(OutRestResponse::new(chain_params, 0))
+        Ok(chain_params)
     }
 
     /// Returns the slashing parameters of the chain.

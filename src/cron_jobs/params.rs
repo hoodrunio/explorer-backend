@@ -8,9 +8,8 @@ use crate::database::{
 
 impl Chain {
     pub async fn cron_job_params(&self) -> Result<(), String> {
-        let resp = self.get_params_all().await?;
+        let all_params = self.get_params_all().await?;
 
-        let all_params = resp.value;
         self.database
             .upsert_params(ParamsForDb {
                 staking: StakingParamsForDb {
