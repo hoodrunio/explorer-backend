@@ -1,17 +1,15 @@
-use actix::fut::ok;
 use serde::{Deserialize, Serialize};
 use tokio::join;
 use tonic::transport::Endpoint;
 
-use super::others::DenomAmount;
-use crate::{chain::Chain, routes::OutRestResponse};
-use crate::fetch::c4e::minter::v1beta1::query_client::QueryClient;
-use crate::fetch::cosmos::slashing::v1beta1::{Params as SlashingParams};
-use crate::fetch::cosmos::staking::v1beta1::{Params as StakingParams};
-use crate::fetch::cosmos::distribution::v1beta1::{Params as DistributionParams};
+use crate::fetch::cosmos::distribution::v1beta1::Params as DistributionParams;
 use crate::fetch::cosmos::gov::v1beta1::TallyParams;
 use crate::fetch::cosmos::gov::v1beta1::VotingParams;
+use crate::fetch::cosmos::slashing::v1beta1::Params as SlashingParams;
+use crate::fetch::cosmos::staking::v1beta1::Params as StakingParams;
 use crate::utils::bytes_to_dec;
+use crate::utils::str_to_dec;
+use crate::{chain::Chain, routes::OutRestResponse};
 
 impl Chain {
     /// Returns the all parameters of the chain.
@@ -69,7 +67,7 @@ impl Chain {
 
     /// Returns the slashing parameters of the chain.
     pub async fn get_slashing_params(&self) -> Result<OutRestResponse<InternalSlashingParams>, String> {
-        use crate::fetch::cosmos::slashing::v1beta1::{QueryParamsRequest, query_client::QueryClient};
+        use crate::fetch::cosmos::slashing::v1beta1::{query_client::QueryClient, QueryParamsRequest};
 
         let endpoint = Endpoint::from_shared(self.config.clone().grpc_url.unwrap()).unwrap();
 
@@ -90,7 +88,7 @@ impl Chain {
 
     /// Returns the staking parameters.
     async fn get_staking_params(&self) -> Result<OutRestResponse<InternalStakingParams>, String> {
-        use crate::fetch::cosmos::staking::v1beta1::{QueryParamsRequest, query_client::QueryClient};
+        use crate::fetch::cosmos::staking::v1beta1::{query_client::QueryClient, QueryParamsRequest};
 
         let endpoint = Endpoint::from_shared(self.config.grpc_url.clone().unwrap()).unwrap();
 
@@ -111,11 +109,13 @@ impl Chain {
 
     /// Returns the voting parameters.
     async fn get_voting_params(&self) -> Result<OutRestResponse<InternalVotingParams>, String> {
-        use crate::fetch::cosmos::gov::v1beta1::{QueryParamsRequest, query_client::QueryClient};
+        use crate::fetch::cosmos::gov::v1beta1::{query_client::QueryClient, QueryParamsRequest};
 
         let endpoint = Endpoint::from_shared(self.config.grpc_url.clone().unwrap()).unwrap();
 
-        let req = QueryParamsRequest { params_type: "voting".to_string() };
+        let req = QueryParamsRequest {
+            params_type: "voting".to_string(),
+        };
 
         let resp = QueryClient::connect(endpoint)
             .await
@@ -132,13 +132,13 @@ impl Chain {
 
     /// Returns the distribution parameters.
     async fn get_distribution_params(&self) -> Result<OutRestResponse<InternalDistributionParams>, String> {
-        use crate::fetch::cosmos::distribution::v1beta1::{QueryParamsRequest, query_client::QueryClient};
+        use crate::fetch::cosmos::distribution::v1beta1::{query_client::QueryClient, QueryParamsRequest};
 
         let endpoint = Endpoint::from_shared(self.config.grpc_url.clone().unwrap()).unwrap();
 
         let req = QueryParamsRequest {};
 
-        let resp = QueryClient::connect(endpoint)
+        let resp: crate::fetch::cosmos::distribution::v1beta1::QueryParamsResponse = QueryClient::connect(endpoint)
             .await
             .unwrap()
             .params(req)
@@ -153,11 +153,13 @@ impl Chain {
 
     /// Returns the deposit parameters.
     async fn get_deposit_params(&self) -> Result<OutRestResponse<InternalDepositParams>, String> {
-        use crate::fetch::cosmos::gov::v1beta1::{QueryParamsRequest, query_client::QueryClient};
+        use crate::fetch::cosmos::gov::v1beta1::{query_client::QueryClient, QueryParamsRequest};
 
         let endpoint = Endpoint::from_shared(self.config.grpc_url.clone().unwrap()).unwrap();
 
-        let req = QueryParamsRequest { params_type: "deposit".to_string() };
+        let req = QueryParamsRequest {
+            params_type: "deposit".to_string(),
+        };
 
         let resp = QueryClient::connect(endpoint)
             .await
@@ -170,9 +172,7 @@ impl Chain {
         let val = resp.deposit_params.unwrap();
 
         let Some(max_deposit_period) = val.max_deposit_period.map(|d| d.seconds) else {
-            return Err(format!(
-                "Cannot parse maximum deposit period",
-            ));
+            return Err("Cannot parse maximum deposit period".to_string());
         };
 
         let Some(den) = val.min_deposit.get(0) else {
@@ -185,7 +185,6 @@ impl Chain {
 
         let min_deposit = self.calc_amount_u128_to_f64(amount);
 
-
         let deposit_params = InternalDepositParams {
             min_deposit,
             max_deposit_period,
@@ -195,11 +194,13 @@ impl Chain {
 
     /// Returns the tallying parameters.
     async fn get_tally_params(&self) -> Result<OutRestResponse<InternalTallyParams>, String> {
-        use crate::fetch::cosmos::gov::v1beta1::{QueryParamsRequest, query_client::QueryClient};
+        use crate::fetch::cosmos::gov::v1beta1::{query_client::QueryClient, QueryParamsRequest};
 
         let endpoint = Endpoint::from_shared(self.config.grpc_url.clone().unwrap()).unwrap();
 
-        let req = QueryParamsRequest { params_type: "tallying".to_string() };
+        let req = QueryParamsRequest {
+            params_type: "tallying".to_string(),
+        };
 
         let resp = QueryClient::connect(endpoint)
             .await
@@ -292,8 +293,7 @@ impl TryFrom<DistributionParams> for InternalDistributionParams {
     type Error = String;
     fn try_from(params: DistributionParams) -> Result<Self, Self::Error> {
         Ok(Self {
-            community_tax: params
-                .community_tax
+            community_tax: str_to_dec(params.community_tax.as_str())
                 .parse()
                 .map_err(|_| format!("Cannot parse community tax, '{}'", params.community_tax))?,
             base_proposer_reward: params
