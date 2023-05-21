@@ -296,12 +296,10 @@ impl TryFrom<DistributionParams> for InternalDistributionParams {
             community_tax: str_to_dec(params.community_tax.as_str())
                 .parse()
                 .map_err(|_| format!("Cannot parse community tax, '{}'", params.community_tax))?,
-            base_proposer_reward: params
-                .base_proposer_reward
+            base_proposer_reward: str_to_dec(params.base_proposer_reward.as_str())
                 .parse()
                 .map_err(|_| format!("Cannot parse community tax, '{}'", params.base_proposer_reward))?,
-            bonus_proposer_reward: params
-                .bonus_proposer_reward
+            bonus_proposer_reward: str_to_dec(params.bonus_proposer_reward.as_str())
                 .parse()
                 .map_err(|_| format!("Cannot parse community tax, '{}'", params.bonus_proposer_reward))?,
             withdraw_addr_enabled: params.withdraw_addr_enabled,
