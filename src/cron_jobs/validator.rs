@@ -75,7 +75,7 @@ impl Chain {
             .upsert_voting_power_data(&validator.operator_address, voting_power_db)
             .await?;
 
-        let is_active = &validator.status == "BOND_STATUS_BONDED";
+        let is_active = validator.status == format!("{:?}", RawValidatorStatus::Bonded);
         let consensus_address =
             convert_consensus_pubkey_to_consensus_address(&validator.consensus_pubkey.key, &format!("{}valcons", self.config.base_prefix));
         let logo_url = get_validator_logo(self.client.clone(), &validator.description.identity).await;
@@ -233,4 +233,12 @@ impl From<JobValidator> for ValidatorForDb {
             supported_evm_chains: value.supported_evm_chains,
         }
     }
+}
+
+#[derive(Debug)]
+pub enum RawValidatorStatus {
+    // Unspecified,
+    // Unbonded,
+    // Unbonding,
+    Bonded,
 }

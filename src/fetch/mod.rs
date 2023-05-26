@@ -21,10 +21,7 @@ pub mod utils;
 pub mod validators;
 
 use crate::fetch::cosmos::base::query::v1beta1::PageResponse;
-use base64::{
-    Engine,
-    engine::general_purpose::STANDARD,
-};
+use base64::{engine::general_purpose::STANDARD, Engine};
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -220,8 +217,6 @@ pub mod cosmos {
             }
         }
     }
-
-
 }
 
 pub mod evmos {
@@ -295,7 +290,6 @@ pub mod kyve {
         }
     }
 }
-
 
 pub mod cosmwasm {
     pub mod wasm {
