@@ -47,38 +47,5 @@ impl Chain {
                 sleep(duration).await;
             }
         });
-
-        // Validator cron job.
-        // let validator_dur = Duration::from_secs(120);
-        // let clone_chain = self.clone();
-        // spawn(async move {
-        //      loop {
-        //          clone_chain.cron_job_validator().await;
-        //
-        //          sleep(duration).await;
-        //     }
-        // })
-
-        // Validator cron job.
-        // let validator_dur = Duration::from_secs(120);
-        // let clone_chain = self.clone();
-        // spawn(async move {
-        //      loop {
-        //          clone_chain.cron_job_validator().await;
-        //
-        //          sleep(duration).await;
-        //     }
-        // })
-
-        // Validator cron job.
-        // let validator_dur = Duration::from_secs(120);
-        // let clone_chain = self.clone();
-        // spawn(async move {
-        //      loop {
-        //          clone_chain.cron_job_validator().await;
-        //
-        //          sleep(duration).await;
-        //     }
-        // })
     }
 }
