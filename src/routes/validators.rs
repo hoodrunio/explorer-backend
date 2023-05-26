@@ -1,12 +1,3 @@
-use actix_web::{
-    get,
-    web::{Data, Path, Query},
-    Responder,
-};
-use mongodb::bson::doc;
-use serde::Deserialize;
-use tendermint::evidence::List;
-
 use crate::{
     fetch::validators::InternalRedelegation,
     routes::{extract_chain, PaginationData, TNRAppError, TNRAppSuccessResponse},
@@ -15,7 +6,13 @@ use crate::{
     fetch::validators::{ValidatorListResp, ValidatorRedelegationQuery},
     state::State,
 };
-use crate::database::ListDbResult;
+use actix_web::{
+    get,
+    web::{Data, Path, Query},
+    Responder,
+};
+use mongodb::bson::doc;
+use serde::Deserialize;
 
 // ======== Validator Methods ========
 
