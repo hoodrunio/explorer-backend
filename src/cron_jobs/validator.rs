@@ -11,9 +11,9 @@ use crate::database::{ValidatorForDb, VotingPowerForDb};
 use crate::fetch::amount_util::TnrDecimal;
 use crate::fetch::evm::EvmSupportedChains;
 use crate::fetch::others::InternalStakingPool;
-use crate::fetch::validators::{ValidatorListValidator, ValidatorListValidatorCommission, ValidatorStatus};
+use crate::fetch::validators::{ValidatorListValidator, ValidatorListValidatorCommission, ValidatorListValidatorCommissionRates, ValidatorStatus};
 use crate::routes::PaginationData;
-use crate::utils::{convert_consensus_pubkey_to_consensus_address, convert_consensus_pubkey_to_hex_address, get_validator_logo};
+use crate::utils::{convert_consensus_pubkey_to_consensus_address, convert_consensus_pubkey_to_hex_address, get_validator_logo, str_to_dec};
 
 impl Chain {
     pub async fn cron_job_validator(&self) -> Result<(), String> {
@@ -58,7 +58,7 @@ impl Chain {
     }
 
     async fn to_job_validator(&self, validator: ValidatorListValidator, staking_pool: InternalStakingPool) -> Result<JobValidator, String> {
-        let val_delegator_shares = self.format_delegator_share(&validator.delegator_shares);
+        let val_delegator_shares = self.format_delegator_share(&str_to_dec(validator.delegator_shares.as_str()));
         let bonded_staking_poll = TnrDecimal::from(staking_pool.bonded);
 
         let voting_power = val_delegator_shares.to_u64().unwrap_or(0);
