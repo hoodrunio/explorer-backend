@@ -27,7 +27,7 @@ pub async fn account_vesting(path: Path<(String, String)>, chains: Data<State>) 
 }
 
 #[get("{chain}/balances/{account_address}")]
-pub async fn account_balances(path: Path<(String, String)>, chains: Data<State>, query: Query<QueryParams>) -> Result<impl Responder, TNRAppError> {
+pub async fn account_balances(path: Path<(String, String)>, chains: Data<State>, _query: Query<QueryParams>) -> Result<impl Responder, TNRAppError> {
     let (chain, account_address) = path.into_inner();
     let config = PaginationData {
         cursor: None,
