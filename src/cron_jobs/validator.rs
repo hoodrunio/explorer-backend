@@ -99,6 +99,15 @@ impl Chain {
             Err(_) => None,
         };
 
+        let validator_commissions = ValidatorListValidatorCommission {
+            commission_rates: ValidatorListValidatorCommissionRates {
+                rate: String::from(str_to_dec(&validator.commission.commission_rates.rate)),
+                max_rate: String::from(str_to_dec(&validator.commission.commission_rates.max_rate)),
+                max_change_rate: String::from(str_to_dec(&validator.commission.commission_rates.max_change_rate)),
+            },
+            update_time: validator.commission.update_time,
+        };
+
         let job_val = JobValidator {
             rank: 0,
             bonded_height: None, // Find way to fetch and store.
@@ -118,7 +127,7 @@ impl Chain {
             delegator_shares: val_delegator_shares.to_f64().unwrap_or(0.0),
             voting_power,
             voting_power_ratio: voting_power_percentage,
-            validator_commissions: validator.commission,
+            validator_commissions,
             cumulative_bonded_tokens: None,
             voter_address,
             supported_evm_chains,
