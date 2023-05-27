@@ -1,4 +1,3 @@
-use base64::Engine;
 use std::ops::{Div, Rem};
 use std::str::FromStr;
 
@@ -14,6 +13,7 @@ use tonic::transport::Endpoint;
 use crate::database::{ListDbResult, PaginatedListResult, ValidatorForDb};
 use crate::fetch::cosmos::slashing::v1beta1::{QuerySigningInfoRequest, QuerySigningInfoResponse};
 use crate::fetch::cosmos::tx::v1beta1::OrderBy;
+use crate::fetch::transactions::TxsResp;
 use crate::routes::ChainAmountItem;
 use crate::routes::{PaginationData, TNRAppError};
 use crate::utils::{convert_consensus_pubkey_to_consensus_address, get_key, str_to_dec};
@@ -25,7 +25,7 @@ use crate::fetch::cosmos::tx::v1beta1::Tx as GrpcTx;
 
 use super::amount_util::TnrDecimal;
 use super::others::{DenomAmount, Pagination};
-use base64::engine::general_purpose::STANDARD;
+use super::transactions::{InternalTransactionContent, InternalTransactionContentKnowns};
 
 impl Chain {
     /// Returns the signing info by given cons address.
@@ -758,7 +758,6 @@ impl Chain {
     }
 
     pub async fn get_validator_voter_address(&self, operator_address: &String) -> Result<Option<String>, TNRAppError> {
-        use crate::fetch::cosmos::tx::v1beta1::{service_client::ServiceClient, GetTxsEventRequest};
         let mut result = None;
         if self.config.name != "axelar" {
             return Ok(result);
@@ -771,37 +770,16 @@ impl Chain {
         };
 
         let mut query = vec![];
-        query.push(format!("message.sender='{}'", operator_address));
-        query.push(format!("message.action='{}'", "RegisterProxy"));
-        let endpoint = Endpoint::from_shared(self.config.grpc_url.clone().unwrap()).unwrap();
-
-        let query = query.join(",");
-
-        let req = GetTxsEventRequest {
-            events: vec![],
-            pagination: None,
-            order_by: 0,
-            page: 0,
-            limit: 0,
-            query,
-        };
-
-        let resp = ServiceClient::connect(endpoint)
-            .await
-            .unwrap()
-            .get_txs_event(req)
-            .await
-            .map_err(|e| format!("{}", e))?
-            .into_inner();
+        query.push(("events", format!("message.sender='{}'", operator_address)));
+        query.push(("events", format!("message.action='{}'", "RegisterProxy")));
+        let resp = self.archive_api_request::<TxsResp>("/cosmos/tx/v1beta1/txs", &query).await?;
 
         for tx in resp.txs.iter() {
-            for message in tx.body.clone().unwrap().messages {
-                if message.type_url.as_str() == "/axelar.snapshot.v1beta1.RegisterProxyRequest" {
-                    use crate::fetch::axelar::snapshot::v1beta1::RegisterProxyRequest;
-                    let msg = RegisterProxyRequest::decode(message.value.as_slice()).unwrap();
-
-                    result = Some(STANDARD.encode(msg.proxy_addr))
-                }
+            for message in &tx.body.messages {
+                let res = message.clone().to_internal(self, &None).await?;
+                if let InternalTransactionContent::Known(InternalTransactionContentKnowns::RegisterProxy { sender: _, proxy_addr }) = res {
+                    result = Some(proxy_addr);
+                };
             }
         }
 
