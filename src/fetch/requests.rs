@@ -39,7 +39,7 @@ impl Chain {
     }
 
     /// Makes a request to the ARCHIVE REST API node.
-    pub(super) async fn _archive_api_request<T: DeserializeOwned>(&self, path: &str, query: &[(&'static str, String)]) -> Result<T, String> {
+    pub(super) async fn archive_api_request<T: DeserializeOwned>(&self, path: &str, query: &[(&'static str, String)]) -> Result<T, String> {
         // Create the URL request to.
         let url = format!("{}{}", self.config.archive_url, path);
 
