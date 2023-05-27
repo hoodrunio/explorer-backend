@@ -146,43 +146,10 @@ impl DatabaseTR {
     pub async fn upsert_validator(&self, validator: Validator) -> Result<(), String> {
         let doc = to_document(&validator).unwrap();
         let command = doc! {"update":"validators","updates":[{"q":{"operator_address":&validator.operator_address},"u":doc,"upsert":true}]};
-        if let Err(_) = self.db().run_command(command, None).await {
-            return Err("Cannot save the validator.".into());
+        match self.db().run_command(command, None).await {
+            Ok(_) => Ok(()),
+            Err(_) => Err("Cannot save the validator.".into()),
         }
-
-        let default_filter = doc! { "$match":{"operator_address":{"$exists":true}}};
-        //default filter necessary when using aggregate
-        let mut pipeline: Vec<Document> = vec![default_filter];
-
-        let cumulative_bonded_tokens_pipe = doc! {
-            "$setWindowFields": {
-                "sortBy": {
-                    "delegator_shares": -1
-                },
-                "output": {
-                    "cumulative_bonded_tokens": {
-                        "$sum": "$delegator_shares",
-                        "window":  {
-                        "documents": [
-                            "unbounded",
-                            "current"
-                            ]
-                        }
-                    }
-                }
-            }
-        };
-
-        let save = doc! {
-            "$merge": { "into": "computed_validators", "whenMatched": "replace"}
-        };
-
-        pipeline.push(cumulative_bonded_tokens_pipe);
-        pipeline.push(save);
-
-        let _ = self.validators_collection().aggregate(pipeline, None).await.map_err(|e| e.to_string())?;
-
-        Ok(())
     }
 
     /// Adds a new transaction to the transactions collection of the database.
@@ -346,11 +313,11 @@ impl DatabaseTR {
     /// ```
     pub async fn find_paginated_validators(&self, query: Option<Document>, config: PaginationData) -> Result<ListDbResult<ValidatorForDb>, String> {
         let find_options = FindOptions::builder()
-            .sort(doc! { "delegator_shares": - 1, "rank": 1})
+            .sort(doc! { "delegator_shares": -1, "rank": 1})
             .limit(config.limit.map(|l| l as i64).unwrap_or_else(|| 20))
             .build();
 
-        let collection = self.db().collection("computed_validators");
+        let collection = self.db().collection("validators");
         let results = PaginatedCursor::new(Some(find_options), config.cursor, None)
             .find(&collection, query.as_ref())
             .await
