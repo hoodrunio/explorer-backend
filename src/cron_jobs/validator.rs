@@ -41,14 +41,24 @@ impl Chain {
         }
 
         //Sort depending on delegator shares
-        job_validators.sort_by(|a, b| b.delegator_shares.partial_cmp(&a.delegator_shares).unwrap());
-        for (i, jv) in job_validators.iter_mut().enumerate() {
+        let mut sorted_active_vals: Vec<JobValidator> = job_validators.clone().into_iter().filter(|v| v.is_active).collect();
+        sorted_active_vals.sort_by(|a, b| b.delegator_shares.partial_cmp(&a.delegator_shares).unwrap());
+
+        let mut sorted_in_active_vals: Vec<JobValidator> = job_validators.into_iter().filter(|v| !v.is_active).collect();
+        sorted_in_active_vals.sort_by(|a, b| b.delegator_shares.partial_cmp(&a.delegator_shares).unwrap());
+
+        let mut sorted_all_job_validators = Vec::new();
+        sorted_all_job_validators.append(&mut sorted_active_vals.clone());
+        sorted_all_job_validators.append(&mut sorted_in_active_vals);
+
+        for (i, jv) in sorted_all_job_validators.iter_mut().enumerate() {
             let rank = (i as u64) + 1;
             jv.rank(rank);
+            jv.calc_cumulative_delegation_share_params(sorted_active_vals.clone());
         }
 
         let mut db_jobs = vec![];
-        for job in job_validators {
+        for job in sorted_all_job_validators {
             db_jobs.push(async move { self.database.upsert_validator(job.into()).await });
         }
 
@@ -129,6 +139,7 @@ impl Chain {
             voting_power_ratio: voting_power_percentage,
             validator_commissions,
             cumulative_bonded_tokens: None,
+            cumulative_share_ratio: None,
             voter_address,
             supported_evm_chains,
         };
@@ -199,6 +210,7 @@ pub struct JobValidator {
     pub self_delegation_amount: Option<f64>,
     pub self_delegate_address: String,
     pub cumulative_bonded_tokens: Option<f64>,
+    pub cumulative_share_ratio: Option<f64>,
     pub voter_address: Option<String>,
     pub supported_evm_chains: Option<EvmSupportedChains>,
 }
@@ -206,6 +218,23 @@ pub struct JobValidator {
 impl JobValidator {
     fn rank(&mut self, rank: u64) {
         self.rank = rank;
+    }
+    fn calc_cumulative_delegation_share_params(&mut self, sorted_vals: Vec<JobValidator>) {
+        let self_val_share = self.delegator_shares;
+        let self_val_share_ratio = self.voting_power_ratio;
+        let mut share = self_val_share;
+        let mut share_ratio = self_val_share_ratio;
+
+        for val in sorted_vals {
+            let val_delegator_shares = val.delegator_shares;
+            if val_delegator_shares > self_val_share && val.is_active && val_delegator_shares > 0.0 {
+                share += val_delegator_shares;
+                share_ratio += val.voting_power_ratio
+            };
+        }
+
+        self.cumulative_bonded_tokens = Some(share);
+        self.cumulative_share_ratio = Some(share_ratio);
     }
 }
 
@@ -229,6 +258,7 @@ impl From<JobValidator> for ValidatorForDb {
             self_delegation_amount: value.self_delegation_amount,
             self_delegate_address: value.self_delegate_address,
             cumulative_bonded_tokens: value.cumulative_bonded_tokens,
+            cumulative_share_ratio: value.cumulative_share_ratio,
             voter_address: value.voter_address,
             supported_evm_chains: value.supported_evm_chains,
         }
