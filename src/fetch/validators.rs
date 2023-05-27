@@ -958,6 +958,7 @@ pub struct ValidatorListElement {
     pub voting_power: u64,
     pub voting_power_ratio: f64,
     pub cumulative_share: f64,
+    pub cumulative_share_ratio: f64,
     pub account_address: String,
     pub operator_address: String,
     pub consensus_address: String,
@@ -968,14 +969,10 @@ pub struct ValidatorListElement {
 }
 
 impl ValidatorListResp {
-    pub async fn from_db_list(other: ListDbResult<ValidatorForDb>, chain: &Chain) -> Result<Self, TNRAppError> {
-        let staking_pool_resp = chain.get_staking_pool().await?.value;
-        let bonded_token = staking_pool_resp.bonded;
+    pub async fn from_db_list(other: ListDbResult<ValidatorForDb>, _chain: &Chain) -> Result<Self, TNRAppError> {
         let mut validators = vec![];
 
         for v in other.data.iter() {
-            let cumulative_bonded_tokens = v.cumulative_bonded_tokens.unwrap_or(0.0);
-            let cumulative_share = (cumulative_bonded_tokens / bonded_token as f64) / 10000.0;
             let missed_29k = 0;
             if v.is_active {
                 //WARNING This request takes too much time can turn to a cron job
@@ -987,7 +984,8 @@ impl ValidatorListResp {
                 validator_commissions: ValidatorListElementValidatorCommission::from_db(v.validator_commissions.clone()),
                 moniker: v.name.clone(),
                 rank: v.rank,
-                cumulative_share,
+                cumulative_share: v.cumulative_bonded_tokens.unwrap_or(0.0),
+                cumulative_share_ratio: v.cumulative_share_ratio.unwrap_or(0.0),
                 voting_power: v.voting_power,
                 voting_power_ratio: v.voting_power_ratio,
                 uptime: v.uptime,
