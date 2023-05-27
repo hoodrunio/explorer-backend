@@ -109,7 +109,7 @@ pub async fn validators_unbonded(path: Path<String>, chains: Data<State>, query:
     let chain = extract_chain(&chain, chains)?;
     let validator_db_resp = chain
         .database
-        .find_paginated_validators(Some(doc! {"is_active":false}), query.into_inner())
+        .find_paginated_validators(Some(doc! { "is_active": false }), query.into_inner())
         .await?;
 
     let pagination = validator_db_resp.pagination.clone();
