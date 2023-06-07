@@ -42,10 +42,10 @@ impl Chain {
 
         //Sort depending on delegator shares
         let mut sorted_active_vals: Vec<JobValidator> = job_validators.clone().into_iter().filter(|v| v.is_active).collect();
-        sorted_active_vals.sort_by(|a, b| b.delegator_shares.partial_cmp(&a.delegator_shares).unwrap());
+        sorted_active_vals.sort_by(|a, b| b.tokens.partial_cmp(&a.tokens).unwrap());
 
         let mut sorted_in_active_vals: Vec<JobValidator> = job_validators.into_iter().filter(|v| !v.is_active).collect();
-        sorted_in_active_vals.sort_by(|a, b| b.delegator_shares.partial_cmp(&a.delegator_shares).unwrap());
+        sorted_in_active_vals.sort_by(|a, b| b.tokens.partial_cmp(&a.tokens).unwrap());
 
         let mut sorted_all_job_validators = Vec::new();
         sorted_all_job_validators.append(&mut sorted_active_vals.clone());
@@ -69,13 +69,15 @@ impl Chain {
 
     async fn to_job_validator(&self, validator: ValidatorListValidator, staking_pool: InternalStakingPool) -> Result<JobValidator, String> {
         let val_delegator_shares = self.format_delegator_share(&str_to_dec(validator.delegator_shares.as_str()));
+        let tokens = self.format_delegator_share(&validator.tokens.as_str());
+        let tokens_f64 = tokens.to_f64().unwrap_or(0.0);
         let bonded_staking_poll = TnrDecimal::from(staking_pool.bonded);
 
-        let voting_power = val_delegator_shares.to_u64().unwrap_or(0);
-        let voting_power_percentage = val_delegator_shares.div(bonded_staking_poll).to_f64().unwrap_or(0.0);
+        let voting_power = tokens.to_u64().unwrap_or(0);
+        let voting_power_percentage = tokens.div(bonded_staking_poll).to_f64().unwrap_or(0.0);
 
         let voting_power_db = VotingPowerForDb {
-            voting_power: val_delegator_shares.to_f64().unwrap_or(0.0),
+            voting_power: tokens_f64,
             voting_power_percentage,
             ..Default::default()
         }
@@ -135,6 +137,7 @@ impl Chain {
                 .convert_valoper_to_self_delegate_address(&validator.operator_address)
                 .ok_or_else(|| format!("Cannot parse self delegate address, {}.", validator.operator_address))?,
             delegator_shares: val_delegator_shares.to_f64().unwrap_or(0.0),
+            tokens: tokens_f64,
             voting_power,
             voting_power_ratio: voting_power_percentage,
             validator_commissions,
@@ -200,6 +203,7 @@ pub struct JobValidator {
     pub change_24h: Option<u64>,
     pub hex_address: String,
     pub delegator_shares: f64,
+    pub tokens: f64,
     pub voting_power: u64,
     pub voting_power_ratio: f64,
     pub is_active: bool,
@@ -220,15 +224,15 @@ impl JobValidator {
         self.rank = rank;
     }
     fn calc_cumulative_delegation_share_params(&mut self, sorted_vals: Vec<JobValidator>) {
-        let self_val_share = self.delegator_shares;
+        let self_val_share = self.tokens;
         let self_val_share_ratio = self.voting_power_ratio;
         let mut share = self_val_share;
         let mut share_ratio = self_val_share_ratio;
 
         for val in sorted_vals {
-            let val_delegator_shares = val.delegator_shares;
-            if val_delegator_shares > self_val_share && val.is_active && val_delegator_shares > 0.0 {
-                share += val_delegator_shares;
+            let val_tokens = val.tokens;
+            if val_tokens > self_val_share && val.is_active && val_tokens > 0.0 {
+                share += val_tokens;
                 share_ratio += val.voting_power_ratio
             };
         }
@@ -248,6 +252,7 @@ impl From<JobValidator> for ValidatorForDb {
             change_24h: value.change_24h,
             hex_address: value.hex_address,
             delegator_shares: value.delegator_shares,
+            tokens: value.tokens,
             voting_power: value.voting_power,
             voting_power_ratio: value.voting_power_ratio,
             is_active: value.is_active,
