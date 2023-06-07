@@ -13,6 +13,7 @@ pub struct Validator {
     pub hex_address: String,
     pub delegator_shares: f64,
     pub voting_power: u64,
+    pub tokens: f64,
     pub voting_power_ratio: f64,
     pub is_active: bool,
     pub uptime: f64,
