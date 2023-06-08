@@ -1,6 +1,7 @@
 use futures::StreamExt;
 use mongodb::bson::{from_document, to_bson, to_document};
 use mongodb::options::FindOptions;
+use mongodb::IndexModel;
 use mongodb::{
     bson::{doc, Document},
     Client, Collection, Database,
@@ -229,12 +230,18 @@ impl DatabaseTR {
     /// let blocks = database.find_paginated_blocks().await;
     /// ```
     pub async fn find_paginated_blocks(&self, query: Option<Document>, config: PaginationData) -> Result<ListDbResult<Block>, String> {
+        let collection = self.db().collection("blocks");
+
+        let sort_doc = doc! { "timestamp": - 1};
+
+        let index_doc = sort_doc.clone();
+        let _ = collection.create_index(IndexModel::builder().keys(index_doc).build(), None).await;
+
         let find_options = FindOptions::builder()
-            .sort(doc! { "timestamp": - 1})
+            .sort(sort_doc)
             .limit(config.limit.map(|l| l as i64).unwrap_or_else(|| 20))
             .build();
 
-        let collection = self.db().collection("blocks");
         let results = PaginatedCursor::new(Some(find_options), config.cursor, None)
             .find(&collection, query.as_ref())
             .await
@@ -277,12 +284,17 @@ impl DatabaseTR {
     /// let txs = database.find_paginated_txs().await;
     /// ```
     pub async fn find_paginated_txs(&self, query: Option<Document>, config: PaginationData) -> Result<ListDbResult<TransactionForDb>, String> {
+        let collection = self.db().collection("transactions");
+        let sort_doc = doc! {"time":-1};
+
+        let index_doc = sort_doc.clone();
+        let _ = collection.create_index(IndexModel::builder().keys(index_doc).build(), None).await;
+
         let find_options = FindOptions::builder()
-            .sort(doc! { "time": - 1})
+            .sort(sort_doc)
             .limit(config.limit.map(|l| l as i64).unwrap_or_else(|| 20))
             .build();
 
-        let collection = self.db().collection("transactions");
         let results = PaginatedCursor::new(Some(find_options), config.cursor, None)
             .find(&collection, query.as_ref())
             .await
@@ -312,12 +324,17 @@ impl DatabaseTR {
     /// let validator = database.find_paginated_validators(doc!{"$match":{"operator_address":{"$exists":true}}}).await;
     /// ```
     pub async fn find_paginated_validators(&self, query: Option<Document>, config: PaginationData) -> Result<ListDbResult<ValidatorForDb>, String> {
+        let collection = self.db().collection("validators");
+        let sort_doc = doc! {"rank":1};
+
+        let index_doc = sort_doc.clone();
+        let _ = collection.create_index(IndexModel::builder().keys(index_doc).build(), None).await;
+
         let find_options = FindOptions::builder()
-            .sort(doc! { "rank": 1})
+            .sort(sort_doc)
             .limit(config.limit.map(|l| l as i64).unwrap_or_else(|| 20))
             .build();
 
-        let collection = self.db().collection("validators");
         let results = PaginatedCursor::new(Some(find_options), config.cursor, None)
             .find(&collection, query.as_ref())
             .await
