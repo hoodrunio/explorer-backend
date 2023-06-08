@@ -417,13 +417,16 @@ impl DatabaseTR {
     /// database.find_paginated_evm_polls(evm_poll).await;
     /// ```
     pub async fn find_paginated_evm_polls(&self, pipe: Option<Document>, config: PaginationData) -> Result<ListDbResult<EvmPollForDb>, String> {
-        let options = FindOptions::builder()
-            .limit(config.limit.map(|l| l as i64))
-            .sort(doc! { "timestamp": -1})
-            .build();
+        let collection = self.db().collection("evm_polls");
+        let sort_doc = doc! { "timestamp": -1};
+
+        let index_doc = sort_doc.clone();
+        let _ = collection.create_index(IndexModel::builder().keys(index_doc).build(), None).await;
+
+        let options = FindOptions::builder().limit(config.limit.map(|l| l as i64)).sort(sort_doc).build();
 
         let results: FindResult<EvmPollForDb> = PaginatedCursor::new(Some(options), config.cursor, config.direction.map(|d| d.into()))
-            .find(&self.db().collection("evm_polls"), pipe.as_ref())
+            .find(&collection, pipe.as_ref())
             .await
             .map_err(|e| e.to_string())?;
 
@@ -509,13 +512,16 @@ impl DatabaseTR {
         pipe: Option<Document>,
         config: PaginationData,
     ) -> Result<ListDbResult<EvmPollParticipantForDb>, String> {
-        let options = FindOptions::builder()
-            .limit(config.limit.map(|l| l as i64))
-            .sort(doc! { "poll_id": -1})
-            .build();
+        let collection = self.db().collection("evm_poll_participants");
+        let sort_doc = doc! { "poll_id": -1};
+
+        let index_doc = sort_doc.clone();
+        let _ = collection.create_index(IndexModel::builder().keys(index_doc).build(), None).await;
+
+        let options = FindOptions::builder().limit(config.limit.map(|l| l as i64)).sort(sort_doc).build();
 
         let results: FindResult<EvmPollParticipantForDb> = PaginatedCursor::new(Some(options), config.cursor, config.direction.map(|d| d.into()))
-            .find(&self.db().collection("evm_poll_participants"), pipe.as_ref())
+            .find(&collection, pipe.as_ref())
             .await
             .map_err(|e| e.to_string())?;
 
@@ -573,15 +579,20 @@ impl DatabaseTR {
         filter: Option<Document>,
         config: Option<PaginationData>,
     ) -> Result<ListDbResult<HeartbeatForDb>, String> {
-        let config = config.unwrap_or_default();
+        let collection = self.db().collection("heartbeats");
+        let sort_doc = doc! { "_id": -1};
 
+        let index_doc = sort_doc.clone();
+        let _ = collection.create_index(IndexModel::builder().keys(index_doc).build(), None).await;
+
+        let config = config.unwrap_or_default();
         let options = FindOptions::builder()
             .limit(config.limit.map(|l| l as i64).unwrap_or_else(|| 20))
-            .sort(doc! { "_id": -1})
+            .sort(sort_doc)
             .build();
 
         let results: FindResult<HeartbeatForDb> = PaginatedCursor::new(Some(options), config.cursor, config.direction.map(|d| d.into()))
-            .find(&self.db().collection("heartbeats"), filter.as_ref())
+            .find(&collection, filter.as_ref())
             .await
             .map_err(|e| e.to_string())?;
 
