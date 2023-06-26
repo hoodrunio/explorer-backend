@@ -74,8 +74,6 @@ impl Chain {
             .unwrap_or_default()
             .checked_add(total_staking_rewards_amount)
             .unwrap_or_default()
-            .checked_add(total_staking_rewards_amount)
-            .unwrap_or_default()
             .checked_add(validator_comission.clone().map(|c| c.amount).unwrap_or_default())
             .unwrap_or_default();
 
