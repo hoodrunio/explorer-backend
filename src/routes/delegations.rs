@@ -24,7 +24,7 @@ pub async fn delegations(path: Path<(String, String)>, chains: Data<State>, _que
 
     let chain = extract_chain(&chain, chains)?;
     let data = chain.get_delegations(&delegator_addr, config).await?;
-    Ok(TNRAppSuccessResponse::new(data, None))
+    Ok(TNRAppSuccessResponse::from(data))
 }
 
 #[get("{chain}/unbonding-delegations/{delegator_address}")]
