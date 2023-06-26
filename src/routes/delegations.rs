@@ -60,5 +60,5 @@ pub async fn redelegations(path: Path<(String, String)>, chains: Data<State>, _q
 
     let chain = extract_chain(&chain, chains)?;
     let data = chain.get_redelegations(&delegator_addr, config).await?;
-    Ok(TNRAppSuccessResponse::new(data, None))
+    Ok(TNRAppSuccessResponse::from(data))
 }
