@@ -292,16 +292,17 @@ pub struct InternalDistributionParams {
 impl TryFrom<DistributionParams> for InternalDistributionParams {
     type Error = String;
     fn try_from(params: DistributionParams) -> Result<Self, Self::Error> {
+        #[allow(deprecated)]
         Ok(Self {
             community_tax: str_to_dec(params.community_tax.as_str())
                 .parse()
                 .map_err(|_| format!("Cannot parse community tax, '{}'", params.community_tax))?,
             base_proposer_reward: str_to_dec(params.base_proposer_reward.as_str())
                 .parse()
-                .map_err(|_| format!("Cannot parse community tax, '{}'", params.base_proposer_reward))?,
+                .map_err(|_| format!("Cannot parse base proposer reward, '{}'", params.base_proposer_reward))?,
             bonus_proposer_reward: str_to_dec(params.bonus_proposer_reward.as_str())
                 .parse()
-                .map_err(|_| format!("Cannot parse community tax, '{}'", params.bonus_proposer_reward))?,
+                .map_err(|_| format!("Cannot parse bonus proposer reward, '{}'", params.bonus_proposer_reward))?,
             withdraw_addr_enabled: params.withdraw_addr_enabled,
         })
     }

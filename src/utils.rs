@@ -23,6 +23,7 @@ use std::fmt::{Display, Formatter};
 //     }
 // }
 
+#[allow(dead_code)]
 #[derive(Deserialize)]
 pub struct CoinGeckoPrice {
     pub usd: f64,

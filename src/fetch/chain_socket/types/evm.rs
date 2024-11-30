@@ -367,7 +367,8 @@ impl EvmPollBlockInfo {
     }
 }
 
-#[derive(Deserialize, Debug, Clone)]
+#[allow(dead_code)]
+#[derive(Debug, Clone)]
 pub struct AxelarCompletedPoll {
     pub chain: String,
     pub poll_id: String,

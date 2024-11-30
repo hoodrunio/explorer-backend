@@ -183,6 +183,7 @@ impl Chain {
             limit: Some(limit),
             direction: None,
         };
+        #[allow(deprecated)]
         let req = GetTxsEventRequest {
             events,
             pagination: Some(pagination.into()),
@@ -665,10 +666,11 @@ impl Chain {
 
         let endpoint = Endpoint::from_shared(self.config.grpc_url.clone().unwrap()).unwrap();
 
+        #[allow(deprecated)]
         let req = GetTxsEventRequest {
             events: vec![],
             pagination: None,
-            order_by: 2,
+            order_by: 1,
             page: 0,
             limit: 1,
             query: format!("create_validator.validator={}", valoper_addr),

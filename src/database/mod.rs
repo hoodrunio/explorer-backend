@@ -13,7 +13,7 @@ pub use database_tr::DatabaseTR;
 
 pub use blocks::Block as BlockForDb;
 
-pub use chains::Chain as ChainForDb;
+// pub use chains::Chain as ChainForDb;
 pub use chains::ChainDashboardInfo as ChainDashboardInfoForDb;
 
 pub use common::*;

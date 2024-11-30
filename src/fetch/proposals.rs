@@ -2,6 +2,7 @@ use futures::future::join_all;
 use serde::{Deserialize, Serialize};
 use std::str;
 use tonic::transport::Endpoint;
+use base64::Engine;
 
 use crate::{
     chain::Chain,
@@ -189,7 +190,7 @@ impl From<prost_wkt_types::Any> for ProposalInfo {
 impl Into<PageRequest> for PaginationData {
     fn into(self) -> PageRequest {
         PageRequest {
-            key: self.cursor.map(|b| base64::decode(b).unwrap_or_default().to_vec()).unwrap_or_default(),
+            key: self.cursor.map(|b| base64::engine::general_purpose::STANDARD.decode(b).unwrap_or_default().to_vec()).unwrap_or_default(),
             offset: self.offset.unwrap_or_else(|| 0),
             limit: self.limit.unwrap_or_else(|| 20),
             count_total: true,
@@ -201,7 +202,7 @@ impl Into<PageRequest> for PaginationData {
 impl From<PageResponse> for PaginationData {
     fn from(value: PageResponse) -> Self {
         let cursor = if !value.next_key.is_empty() {
-            Some(base64::encode(value.next_key))
+            Some(base64::engine::general_purpose::STANDARD.encode(value.next_key))
         } else {
             None
         };
@@ -218,7 +219,7 @@ impl From<PageResponse> for PaginationData {
 impl PaginationData {
     fn from_grpc_pagin_resp(value: PageResponse, limit: Option<u64>) -> Self {
         let cursor = if !value.next_key.is_empty() {
-            Some(base64::encode(value.next_key))
+            Some(base64::engine::general_purpose::STANDARD.encode(value.next_key))
         } else {
             None
         };

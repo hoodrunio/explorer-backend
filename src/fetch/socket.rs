@@ -3,6 +3,7 @@ use crate::fetch::chain_socket::EvmPollBlockInfo;
 use crate::utils::Base64Convert;
 use std::sync::Arc;
 
+use base64::Engine;
 use chrono::DateTime;
 use futures::stream::select;
 use futures::StreamExt;
@@ -127,7 +128,7 @@ impl Chain {
                                                 1,
                                                 validator_address.to_string(),
                                                 timestamp.to_rfc3339(),
-                                                signature.as_ref().map(|s| base64::encode(s.as_bytes())),
+                                                signature.as_ref().map(|s| base64::engine::general_purpose::STANDARD.encode(s.as_bytes())),
                                             ),
                                             CommitSig::BlockIdFlagNil {
                                                 validator_address,
@@ -137,7 +138,7 @@ impl Chain {
                                                 2,
                                                 validator_address.to_string(),
                                                 timestamp.to_rfc3339(),
-                                                signature.as_ref().map(|s| base64::encode(s.as_bytes())),
+                                                signature.as_ref().map(|s| base64::engine::general_purpose::STANDARD.encode(s.as_bytes())),
                                             ),
                                         };
 

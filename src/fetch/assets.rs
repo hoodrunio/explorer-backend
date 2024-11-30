@@ -39,7 +39,7 @@ impl Chain {
 
         if should_fetch {
             let assets = self
-                .external_rest_api_req::<Assets>(&self.client, Method::GET, &full_cosmos_assets_url, &[])
+                .external_rest_api_req::<Assets>(full_cosmos_assets_url.to_string(), &[], Method::GET)
                 .await?;
             *last_fetched_timestamp = current_timestamp;
             *last_fetched_list = assets.assets;

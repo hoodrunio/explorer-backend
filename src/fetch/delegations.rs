@@ -1,4 +1,4 @@
-use chrono::{DateTime, NaiveDateTime};
+use chrono::DateTime;
 use mongodb::bson::doc;
 use serde::{Deserialize, Serialize};
 use tokio::join;
@@ -62,7 +62,7 @@ impl Chain {
     pub async fn get_redelegations(&self, delegator_addr: &str, config: PaginationData) -> Result<ListDbResult<InternalRedelegation>, String> {
         use crate::fetch::cosmos::staking::v1beta1::{query_client::QueryClient, QueryRedelegationsRequest};
 
-        let endoint = Endpoint::from_shared(self.config.grpc_url.clone().unwrap()).unwrap();
+        let endpoint = Endpoint::from_shared(self.config.grpc_url.clone().unwrap()).unwrap();
 
         let req = QueryRedelegationsRequest {
             delegator_addr: delegator_addr.to_string(),
@@ -71,7 +71,7 @@ impl Chain {
             pagination: Some(config.into()),
         };
 
-        let resp = QueryClient::connect(endoint)
+        let resp = QueryClient::connect(endpoint)
             .await
             .unwrap()
             .redelegations(req)
@@ -97,15 +97,14 @@ impl Chain {
 
                     let amount = self.string_amount_parser(redelegation_resp_entry.balance.clone(), None).await?;
 
-                    let completion_time = NaiveDateTime::from_timestamp_millis(
+                    let completion_time = DateTime::from_timestamp(
                         (redelegation_resp_entry.redelegation_entry.clone().unwrap().completion_time.unwrap().nanos / 1_000_000) as i64,
-                    )
-                    .ok_or(format!("Cannot parse redelegation completion datetime",))?
-                    .timestamp_millis();
+                        0
+                    ).ok_or(format!("Cannot parse redelegation completion datetime"))?;
 
                     InternalRedelegation {
                         amount,
-                        completion_time,
+                        completion_time: completion_time.timestamp_millis(),
                         validator_from_logo_url: validator_from.logo_url,
                         validator_from_name: validator_from.name,
                         validator_from_address: validator_from.operator_address,
@@ -155,11 +154,10 @@ impl Chain {
                     let amount = self.string_amount_parser(unbonding_entry.balance.clone(), None).await?;
                     InternalUnbonding {
                         balance: amount,
-                        completion_time: NaiveDateTime::from_timestamp_millis(
+                        completion_time: DateTime::from_timestamp(
                             (&unbonding_entry.completion_time.clone().unwrap().nanos / 1_000_000) as i64,
-                        )
-                        .ok_or(format!("Cannot parse unbonding delegation completion datetime",))?
-                        .timestamp_millis(),
+                            0
+                        ).ok_or(format!("Cannot parse unbonding delegation completion datetime"))?.timestamp_millis(),
                         validator_logo_url: validator_metadata.logo_url,
                         validator_name: validator_metadata.name,
                         validator_address: validator_metadata.operator_address,
@@ -334,9 +332,10 @@ impl TryFrom<RedelegationEntry> for InternalRedelegationEntry {
     fn try_from(value: RedelegationEntry) -> Result<Self, Self::Error> {
         Ok(Self {
             creation_height: value.creation_height,
-            completion_time: DateTime::parse_from_rfc3339(&value.completion_time)
-                .map_err(|_| format!("Cannot parse redelegation completion datetime, '{}'.", value.completion_time))?
-                .timestamp_millis(),
+            completion_time: DateTime::from_timestamp(
+                value.completion_time.parse::<i64>().unwrap(),
+                0
+            ).ok_or(format!("Cannot parse redelegation completion datetime, '{}'.", value.completion_time))?.timestamp_millis(),
             initial_balance: value.initial_balance,
             shares_dst: value.shares_dst,
         })

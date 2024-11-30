@@ -10,22 +10,29 @@ use web::Data;
 use crate::events::{run_ws, WsEvent};
 use crate::routes;
 use crate::state::State;
+use crate::logging::{LogLevel::*, log_api, log_db, log_socket};
 
 #[get("/")]
 async fn initial() -> impl Responder {
+    log_api(INFO, "Health check endpoint called");
     Json("Rest: OK")
 }
 
 /// Starts the web server.
 pub async fn start_web_server() -> std::io::Result<()> {
     // Create the state of the app.
+    log_api(INFO, "Initializing application state...");
     let state = Data::new(State::new().await);
+    log_api(INFO, "Application state initialized");
 
     // Start running cron jobs to update MongoDB database.
+    log_db(INFO, "Starting cron jobs for database updates");
     state.run_cron_jobs();
+    log_db(INFO, "Cron jobs started successfully");
 
     // Spawn a thread to subscribe to events.
     let state_clone = state.clone();
+    log_socket(INFO, "Setting up WebSocket event handling");
 
     // After connecting to MongoDB, there are so many thread safety & ownership errors.
     // You have to rewrite `src/fetch/socket.rs` to fix them.

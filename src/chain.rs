@@ -94,6 +94,7 @@ impl Chain {
 }
 
 /// The configuration of a chain.
+#[allow(dead_code)]
 #[derive(Clone)]
 pub struct ChainConfig {
     /// The name of the chain.

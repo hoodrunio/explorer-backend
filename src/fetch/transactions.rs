@@ -16,6 +16,7 @@ use crate::{
     utils::{get_msg_name, Base64Convert},
 };
 use crate::{database::TransactionForDb, routes::ChainAmountItem};
+use crate::logging::{LogLevel::*, log_tx};
 
 use super::{
     blocks::CosmosEvent,
@@ -25,10 +26,13 @@ use super::{
 impl Chain {
     /// Returns transaction by given hash.
     pub async fn get_tx_by_hash(&self, hash: &str) -> Result<OutRestResponse<InternalTransaction>, String> {
+        log_tx(INFO, &format!("Fetching transaction with hash: {}", hash));
+        
         match self.config.name.as_str() {
             "evmos" => {
                 if hash.starts_with("0x") {
                     let resp = self.get_evm_tx_by_hash(hash).await?;
+                    log_tx(INFO, &format!("Found EVM transaction: {}", hash));
                     let resp = self
                         .get_txs_by_height_detailed(Some(resp.block_number), PaginationConfig::new().limit(100))
                         .await?;
@@ -72,34 +76,48 @@ impl Chain {
 
     /// Returns transactions with given sender.
     pub async fn get_txs_by_sender(&self, sender_address: &str, config: PaginationConfig) -> Result<OutRestResponse<Vec<TransactionItem>>, String> {
+        log_tx(INFO, &format!("Fetching transactions for sender: {}", sender_address));
+        
         let mut query = vec![];
-
         query.push(("events", format!("message.sender='{}'", sender_address)));
         query.push(("pagination.reverse", format!("{}", config.is_reverse())));
         query.push(("pagination.limit", format!("{}", config.get_limit())));
         query.push(("pagination.count_total", "true".to_string()));
         query.push(("pagination.offset", format!("{}", config.get_offset())));
 
-        let resp = self.rest_api_request::<TxsResp>("/cosmos/tx/v1beta1/txs", &query).await?;
+        match self.rest_api_request::<TxsResp>("/cosmos/tx/v1beta1/txs", &query).await {
+            Ok(resp) => {
+                let mut txs = vec![];
+                log_tx(INFO, &format!("Found {} transactions for sender {}", resp.txs.len(), sender_address));
 
-        let mut txs = vec![];
+                for i in 0..resp.txs.len() {
+                    match (resp.txs.get(i), resp.tx_responses.get(i)) {
+                        (Some(tx), Some(tx_response)) => {
+                            match TransactionItem::new(tx, tx_response, self).await {
+                                Ok(tx_item) => txs.push(tx_item),
+                                Err(e) => log_tx(ERROR, &format!("Failed to process transaction {}: {}", i, e))
+                            }
+                        },
+                        _ => log_tx(ERROR, "Mismatched transaction and response counts")
+                    }
+                }
 
-        for i in 0..resp.txs.len() {
-            let (tx, tx_response) = (
-                resp.txs
-                    .get(i)
-                    .ok_or_else(|| "The count of transactions and transaction responses aren't the same.".to_string())?,
-                resp.tx_responses
-                    .get(i)
-                    .ok_or_else(|| "The count of transactions and transaction responses aren't the same.".to_string())?,
-            );
-
-            txs.push(TransactionItem::new(tx, tx_response, self).await?)
+                match calc_pages(resp.pagination.unwrap_or(Pagination::default()), config) {
+                    Ok(pages) => {
+                        log_tx(INFO, &format!("Successfully retrieved {} transactions", txs.len()));
+                        Ok(OutRestResponse::new(txs, pages))
+                    },
+                    Err(e) => {
+                        log_tx(ERROR, &format!("Failed to calculate pages: {}", e));
+                        Err(e)
+                    }
+                }
+            },
+            Err(e) => {
+                log_tx(ERROR, &format!("Failed to fetch transactions for sender {}: {}", sender_address, e));
+                Err(e)
+            }
         }
-
-        let pages = calc_pages(resp.pagination.unwrap_or(Pagination::default()), config)?;
-
-        Ok(OutRestResponse::new(txs, pages))
     }
 
     pub async fn get_internal_txs_by_sender_height(
@@ -186,38 +204,53 @@ impl Chain {
         block_height: Option<u64>,
         config: PaginationConfig,
     ) -> Result<OutRestResponse<Vec<InternalTransaction>>, String> {
-        let mut query = vec![];
+        match block_height {
+            Some(height) => log_tx(INFO, &format!("Fetching detailed transactions for block height: {}", height)),
+            None => log_tx(INFO, "Fetching detailed transactions for latest block")
+        }
 
+        let mut query = vec![];
         if let Some(block_height) = block_height {
             query.push(("events", format!("tx.height={}", block_height)));
-        };
+        }
         query.push(("pagination.reverse", format!("{}", config.is_reverse())));
         query.push(("pagination.limit", format!("{}", config.get_limit())));
         query.push(("pagination.count_total", "true".to_string()));
         query.push(("pagination.offset", format!("{}", config.get_offset())));
 
-        let resp = self.rest_api_request::<TxsResp>("/cosmos/tx/v1beta1/txs", &query).await?;
+        match self.rest_api_request::<TxsResp>("/cosmos/tx/v1beta1/txs", &query).await {
+            Ok(resp) => {
+                let mut txs = vec![];
+                log_tx(INFO, &format!("Found {} transactions at height {:?}", resp.txs.len(), block_height));
 
-        let mut txs = vec![];
+                for i in 0..resp.txs.len() {
+                    match (resp.txs.get(i), resp.tx_responses.get(i)) {
+                        (Some(tx), Some(tx_response)) => {
+                            match InternalTransaction::new(tx.clone(), tx_response.clone(), self).await {
+                                Ok(internal_tx) => txs.push(internal_tx),
+                                Err(e) => log_tx(ERROR, &format!("Failed to process transaction at index {}: {}", i, e))
+                            }
+                        },
+                        _ => log_tx(ERROR, "Mismatched transaction and response counts")
+                    }
+                }
 
-        for i in 0..resp.txs.len() {
-            let (tx, tx_response) = (
-                resp.txs
-                    .get(i)
-                    .cloned()
-                    .ok_or_else(|| "The count of transactions and transaction responses aren't the same.".to_string())?,
-                resp.tx_responses
-                    .get(i)
-                    .cloned()
-                    .ok_or_else(|| "The count of transactions and transaction responses aren't the same.".to_string())?,
-            );
-
-            txs.push(InternalTransaction::new(tx, tx_response, self).await?)
+                match calc_pages(resp.pagination.unwrap_or(Pagination::default()), config) {
+                    Ok(pages) => {
+                        log_tx(INFO, &format!("Successfully retrieved {} detailed transactions", txs.len()));
+                        Ok(OutRestResponse::new(txs, pages))
+                    },
+                    Err(e) => {
+                        log_tx(ERROR, &format!("Failed to calculate pages: {}", e));
+                        Err(e)
+                    }
+                }
+            },
+            Err(e) => {
+                log_tx(ERROR, &format!("Failed to fetch transactions at height {:?}: {}", block_height, e));
+                Err(e)
+            }
         }
-
-        let pages = calc_pages(resp.pagination.unwrap_or(Pagination::default()), config)?;
-
-        Ok(OutRestResponse::new(txs, pages))
     }
 
     /// Returns transactions at given height.
@@ -269,11 +302,23 @@ impl Chain {
     ///
     /// The hash must start with `"0x..."`.
     async fn get_evm_tx_by_hash(&self, hash: &str) -> Result<InternalEvmTxResp, String> {
-        self.jsonrpc_request::<EvmTxResp>(format!(
-            r#"{{"method":"eth_getTransactionByHash","params":["{hash}"],"id":1,"jsonrpc":"2.0"}}"#
-        ))
-        .await?
-        .try_into()
+        log_tx(INFO, &format!("Fetching EVM transaction with hash: {}", hash));
+
+        if !hash.starts_with("0x") {
+            log_tx(ERROR, &format!("Invalid EVM transaction hash format: {}", hash));
+            return Err("Transaction hash must start with '0x'".to_string());
+        }
+
+        match self.rest_api_request::<EvmTxResp>(&format!("/evmos/evm/v1/tx/{}", hash), &[]).await {
+            Ok(resp) => {
+                log_tx(INFO, &format!("Successfully retrieved EVM transaction: {}", hash));
+                Ok(resp.try_into()?)
+            },
+            Err(e) => {
+                log_tx(ERROR, &format!("Failed to fetch EVM transaction {}: {}", hash, e));
+                Err(e)
+            }
+        }
     }
     pub async fn get_axelar_sender_heartbeat_info(
         &self,
@@ -335,7 +380,6 @@ impl TryInto<InternalEvmTxResp> for EvmTxResp {
 }
 
 #[derive(Deserialize, Serialize, Debug)]
-#[serde(rename_all = "camelCase")]
 pub struct EvmTxResp {
     /// HEX encoded block number. Eg: `"0x5f08d0"`
     pub block_number: String,
@@ -1735,17 +1779,7 @@ pub enum TxsResponseEvent<T> {
     },
 }
 
-#[derive(Deserialize, Serialize, Debug)]
-pub struct UnparsedTxEventAttribute {
-    /// Unparsed event attribute key. Eg: `"cmVjaXBpZW50"`
-    pub key: String,
-    /// Unparsed event attribute key. Might be `None`. Eg: `"ZXZtb3MxN3hwZnZha20yYW1nOTYyeWxzNmY4NHoza2VsbDhjNWxqY2p3MzQ"`
-    pub value: Option<String>,
-    /// Unparsed event attribute index. Might be `None`. Eg: `true`
-    pub index: Option<bool>,
-}
-
-#[derive(Deserialize, Serialize, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct TxResp {
     pub tx: Tx,
     pub tx_response: TxResponse,

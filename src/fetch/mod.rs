@@ -40,8 +40,6 @@ impl From<PageResponse> for PaginationResponse {
 }
 
 pub mod axelar {
-    use sha2::digest::typenum::op;
-
     pub mod evm {
         pub mod v1beta1 {
             tonic::include_proto!("axelar.evm.v1beta1");
@@ -144,8 +142,6 @@ pub mod cosmos {
     }
 
     pub mod base {
-        use sha2::digest::typenum::op;
-
         pub mod v1beta1 {
             tonic::include_proto!("cosmos.base.v1beta1");
         }

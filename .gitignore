@@ -203,3 +203,5 @@ $RECYCLE.BIN/
 
 # End of https://www.toptal.com/developers/gitignore/api/rust,visualstudiocode,intellij+all,dotenv,windows,linux,macos
 .vscode/
+Cargo.lock
+logs/
