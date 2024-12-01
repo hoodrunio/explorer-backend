@@ -7,6 +7,7 @@ use reqwest::Client;
 use serde::Deserialize;
 use sha2::{Digest, Sha256};
 use std::fmt::{Display, Formatter};
+use crate::fetch::rate_limiter::RateLimitedClient;
 
 /// Returns the prices of coins with given Coin Gecko IDs.
 // pub async fn get_prices(client: Client, coin_ids: &[&'static str]) -> HashMap<String, f64> {
@@ -30,19 +31,17 @@ pub struct CoinGeckoPrice {
 }
 
 /// Returns the logo url of the given validator.
-pub async fn get_validator_logo(client: Client, validator_identity: &str) -> String {
+pub async fn get_validator_logo(client: &RateLimitedClient, validator_identity: &str) -> String {
     let url = format!("https://keybase.io/_/api/1.0/user/lookup.json?key_suffix={validator_identity}&fields=pictures");
 
-    if let Ok(resp) = client.get(url).send().await {
-        if let Ok(json) = resp.json::<LogoResp>().await {
-            if let Some(picture) = json.them.get(0) {
-                return picture.pictures.primary.url.to_string();
-            }
+    if let Ok(resp) = client.get::<LogoResp>(&url).await {
+        if let Some(picture) = resp.them.get(0) {
+            return picture.pictures.primary.url.to_string();
         }
     }
 
     // Here, we will set a URL as the default logo.
-    String::from("https://raw.githubusercontent.com/testnetrunn/explorer-assets/main/validators/default/validator-default.webp")
+    String::from("https://raw.githubusercontent.com/hoodrunio/explorer-assets/main/validators/default/validator-default.webp")
 }
 
 #[derive(Deserialize, Debug)]

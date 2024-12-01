@@ -90,7 +90,7 @@ impl Chain {
         let is_active = validator.status == format!("{:?}", RawValidatorStatus::Bonded);
         let consensus_address =
             convert_consensus_pubkey_to_consensus_address(&validator.consensus_pubkey.key, &format!("{}valcons", self.config.base_prefix));
-        let logo_url = get_validator_logo(self.client.clone(), &validator.description.identity).await;
+        let logo_url = get_validator_logo(&self.client, &validator.description.identity).await;
         let uptime = self
             .get_validator_uptime(&consensus_address, Some(ValidatorStatus::Active))
             .await

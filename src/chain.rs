@@ -1,28 +1,24 @@
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use versions::SemVer;
-
 use crate::database::DatabaseTR;
+use crate::fetch::rate_limiter::RateLimitedClient;
+use nonzero_ext::nonzero;
 
 /// The struct that represents any Cosmos based chain.
 #[derive(Clone)]
 pub struct Chain {
     /// The request client.
-    pub client: reqwest::Client,
+    pub client: RateLimitedClient,
     /// The request client.
     pub database: DatabaseTR,
     pub config: ChainConfig,
 }
 
-async fn get_sdk_ver(rest_url: &str, client: reqwest::Client) -> Result<SemVer, String> {
+async fn get_sdk_ver(rest_url: &str, client: &RateLimitedClient) -> Result<SemVer, String> {
     let value: Value = client
         .get(&format!("{rest_url}/cosmos/base/tendermint/v1beta1/node_info"))
-        .send()
-        .await
-        .map_err(|e| format!("Failed to fetch the node_info {e}"))?
-        .json()
-        .await
-        .map_err(|e| format!("Failed to deserialize json {e}"))?;
+        .await?;
 
     value["application_version"]["cosmos_sdk_version"]
         .as_str()
@@ -32,15 +28,10 @@ async fn get_sdk_ver(rest_url: &str, client: reqwest::Client) -> Result<SemVer, 
         .ok_or("version info not found".to_string())
 }
 
-async fn get_main_denom(rest_url: &str, client: reqwest::Client) -> Result<String, String> {
+async fn get_main_denom(rest_url: &str, client: &RateLimitedClient) -> Result<String, String> {
     let value: Value = client
         .get(&format!("{rest_url}/cosmos/staking/v1beta1/params"))
-        .send()
-        .await
-        .map_err(|e| format!("Failed to fetch the staking params {e}"))?
-        .json()
-        .await
-        .map_err(|e| format!("Failed to fetch the node_info {e}"))?;
+        .await?;
 
     value["params"]["bond_denom"]
         .as_str()
@@ -50,18 +41,19 @@ async fn get_main_denom(rest_url: &str, client: reqwest::Client) -> Result<Strin
 
 impl Chain {
     /// Creates a new chain.
-    pub async fn initialize(ic: IntermediateChainConfig, client: reqwest::Client, database: DatabaseTR) -> Result<Self, String> {
+    pub async fn initialize(ic: IntermediateChainConfig, _client: reqwest::Client, database: DatabaseTR) -> Result<Self, String> {
         let decimals: u8 = ic.decimals.unwrap_or(6);
         let decimals_pow = 10_u64.pow(decimals as u32 - 4);
+        let client = RateLimitedClient::new(nonzero!(10u32), 3);
 
         let (sdk_version, manual_versioning) = match ic.sdk_version {
             Some(version) => (version, true),
-            None => (get_sdk_ver(&ic.rest_url, client.clone()).await?, false),
+            None => (get_sdk_ver(&ic.rest_url, &client).await?, false),
         };
 
         let main_denom = match ic.main_denom {
             Some(denom) => denom,
-            None => get_main_denom(&ic.rest_url, client.clone()).await?,
+            None => get_main_denom(&ic.rest_url, &client).await?,
         };
 
         let chain_config = ChainConfig {
@@ -86,7 +78,7 @@ impl Chain {
         };
 
         Ok(Self {
-            client: Default::default(),
+            client,
             database,
             config: chain_config,
         })

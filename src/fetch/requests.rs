@@ -10,27 +10,21 @@ impl Chain {
         let url = format!("{}{}", self.config.rpc_url, path);
         log_api(LogLevel::DEBUG, &format!("Making RPC request to: {}", url));
 
-        match self.client.get(&url).query(query).send().await {
-            Ok(res) => match res.json::<RPCResponse<T>>().await {
-                Ok(res_json) => match res_json {
-                    RPCResponse::Success(res) => {
-                        log_api(LogLevel::INFO, &format!("Successful RPC request to: {}", url));
-                        Ok(res.result)
-                    },
-                    RPCResponse::Error(res) => {
-                        log_api(LogLevel::ERROR, &format!("RPC error response from {}: {}", url, res.error.data));
-                        Err(res.error.data)
-                    },
+        match self.client.get_with_query(&url, query).await {
+            Ok(res_json) => match res_json {
+                RPCResponse::Success(res) => {
+                    log_api(LogLevel::INFO, &format!("Successful RPC request to: {}", url));
+                    Ok(res.result)
                 },
-                Err(error) => {
-                    log_api(LogLevel::ERROR, &format!("Failed to parse JSON from {}: {}", url, error));
-                    Err(format!("Cannot parse JSON.\nURL requested: {url}\nError Message:\n{error}"))
+                RPCResponse::Error(res) => {
+                    log_api(LogLevel::ERROR, &format!("RPC error response from {}: {}", url, res.error.data));
+                    Err(res.error.data)
                 },
             },
             Err(e) => {
-                log_api(LogLevel::ERROR, &format!("Failed to make request to {}: {}", url, e));
-                Err(format!("Cannot make a request to `{url}`."))
-            },
+                log_api(LogLevel::ERROR, &format!("Failed request to {}: {}", url, e));
+                Err(e)
+            }
         }
     }
 
@@ -40,32 +34,26 @@ impl Chain {
         let url = format!("{}{}", self.config.rest_url, path);
         log_api(LogLevel::DEBUG, &format!("Making REST API request to: {}", url));
 
-        match self.client.get(&url).query(query).send().await {
-            Ok(res) => match res.json::<RestResponse<T>>().await {
-                Ok(res_json) => match res_json {
-                    RestResponse::Success(res_json) => {
-                        log_api(LogLevel::INFO, &format!("Successful REST API request to: {}", url));
-                        Ok(res_json)
-                    },
-                    RestResponse::Error { message, details } => {
-                        let error_msg = if !details.is_empty() {
-                            format!("{}: {}", message, details.join(", "))
-                        } else {
-                            message.clone()
-                        };
-                        log_api(LogLevel::ERROR, &format!("REST API error response from {}: {}", url, error_msg));
-                        Err(message)
-                    },
+        match self.client.get_with_query(&url, query).await {
+            Ok(res_json) => match res_json {
+                RestResponse::Success(res_json) => {
+                    log_api(LogLevel::INFO, &format!("Successful REST API request to: {}", url));
+                    Ok(res_json)
                 },
-                Err(error) => {
-                    log_api(LogLevel::ERROR, &format!("Failed to parse JSON from {}: {}", url, error));
-                    Err(format!("Cannot parse JSON.\nURL requested: {url}\nError Message:\n{error}"))
+                RestResponse::Error { message, details } => {
+                    let error_msg = if !details.is_empty() {
+                        format!("{}: {}", message, details.join(", "))
+                    } else {
+                        message.clone()
+                    };
+                    log_api(LogLevel::ERROR, &format!("REST API error response from {}: {}", url, error_msg));
+                    Err(message)
                 },
             },
             Err(e) => {
-                log_api(LogLevel::ERROR, &format!("Failed to make request to {}: {}", url, e));
-                Err(format!("Cannot make a request to `{url}`."))
-            },
+                log_api(LogLevel::ERROR, &format!("Failed request to {}: {}", url, e));
+                Err(e)
+            }
         }
     }
 
@@ -75,32 +63,26 @@ impl Chain {
         let url = format!("{}{}", self.config.archive_url, path);
         log_api(LogLevel::DEBUG, &format!("Making Archive API request to: {}", url));
 
-        match self.client.get(&url).query(query).send().await {
-            Ok(res) => match res.json::<RestResponse<T>>().await {
-                Ok(res_json) => match res_json {
-                    RestResponse::Success(res_json) => {
-                        log_api(LogLevel::INFO, &format!("Successful Archive API request to: {}", url));
-                        Ok(res_json)
-                    },
-                    RestResponse::Error { message, details } => {
-                        let error_msg = if !details.is_empty() {
-                            format!("{}: {}", message, details.join(", "))
-                        } else {
-                            message.clone()
-                        };
-                        log_api(LogLevel::ERROR, &format!("Archive API error response from {}: {}", url, error_msg));
-                        Err(message)
-                    },
+        match self.client.get_with_query(&url, query).await {
+            Ok(res_json) => match res_json {
+                RestResponse::Success(res_json) => {
+                    log_api(LogLevel::INFO, &format!("Successful Archive API request to: {}", url));
+                    Ok(res_json)
                 },
-                Err(error) => {
-                    log_api(LogLevel::ERROR, &format!("Failed to parse JSON from {}: {}", url, error));
-                    Err(format!("Cannot parse JSON.\nURL requested: {url}\nError Message:\n{error}"))
+                RestResponse::Error { message, details } => {
+                    let error_msg = if !details.is_empty() {
+                        format!("{}: {}", message, details.join(", "))
+                    } else {
+                        message.clone()
+                    };
+                    log_api(LogLevel::ERROR, &format!("Archive API error response from {}: {}", url, error_msg));
+                    Err(message)
                 },
             },
             Err(e) => {
-                log_api(LogLevel::ERROR, &format!("Failed to make request to {}: {}", url, e));
-                Err(format!("Cannot make a request to `{url}`."))
-            },
+                log_api(LogLevel::ERROR, &format!("Failed request to {}: {}", url, e));
+                Err(e)
+            }
         }
     }
 
@@ -115,27 +97,21 @@ impl Chain {
         
         log_api(LogLevel::DEBUG, &format!("Making JSON-RPC request to: {}", url));
 
-        match self.client.post(&url).body(body.clone()).send().await {
-            Ok(res) => match res.json::<JsonRpcResponse<T>>().await {
-                Ok(res_json) => match res_json {
-                    JsonRpcResponse::Success(res) => {
-                        log_api(LogLevel::INFO, &format!("Successful JSON-RPC request to: {}", url));
-                        Ok(res.result)
-                    },
-                    JsonRpcResponse::Error(res) => {
-                        log_api(LogLevel::ERROR, &format!("JSON-RPC error response from {}: {}", url, res.error.message));
-                        Err(res.error.message)
-                    },
+        match self.client.post_with_body(&url, body.clone()).await {
+            Ok(res_json) => match res_json {
+                JsonRpcResponse::Success(res) => {
+                    log_api(LogLevel::INFO, &format!("Successful JSON-RPC request to: {}", url));
+                    Ok(res.result)
                 },
-                Err(error) => {
-                    log_api(LogLevel::ERROR, &format!("Failed to parse JSON from {}: {}", url, error));
-                    Err(format!("Cannot parse JSON.\nURL requested: {url}\nError Message:\n{error}"))
+                JsonRpcResponse::Error(res) => {
+                    log_api(LogLevel::ERROR, &format!("JSON-RPC error response from {}: {}", url, res.error.message));
+                    Err(res.error.message)
                 },
             },
             Err(e) => {
-                log_api(LogLevel::ERROR, &format!("Failed to make request to {}: {}", url, e));
-                Err(format!("Cannot make a request to `{url}`."))
-            },
+                log_api(LogLevel::ERROR, &format!("Failed request to {}: {}", url, e));
+                Err(e)
+            }
         }
     }
 
@@ -148,23 +124,15 @@ impl Chain {
     ) -> Result<T, String> {
         log_api(LogLevel::DEBUG, &format!("Making external request to: {}", url));
 
-        let request = self.client.request(method, &url).query(query);
-
-        match request.send().await {
-            Ok(res) => match res.json::<T>().await {
-                Ok(res_json) => {
-                    log_api(LogLevel::INFO, &format!("Successful external request to: {}", url));
-                    Ok(res_json)
-                },
-                Err(error) => {
-                    log_api(LogLevel::ERROR, &format!("Failed to parse JSON from {}: {}", url, error));
-                    Err(format!("Cannot parse JSON.\nURL requested: {url}\nError Message:\n{error}"))
-                },
+        match self.client.request_with_query(&url, query, method).await {
+            Ok(res_json) => {
+                log_api(LogLevel::INFO, &format!("Successful external request to: {}", url));
+                Ok(res_json)
             },
             Err(e) => {
-                log_api(LogLevel::ERROR, &format!("Failed to make request to {}: {}", url, e));
-                Err(format!("Cannot make a request to `{url}`."))
-            },
+                log_api(LogLevel::ERROR, &format!("Failed request to {}: {}", url, e));
+                Err(e)
+            }
         }
     }
 

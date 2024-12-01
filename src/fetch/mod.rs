@@ -13,6 +13,7 @@ pub mod heartbeats;
 pub mod others;
 pub mod params;
 pub mod proposals;
+pub mod rate_limiter;
 pub mod requests;
 pub mod socket;
 pub mod tokenomics;

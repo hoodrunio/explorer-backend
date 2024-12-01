@@ -48,6 +48,8 @@ tonic = "0.9.1"
 rust_decimal = "1.29.1"
 mongodb-cursor-pagination = "0.3.2"
 lazy_static = "1.4.0"
+governor = "0.6"
+nonzero_ext = "0.3"
 
 [build-dependencies]
 serde = { version = "1.0.160", features = ["derive"] }
