@@ -13,6 +13,7 @@ mod routes;
 mod server;
 mod state;
 mod utils;
+mod ws;
 
 use logging::{LogLevel::*, log_api};
 

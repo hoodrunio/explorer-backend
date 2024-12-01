@@ -1,16 +1,16 @@
 use std::collections::HashSet;
+use std::sync::Arc;
 
 use actix_cors::Cors;
 use actix_web::web::Json;
 use actix_web::{get, web, App, HttpServer, Responder};
-use tokio::sync::broadcast::channel;
 use tracing_actix_web::TracingLogger;
 use web::Data;
 
-use crate::events::{run_ws, WsEvent};
 use crate::routes;
 use crate::state::State;
 use crate::logging::{LogLevel::*, log_api, log_db, log_socket};
+use crate::ws::WsManager;
 
 #[get("/")]
 async fn initial() -> impl Responder {
@@ -30,28 +30,27 @@ pub async fn start_web_server() -> std::io::Result<()> {
     state.run_cron_jobs();
     log_db(INFO, "Cron jobs started successfully");
 
+    // Initialize WebSocket manager
+    let chains = HashSet::from_iter(state.get_chains().keys().cloned());
+    let ws_manager = Arc::new(WsManager::new(chains.clone(), 1000));
+    let ws_manager_data = Data::new(Arc::clone(&ws_manager));
+
     // Spawn a thread to subscribe to events.
     let state_clone = state.clone();
+    let ws_manager_clone = Arc::clone(&ws_manager);
     log_socket(INFO, "Setting up WebSocket event handling");
 
-    // After connecting to MongoDB, there are so many thread safety & ownership errors.
-    // You have to rewrite `src/fetch/socket.rs` to fix them.
-
-    let (tx, _rx) = channel::<(String, WsEvent)>(100);
-
-    let tx_clone = tx.clone();
     tokio::spawn(async move {
-        let tx_clone = tx_clone.clone();
-        state_clone.subscribe_to_events(tx_clone).await;
+        let event_tx = ws_manager_clone.get_event_sender();
+        state_clone.subscribe_to_events(event_tx).await;
     });
 
-    let chains = HashSet::from_iter(state.get_chains().keys().cloned());
-
-    let tx_clone = tx.clone();
+    // Start WebSocket server
+    let ws_manager_clone = Arc::clone(&ws_manager);
     tokio::spawn(async move {
-        if let Err(e) = run_ws(tx_clone, chains).await {
-            tracing::error!("Error spawning the websocket task {e}");
-        };
+        if let Err(e) = ws_manager_clone.start_server().await {
+            log_socket(ERROR, &format!("Error spawning the websocket server: {e}"));
+        }
     });
 
     HttpServer::new(move || {
@@ -59,8 +58,6 @@ pub async fn start_web_server() -> std::io::Result<()> {
         let cors = Cors::default()
             .allow_any_origin()
             .allowed_methods(vec!["GET", "POST"])
-            //.allowed_headers(vec![header::AUTHORIZATION, header::ACCEPT])
-            //.allowed_header(header::CONTENT_TYPE)
             .max_age(3600);
 
         // Build the app.
@@ -69,6 +66,7 @@ pub async fn start_web_server() -> std::io::Result<()> {
             .wrap(cors)
             // State data.
             .app_data(state.clone())
+            .app_data(ws_manager_data.clone())
             // Services.
             .service(initial)
             .service(routes::dashboard)

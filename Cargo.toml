@@ -7,6 +7,7 @@ build = "build.rs"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+cosmos-proposals = { path = "./cosmos-proposals" }
 mongodb = { version = "2.3.1", default-features = false, features = [
     "tokio-runtime",
 ] }
@@ -50,6 +51,7 @@ mongodb-cursor-pagination = "0.3.2"
 lazy_static = "1.4.0"
 governor = "0.6"
 nonzero_ext = "0.3"
+log = "0.4"
 
 [build-dependencies]
 serde = { version = "1.0.160", features = ["derive"] }

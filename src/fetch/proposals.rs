@@ -3,6 +3,7 @@ use serde::{Deserialize, Serialize};
 use std::str;
 use tonic::transport::Endpoint;
 use base64::Engine;
+use log;
 
 use crate::{
     chain::Chain,
@@ -42,7 +43,7 @@ use crate::{
         },
         quicksilver::interchainstaking::v1::RegisterZoneProposal,
         umee::leverage::v1::MsgGovUpdateRegistry,
-        cosmwasm::wasm::v1::StoreCodeProposal,
+        cosmwasm::wasm::v1::*,
     },
     utils::ts_to_ms,
 };
@@ -50,6 +51,45 @@ use crate::{
 use prost::Message;
 use crate::fetch::lavanet::lava::plans::PlansAddProposal;
 use crate::fetch::lavanet::lava::spec::SpecAddProposal;
+
+macro_rules! handle_proposals {
+    ($content:expr, {$($type:expr => $struct:ty),* $(,)?}) => {
+        match $content.type_url.as_str() {
+            $(
+                $type => {
+                    let value = <$struct>::decode($content.value.as_ref()).unwrap();
+                    let content = serde_json::to_value(&value).unwrap();
+                    match $type {
+                        "/kyve.global.v1beta1.MsgUpdateParams" | "/cosmos.upgrade.v1beta1.MsgSoftwareUpgrade" => {
+                            ("".to_string(), "".to_string(), content)
+                        },
+                        _ => {
+                            let json_value = serde_json::to_value(&value).unwrap();
+                            let title = json_value.get("title")
+                                .and_then(|v| v.as_str())
+                                .unwrap_or("")
+                                .to_string();
+                            let description = json_value.get("description")
+                                .and_then(|v| v.as_str())
+                                .unwrap_or("")
+                                .to_string();
+                            (title, description, content)
+                        }
+                    }
+                },
+            )*
+            other => {
+                log::warn!("Unknown proposal type: {}", other);
+                (
+                    "Unknown".to_string(),
+                    format!("Unknown proposal type: {}", other),
+                    serde_json::Value::Null
+                )
+            }
+        }
+    };
+
+}
 
 #[derive(Deserialize, Serialize, Clone, Debug)]
 pub struct ProposalInfo {
@@ -68,116 +108,32 @@ impl From<prost_wkt_types::Any> for ProposalInfo {
             content = decoded.content.unwrap();
         }
 
-        let (title, description, content_value) = match content.type_url.as_str() {
-            "/cosmos.params.v1beta1.ParameterChangeProposal" => {
-                let value = ParameterChangeProposal::decode(content.value.as_ref()).unwrap();
-                let content = serde_json::to_value(&value).unwrap();
-                (value.title, value.description, content)
-            }
-            "/cosmos.upgrade.v1beta1.SoftwareUpgradeProposal" => {
-                let value = SoftwareUpgradeProposal::decode(content.value.as_ref()).unwrap();
-                let content = serde_json::to_value(&value).unwrap();
-                (value.title, value.description, content)
-            }
-            "/cosmos.distribution.v1beta1.CommunityPoolSpendProposal" => {
-                let value = CommunityPoolSpendProposal::decode(content.value.as_ref()).unwrap();
-                let content = serde_json::to_value(&value).unwrap();
-                (value.title, value.description, content)
-            }
-            "/cosmos.gov.v1beta1.TextProposal" => {
-                let value = TextProposal::decode(content.value.as_ref()).unwrap();
-                let content = serde_json::to_value(&value).unwrap();
-                (value.title, value.description, content)
-            }
-            "/ibc.core.client.v1.ClientUpdateProposal" => {
-                let value = ClientUpdateProposal::decode(content.value.as_ref()).unwrap();
-                let content = serde_json::to_value(&value).unwrap();
-                (value.title, value.description, content)
-            }
-            "/evmos.erc20.v1.RegisterCoinProposal" => {
-                let value = RegisterCoinProposal::decode(content.value.as_ref()).unwrap();
-                let content = serde_json::to_value(&value).unwrap();
-                (value.title, value.description, content)
-            }
-            "/evmos.erc20.v1.ToggleTokenConversionProposal" => {
-                let value = ToggleTokenConversionProposal::decode(content.value.as_ref()).unwrap();
-                let content = serde_json::to_value(&value).unwrap();
-                (value.title, value.description, content)
-            }
-            "/evmos.erc20.v1.RegisterERC20Proposal" => {
-                let value = RegisterErc20Proposal::decode(content.value.as_ref()).unwrap();
-                let content = serde_json::to_value(&value).unwrap();
-                (value.title, value.description, content)
-            }
-            "/osmosis.poolincentives.v1beta1.UpdatePoolIncentivesProposal" => {
-                let value = UpdatePoolIncentivesProposal::decode(content.value.as_ref()).unwrap();
-                let content = serde_json::to_value(&value).unwrap();
-                (value.title, value.description, content)
-            }
-            "/gravity.v1.IBCMetadataProposal" => {
-                let value = IbcMetadataProposal::decode(content.value.as_ref()).unwrap();
-                let content = serde_json::to_value(&value).unwrap();
-                (value.title, value.description, content)
-            }
-            "/umee.leverage.v1.MsgGovUpdateRegistry" => {
-                let value = MsgGovUpdateRegistry::decode(content.value.as_ref()).unwrap();
-                let content = serde_json::to_value(&value).unwrap();
-                (value.title, value.description, content)
-            }
-            "/evmos.incentives.v1.RegisterIncentiveProposal" => {
-                let value = RegisterIncentiveProposal::decode(content.value.as_ref()).unwrap();
-                let content = serde_json::to_value(&value).unwrap();
-                (value.title, value.description, content)
-            }
-            "/quicksilver.interchainstaking.v1.RegisterZoneProposal" => {
-                let value = RegisterZoneProposal::decode(content.value.as_ref()).unwrap();
-                let content = serde_json::to_value(&value).unwrap();
-                (value.title, value.description, content)
-            }
-            "/kyve.global.v1beta1.MsgUpdateParams" => {
-                let value = KyveMsgUpdateParams::decode(content.value.as_ref()).unwrap();
-                let content = serde_json::to_value(value).unwrap();
-                ("".to_string(), "".to_string(), content)
-            }
-            "/cosmwasm.wasm.v1.StoreCodeProposal" => {
-                let value = StoreCodeProposal::decode(content.value.as_ref()).unwrap();
-                let content = serde_json::to_value(&value).unwrap();
-                (value.title, value.description, content)
-            }
-            "/osmosis.txfees.v1beta1.UpdateFeeTokenProposal" => {
-                let value = UpdateFeeTokenProposal::decode(content.value.as_ref()).unwrap();
-                let content = serde_json::to_value(&value).unwrap();
-                (value.title, value.description, content)
-            }
-            "/osmosis.superfluid.v1beta1.SetSuperfluidAssetsProposal" => {
-                let value = SetSuperfluidAssetsProposal::decode(content.value.as_ref()).unwrap();
-                let content = serde_json::to_value(&value).unwrap();
-                (value.title, value.description, content)
-            }
-            "/osmosis.superfluid.v1beta1.RemoveSuperfluidAssetsProposal" => {
-                let value = RemoveSuperfluidAssetsProposal::decode(content.value.as_ref()).unwrap();
-                let content = serde_json::to_value(&value).unwrap();
-                (value.title, value.description, content)
-            }
-            "/cosmos.upgrade.v1beta1.MsgSoftwareUpgrade" => {
-                let value = MsgSoftwareUpgrade::decode(content.value.as_ref()).unwrap();
-                let content = serde_json::to_value(&value).unwrap();
-                ("".to_string(), "".to_string(), content)
+        let (title, description, content_value) = handle_proposals!(content, {
+            "/cosmos.params.v1beta1.ParameterChangeProposal" => ParameterChangeProposal,
+            "/cosmos.upgrade.v1beta1.SoftwareUpgradeProposal" => SoftwareUpgradeProposal,
+            "/cosmos.distribution.v1beta1.CommunityPoolSpendProposal" => CommunityPoolSpendProposal,
+            "/cosmos.gov.v1beta1.TextProposal" => TextProposal,
+            "/ibc.core.client.v1.ClientUpdateProposal" => ClientUpdateProposal,
+            "/evmos.erc20.v1.RegisterCoinProposal" => RegisterCoinProposal,
+            "/evmos.erc20.v1.ToggleTokenConversionProposal" => ToggleTokenConversionProposal,
+            "/evmos.erc20.v1.RegisterERC20Proposal" => RegisterErc20Proposal,
+            "/osmosis.poolincentives.v1beta1.UpdatePoolIncentivesProposal" => UpdatePoolIncentivesProposal,
+            "/gravity.v1.IBCMetadataProposal" => IbcMetadataProposal,
+            "/umee.leverage.v1.MsgGovUpdateRegistry" => MsgGovUpdateRegistry,
+            "/evmos.incentives.v1.RegisterIncentiveProposal" => RegisterIncentiveProposal,
+            "/quicksilver.interchainstaking.v1.RegisterZoneProposal" => RegisterZoneProposal,
+            "/kyve.global.v1beta1.MsgUpdateParams" => KyveMsgUpdateParams,
+            "/cosmwasm.wasm.v1.StoreCodeProposal" => StoreCodeProposal,
+            "/cosmwasm.wasm.v1.ExecuteContractProposal" => ExecuteContractProposal,
+            "/cosmwasm.wasm.v1.MigrateContractProposal" => MigrateContractProposal,
+            "/osmosis.txfees.v1beta1.UpdateFeeTokenProposal" => UpdateFeeTokenProposal,
+            "/osmosis.superfluid.v1beta1.SetSuperfluidAssetsProposal" => SetSuperfluidAssetsProposal,
+            "/osmosis.superfluid.v1beta1.RemoveSuperfluidAssetsProposal" => RemoveSuperfluidAssetsProposal,
+            "/cosmos.upgrade.v1beta1.MsgSoftwareUpgrade" => MsgSoftwareUpgrade,
+            "/lavanet.lava.plans.PlansAddProposal" => PlansAddProposal,
+            "/lavanet.lava.spec.SpecAddProposal" => SpecAddProposal,
+        });
 
-            }
-            "/lavanet.lava.plans.PlansAddProposal" => {
-                let value = PlansAddProposal::decode(content.value.as_ref()).unwrap();
-                let content = serde_json::to_value(&value).unwrap();
-                (value.title, value.description, content)
-            }
-            "/lavanet.lava.spec.SpecAddProposal" => {
-                let value = SpecAddProposal::decode(content.value.as_ref()).unwrap();
-                let content = serde_json::to_value(&value).unwrap();
-                (value.title, value.description, content)
-            }
-
-            _other => (String::from(""), String::from(""), serde_json::Value::Null),
-        };
         ProposalInfo {
             title,
             description,

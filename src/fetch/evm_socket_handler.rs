@@ -155,7 +155,7 @@ impl EvmSocketHandler {
 
                                     if let Err(e) = self.ws_tx_sender.send((
                                         self.chain.config.name.clone(),
-                                        WsEvent::UpdateEvmPollParticipant((poll_id.clone(), evm_poll_participant)),
+                                        WsEvent::UpdateEvmPollParticipant(evm_poll_participant),
                                     )) {
                                         tracing::error!("Error dispatching Evm Poll Update event: {e}");
                                     };
