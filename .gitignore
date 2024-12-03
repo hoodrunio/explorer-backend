@@ -205,4 +205,4 @@ $RECYCLE.BIN/
 .vscode/
 Cargo.lock
 logs/
-cosmos-proposals/
+endpoints.yaml
