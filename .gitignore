@@ -206,3 +206,5 @@ $RECYCLE.BIN/
 Cargo.lock
 logs/
 cosmos-proposals/
+guide.md
+.cursorrules
